@@ -110,37 +110,41 @@ open class HubCloud : ExtractorApi() {
                 )
             }
 
-            document.select("h2 a.btn").amap {
+            val btns = document.select("h2 a.btn, a.btn, .btn-success, a[href*=download]")
+            Log.d("HubCloud", "Found ${btns.size} button candidates")
+
+            btns.amap {
                 val btnLink = it.attr("href")
-                val text = it.text()
+                val text = it.text().lowercase()
 
                 when {
-                    text.contains("FSL Server") -> pushLink(btnLink, "[FSL Server]")
-                    text.contains("FSLv2") -> pushLink(btnLink, "[FSLv2 Server]")
-                    text.contains("Mega Server") -> pushLink(btnLink, "[Mega Server]")
-                    text.contains("Download File") -> pushLink(btnLink)
-                    text.contains("BuzzServer") -> {
+                    text.contains("fsl") -> pushLink(btnLink, "[FSL]")
+                    text.contains("mega") -> pushLink(btnLink, "[Mega]")
+                    text.contains("buzz") -> {
                         val dlink = app.get("$btnLink/download", referer = btnLink, allowRedirects = false)
                             .headers["hx-redirect"] ?: ""
                         if (dlink.isNotBlank()) {
-                            pushLink(getBaseUrl(btnLink) + dlink, "[BuzzServer]")
+                            pushLink(getBaseUrl(btnLink) + dlink, "[Buzz]")
                         }
                     }
                     btnLink.contains("pixeldra") -> {
-                        val pixelLink = extractPxlUrl(document.toString()) ?: return@amap
+                        val pixelLink = extractPxlUrl(document.toString()) ?: btnLink
                         val pxBase = getBaseUrl(pixelLink)
                         val finalUrl = if (pixelLink.contains("download", true)) pixelLink
                         else "$pxBase/api/file/${pixelLink.substringAfterLast("/")}?download"
                         pushLink(finalUrl, "[Pixeldrain]")
                     }
-                    text.contains("Server : 10Gbps") -> {
-                        var redirectUrl = resolveFinalUrl(btnLink) ?: return@amap
+                    text.contains("10gbps") || text.contains("server : 10") -> {
+                        var redirectUrl = resolveFinalUrl(btnLink) ?: btnLink
                         if (redirectUrl.contains("link=")) {
                             redirectUrl = redirectUrl.substringAfter("link=")
                         }
                         pushLink(redirectUrl, "[10Gbps]")
                     }
-                    else -> Log.d("HubCloud", "No matching server for: $text")
+                    text.contains("download") || text.contains("direct") -> {
+                        pushLink(btnLink, "[Direct]")
+                    }
+                    else -> Log.d("HubCloud", "Skipped button: $text")
                 }
             }
         } catch (e: Exception) {
@@ -154,22 +158,6 @@ open class GDFlix : ExtractorApi() {
     override val mainUrl = "https://gdflix.dev"
     override val requiresReferer = false
 
-    private suspend fun cfType(url: String): List<String> {
-        val types = listOf("1", "2")
-        val downloadLinks = mutableListOf<String>()
-
-        types.amap { t ->
-            try {
-                val document = app.get("$url?type=$t").document
-                val links = document.select("a.btn-success").mapNotNull { it.attr("href") }
-                downloadLinks.addAll(links)
-            } catch (e: Exception) {
-                Log.d("GDFlix", "CFType err: $e")
-            }
-        }
-        return downloadLinks
-    }
-
     override suspend fun getUrl(
         url: String,
         referer: String?,
@@ -182,7 +170,7 @@ open class GDFlix : ExtractorApi() {
             val fileName = document.select("ul > li.list-group-item:contains(Name)").text()
                 .substringAfter("Name : ").orEmpty()
             val fileSize = document.select("ul > li.list-group-item:contains(Size)").text()
-                .substringAfter("Size : ").orEmpty()
+                .substringAfter("Size : ").substringBefore(" | ").orEmpty()
             val quality = getIndexQuality(fileName)
 
             suspend fun pushLink(link: String, server: String = "") {
@@ -198,40 +186,77 @@ open class GDFlix : ExtractorApi() {
                 )
             }
 
-            document.select("div.text-center a").amap { anchor ->
-                val text = anchor.text()
+            val anchors = document.select("div.text-center a")
+            Log.d("GDFlix", "Found ${anchors.size} GDFlix buttons for $url")
+
+            anchors.amap { anchor ->
+                val originalText = anchor.text()
+                val text = originalText.lowercase()
                 val link = anchor.attr("href")
+                val absLink = if (link.startsWith("http")) link else baseUrl + link
+
+                Log.d("GDFlix", "Button: $originalText -> $link")
 
                 when {
-                    text.contains("FSL V2") -> pushLink(link, "[FSL V2]")
-                    text.contains("DIRECT DL") -> pushLink(link, "[Direct]")
-                    text.contains("DIRECT SERVER") -> pushLink(link, "[Direct]")
-                    text.contains("CLOUD DOWNLOAD [R2]") -> pushLink(link, "[Cloud]")
-                    text.contains("FAST CLOUD") -> {
-                        val dlink = app.get(baseUrl + link)
-                            .document
-                            .select("div.card-body a")
-                            .attr("href")
-                        if (dlink.isNotBlank()) pushLink(dlink, "[FAST CLOUD]")
+                    text.contains("login") || link.contains("/login") -> {
+                        Log.d("GDFlix", "Skipping login button")
                     }
-                    link.contains("pixeldra") -> {
-                        val pxBase = getBaseUrl(link)
-                        val finalUrl = if (link.contains("download", true)) link
-                        else "$pxBase/api/file/${link.substringAfterLast("/")}?download"
-                        pushLink(finalUrl, "[Pixeldrain]")
+                    text.contains("telegram") -> {
+                        Log.d("GDFlix", "Skipping Telegram button")
                     }
-                    text.contains("Instant DL") -> {
+                    text.contains("instant dl") || text.contains("instant download") -> {
                         try {
-                            val instantLink = app.get(link, allowRedirects = false)
-                                .headers["location"]?.substringAfter("url=").orEmpty()
-                            if (instantLink.isNotBlank()) pushLink(instantLink, "[Instant]")
+                            if (link.startsWith("http")) {
+                                pushLink(link, "[Instant 10GBPS]")
+                            } else {
+                                val instantLink = app.get(absLink, allowRedirects = false)
+                                    .headers["location"]?.let { loc ->
+                                        if (loc.contains("url=")) loc.substringAfter("url=") else loc
+                                    }.orEmpty()
+                                if (instantLink.isNotBlank()) pushLink(instantLink, "[Instant 10GBPS]")
+                            }
                         } catch (e: Exception) {
                             Log.d("GDFlix-Instant", e.toString())
                         }
                     }
-                    text.contains("GoFile") -> {
+                    text.contains("cloud download") || text.contains("[r2]") -> {
+                        pushLink(absLink, "[Cloud R2]")
+                    }
+                    text.contains("direct") -> {
+                        pushLink(absLink, "[Direct]")
+                    }
+                    text.contains("fsl") -> {
+                        pushLink(absLink, "[FSL V2]")
+                    }
+                    text.contains("fast cloud") || text.contains("zipdisk") -> {
                         try {
-                            app.get(link).document.select(".row .row a").amap { goAnchor ->
+                            val dlink = app.get(absLink)
+                                .document
+                                .select("div.card-body a, a.btn-success, a.btn")
+                                .firstOrNull()?.attr("href").orEmpty()
+                            if (dlink.isNotBlank()) {
+                                val finalDlink = if (dlink.startsWith("http")) dlink else baseUrl + dlink
+                                pushLink(finalDlink, "[Fast Cloud]")
+                            }
+                        } catch (e: Exception) {
+                            Log.d("GDFlix-FastCloud", e.toString())
+                        }
+                    }
+                    text.contains("pixeldrain") || link.contains("pixeldra") -> {
+                        val pxBase = getBaseUrl(absLink)
+                        val finalUrl = when {
+                            absLink.contains("/u/") -> {
+                                val id = absLink.substringAfterLast("/u/").substringBefore("?")
+                                "$pxBase/api/file/$id?download"
+                            }
+                            absLink.contains("download", true) -> absLink
+                            else -> "$pxBase/api/file/${absLink.substringAfterLast("/")}?download"
+                        }
+                        pushLink(finalUrl, "[Pixeldrain]")
+                    }
+                    text.contains("gofile") -> {
+                        try {
+                            app.get(absLink).document.select("a[href*=gofile.io]").amap { goAnchor ->
                                 val goLink = goAnchor.attr("href")
                                 if (goLink.contains("gofile")) {
                                     loadExtractor(goLink, "", subtitleCallback, callback)
@@ -241,21 +266,17 @@ open class GDFlix : ExtractorApi() {
                             Log.d("GDFlix-GoFile", e.toString())
                         }
                     }
-                    else -> Log.d("GDFlix", "No matching server: $text")
+                    else -> {
+                        if (link.startsWith("http") && !link.contains("/login")) {
+                            pushLink(absLink, "[${originalText.take(15)}]")
+                        } else {
+                            Log.d("GDFlix", "Skipped unknown button: $originalText")
+                        }
+                    }
                 }
-            }
-
-            try {
-                val sources = cfType(url.replace("file", "wfile"))
-                sources.amap { source ->
-                    val redirectUrl = resolveFinalUrl(source) ?: return@amap
-                    pushLink(redirectUrl, "[CF]")
-                }
-            } catch (e: Exception) {
-                Log.d("GDFlix-CF", e.toString())
             }
         } catch (e: Exception) {
-            Log.e("GDFlix", "Failed: ${e.message}")
+            Log.e("GDFlix", "Failed for $url: ${e.message}")
         }
     }
 }
