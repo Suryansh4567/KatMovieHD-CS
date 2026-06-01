@@ -20,7 +20,6 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
-import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Document
@@ -151,10 +150,10 @@ class KatMovieHDProvider : MainAPI() {
                 imdbUrl?.let { addImdbUrl(it) }
             }
         } else {
-            val movieList = parseMovieLinks(doc)
-            Log.d(TAG, "load(): movie '$title' has ${movieList.size} link(s): $movieList")
+            val movieDataString = parseMovieLinks(doc)
+            Log.d(TAG, "load(): movie '$title' data string = $movieDataString")
 
-            newMovieLoadResponse(title, url, TvType.Movie, movieList) {
+            newMovieLoadResponse(title, url, TvType.Movie, movieDataString) {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
@@ -163,13 +162,13 @@ class KatMovieHDProvider : MainAPI() {
         }
     }
 
-    private fun parseMovieLinks(doc: Document): MutableList<String> {
+    private fun parseMovieLinks(doc: Document): String {
         val content = doc.selectFirst("article, .entry-content") ?: doc
         return content.select("a[href]")
             .map { it.attr("href") }
             .filter { it.contains(linkHostRegex) }
             .distinct()
-            .toMutableList()
+            .joinToString("\n")
     }
 
     private fun parseEpisodes(doc: Document, seasonNumber: Int): List<Episode> {
@@ -200,7 +199,7 @@ class KatMovieHDProvider : MainAPI() {
         }
 
         return map.entries.map { (ep, links) ->
-            newEpisode(links) {
+            newEpisode(links.joinToString("\n")) {
                 this.name = "Episode $ep"
                 this.season = seasonNumber
                 this.episode = ep
@@ -214,17 +213,18 @@ class KatMovieHDProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d(TAG, "loadLinks called. data preview: ${data.take(300)}")
+        Log.d(TAG, "loadLinks called. data length=${data.length}, preview: ${data.take(300)}")
 
-        val linksList = tryParseJson<List<String>>(data)
-            ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() }
-            ?: emptyList()
+        val linksList = data
+            .split("\n", ",")
+            .map { it.trim().trim('"', '[', ']') }
+            .filter { it.startsWith("http") }
+            .distinct()
 
-        Log.d(TAG, "loadLinks parsed ${linksList.size} URLs from data")
+        Log.d(TAG, "loadLinks parsed ${linksList.size} URLs from data: $linksList")
 
         if (linksList.isEmpty()) {
-            Log.w(TAG, "loadLinks: no URLs to process!")
+            Log.w(TAG, "loadLinks: NO URLs extracted from data!")
             return false
         }
 
