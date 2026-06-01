@@ -13,7 +13,7 @@ import org.json.JSONObject
 class KmhdExtractor : ExtractorApi() {
     override val name = "KMHD"
     override val mainUrl = "https://links.kmhd.eu"
-    override val requiresReferer = true
+    override val requiresReferer = false
 
     override suspend fun getUrl(
         url: String,
@@ -21,6 +21,8 @@ class KmhdExtractor : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
+        Log.d(TAG, "getUrl invoked: $url")
+
         try {
             val id = Regex("""/(?:file|play)[/?](?:id=)?([^/?&#]+)""")
                 .find(url)?.groupValues?.get(1)?.trim()
@@ -31,34 +33,50 @@ class KmhdExtractor : ExtractorApi() {
 
             val isPlay = url.contains("/play", ignoreCase = true)
             val path = if (isPlay) "/play?id=$id" else "/file/$id"
-
             val dataUrl = "$mainUrl$path/__data.json"
-            val dataText = app.get(
-                dataUrl,
-                headers = mapOf(
-                    "User-Agent" to UA,
-                    "Cookie" to "unlocked=true",
-                    "Referer" to "$mainUrl$path"
-                )
-            ).text
 
-            val mirrors = parseSvelteKitData(dataText)
-            if (mirrors.isEmpty()) {
-                Log.w(TAG, "No mirrors found for $url")
+            Log.d(TAG, "Fetching: $dataUrl")
+
+            val dataText = try {
+                app.get(
+                    dataUrl,
+                    headers = mapOf(
+                        "User-Agent" to UA,
+                        "Cookie" to "unlocked=true",
+                        "Referer" to "$mainUrl$path",
+                        "Accept" to "application/json"
+                    ),
+                    timeout = 30
+                ).text
+            } catch (e: Exception) {
+                Log.e(TAG, "HTTP fetch failed: ${e.message}")
                 return
             }
 
-            Log.d(TAG, "KMHD: forwarding ${mirrors.size} mirrors")
+            Log.d(TAG, "Got dataText length: ${dataText.length}")
+
+            if (dataText.isBlank()) {
+                Log.w(TAG, "Empty response from $dataUrl")
+                return
+            }
+
+            val mirrors = parseSvelteKitData(dataText)
+            Log.d(TAG, "Parsed ${mirrors.size} mirrors: ${mirrors.map { it.host }}")
+
+            if (mirrors.isEmpty()) {
+                Log.w(TAG, "No mirrors parsed from JSON for $url")
+                return
+            }
 
             mirrors.amap { mirror ->
                 runCatching {
                     dispatchMirror(mirror, subtitleCallback, callback)
                 }.onFailure {
-                    Log.e(TAG, "Mirror ${mirror.host} failed: ${it.message}")
+                    Log.e(TAG, "Mirror ${mirror.host} dispatch failed: ${it.message}")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "KMHD extractor failed for $url: ${e.message}")
+            Log.e(TAG, "KMHD extractor outer failure for $url: ${e.message}")
         }
     }
 
@@ -77,12 +95,15 @@ class KmhdExtractor : ExtractorApi() {
 
         when {
             finalUrl.contains("gdflix", ignoreCase = true) -> {
+                Log.d(TAG, "Dispatching to GDFlix: $finalUrl")
                 GDFlix().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
             }
             finalUrl.contains("hubcloud", ignoreCase = true) -> {
+                Log.d(TAG, "Dispatching to HubCloud: $finalUrl")
                 HubCloud().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
             }
             else -> {
+                Log.d(TAG, "Dispatching to loadExtractor: $finalUrl")
                 loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)
             }
         }
