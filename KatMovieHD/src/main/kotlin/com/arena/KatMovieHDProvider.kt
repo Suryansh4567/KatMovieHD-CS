@@ -143,6 +143,7 @@ class KatMovieHDProvider : MainAPI() {
 
         return if (isSeries) {
             val episodes = parseEpisodes(doc, seasonNumber)
+            Log.d(TAG, "load(): series '$title' has ${episodes.size} episodes")
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = plot
@@ -151,7 +152,7 @@ class KatMovieHDProvider : MainAPI() {
             }
         } else {
             val movieDataString = parseMovieLinks(doc)
-            Log.d(TAG, "load(): movie '$title' data string = $movieDataString")
+            Log.d(TAG, "load(): movie '$title' has ${movieDataString.split('\n').size} link(s)")
 
             newMovieLoadResponse(title, url, TvType.Movie, movieDataString) {
                 this.posterUrl = poster
@@ -173,29 +174,43 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun parseEpisodes(doc: Document, seasonNumber: Int): List<Episode> {
         val container = doc.selectFirst("article, .entry-content") ?: return emptyList()
-        val epHeaderRegex = Regex("""(?i)\bEpisode\s*[-:#]?\s*(\d{1,3})\b""")
+        val epHeaderRegex = Regex("""(?i)\bEpisode\s*[-–:#]?\s*(\d{1,3})\b""")
         val map = linkedMapOf<Int, MutableList<String>>()
         var currentEp: Int? = null
 
         for (node in container.allElements) {
-            val ownText = node.ownText()
-            val match = epHeaderRegex.find(ownText)
-            if (match != null && node.tagName() in headerTags) {
-                currentEp = match.groupValues[1].toIntOrNull()
+            val nodeText = node.text()
+            if (nodeText.length < 30 && node.tagName() in headerTags) {
+                val match = epHeaderRegex.find(nodeText)
+                if (match != null) {
+                    val newEp = match.groupValues[1].toIntOrNull()
+                    if (newEp != null && newEp != currentEp) {
+                        currentEp = newEp
+                    }
+                }
             }
+
             val ep = currentEp
             if (ep != null && node.tagName() == "a") {
                 val href = node.attr("href")
                 if (href.contains(linkHostRegex)) {
-                    map.getOrPut(ep) { mutableListOf() }.add(href)
+                    val bucket = map.getOrPut(ep) { mutableListOf() }
+                    if (href !in bucket) bucket.add(href)
                 }
             }
         }
 
         if (map.isEmpty()) {
+            Log.w(TAG, "parseEpisodes: episode-header walk found nothing, using flat fallback")
             container.select("a[href]")
                 .filter { it.attr("href").contains(linkHostRegex) }
+                .distinctBy { it.attr("href") }
                 .forEachIndexed { idx, a -> map[idx + 1] = mutableListOf(a.attr("href")) }
+        }
+
+        Log.d(TAG, "parseEpisodes: detected ${map.size} episodes")
+        map.forEach { (ep, links) ->
+            Log.d(TAG, "  Episode $ep: ${links.size} links")
         }
 
         return map.entries.map { (ep, links) ->
@@ -213,7 +228,7 @@ class KatMovieHDProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d(TAG, "loadLinks called. data length=${data.length}, preview: ${data.take(300)}")
+        Log.d(TAG, "loadLinks called. data length=${data.length}")
 
         val linksList = data
             .split("\n", ",")
@@ -221,7 +236,7 @@ class KatMovieHDProvider : MainAPI() {
             .filter { it.startsWith("http") }
             .distinct()
 
-        Log.d(TAG, "loadLinks parsed ${linksList.size} URLs from data: $linksList")
+        Log.d(TAG, "loadLinks parsed ${linksList.size} URLs")
 
         if (linksList.isEmpty()) {
             Log.w(TAG, "loadLinks: NO URLs extracted from data!")
@@ -230,7 +245,6 @@ class KatMovieHDProvider : MainAPI() {
 
         linksList.amap { rawUrl ->
             val u = rawUrl.trim()
-            Log.d(TAG, "Processing link: $u")
             try {
                 if (u.contains("kmhd.eu", ignoreCase = true)) {
                     KmhdExtractor().getUrl(u, mainUrl, subtitleCallback, callback)
@@ -271,7 +285,10 @@ class KatMovieHDProvider : MainAPI() {
         ) TvType.TvSeries else TvType.Movie
     }
 
-    private val headerTags = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "div")
+    private val headerTags = setOf(
+        "p", "h1", "h2", "h3", "h4", "h5", "h6",
+        "strong", "b", "div", "span", "em"
+    )
 
     private val linkHostRegex = Regex(
         """(?i)(kmhd\.eu|kmhd\.net|gdflix|gd\.kmhd|hubcloud|gdlink|drive\.google|""" +
