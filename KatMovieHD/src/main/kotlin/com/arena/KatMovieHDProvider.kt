@@ -141,10 +141,23 @@ class KatMovieHDProvider : MainAPI() {
             .find(rawTitle)?.let { m -> m.groupValues[1].ifBlank { m.groupValues[2] } }
             ?.toIntOrNull() ?: 1
 
-        return if (isSeries) {
+        if (isSeries) {
             val episodes = parseEpisodes(doc, seasonNumber)
-            Log.d(TAG, "load(): series '$title' has ${episodes.size} episodes")
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            Log.d(TAG, "load(): series '$title' parsed ${episodes.size} episode(s)")
+
+            if (episodes.isEmpty()) {
+                Log.w(TAG, "Series had 0 episodes — falling back to movie-style")
+                val allLinks = parseMovieLinks(doc)
+                Log.d(TAG, "Fallback movieList has ${allLinks.split('\n').size} links")
+                return newMovieLoadResponse(title, url, TvType.Movie, allLinks) {
+                    this.posterUrl = poster
+                    this.plot = plot
+                    this.year = year
+                    imdbUrl?.let { addImdbUrl(it) }
+                }
+            }
+
+            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
@@ -154,7 +167,7 @@ class KatMovieHDProvider : MainAPI() {
             val movieDataString = parseMovieLinks(doc)
             Log.d(TAG, "load(): movie '$title' has ${movieDataString.split('\n').size} link(s)")
 
-            newMovieLoadResponse(title, url, TvType.Movie, movieDataString) {
+            return newMovieLoadResponse(title, url, TvType.Movie, movieDataString) {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
@@ -178,9 +191,14 @@ class KatMovieHDProvider : MainAPI() {
         val map = linkedMapOf<Int, MutableList<String>>()
         var currentEp: Int? = null
 
+        // Phase 1 — Layout A walker (Episode N → links)
         for (node in container.allElements) {
             val nodeText = node.text()
-            if (nodeText.length < 30 && node.tagName() in headerTags) {
+            if (nodeText.length < 40 &&
+                node.tagName() in headerTags &&
+                !nodeText.contains("more episodes", ignoreCase = true) &&
+                !nodeText.contains("will be added", ignoreCase = true)
+            ) {
                 val match = epHeaderRegex.find(nodeText)
                 if (match != null) {
                     val newEp = match.groupValues[1].toIntOrNull()
@@ -200,24 +218,67 @@ class KatMovieHDProvider : MainAPI() {
             }
         }
 
-        if (map.isEmpty()) {
-            Log.w(TAG, "parseEpisodes: episode-header walk found nothing, using flat fallback")
-            container.select("a[href]")
-                .filter { it.attr("href").contains(linkHostRegex) }
-                .distinctBy { it.attr("href") }
-                .forEachIndexed { idx, a -> map[idx + 1] = mutableListOf(a.attr("href")) }
+        if (map.isNotEmpty()) {
+            Log.d(TAG, "Layout A: detected ${map.size} episodes")
+            return map.entries.map { (ep, links) ->
+                newEpisode(links.joinToString("\n")) {
+                    this.name = "Episode $ep"
+                    this.season = seasonNumber
+                    this.episode = ep
+                }
+            }
         }
 
-        Log.d(TAG, "parseEpisodes: detected ${map.size} episodes")
-        map.forEach { (ep, links) ->
-            Log.d(TAG, "  Episode $ep: ${links.size} links")
+        // Phase 2 — Layout B: full-season packs.
+        Log.d(TAG, "Layout A found nothing, trying Layout B (packs)")
+        val packEpisodes = mutableListOf<Episode>()
+        var packIdx = 1
+        container.select("h1, h2, h3, h4").forEach { header ->
+            val htext = header.text().trim()
+            val links = mutableListOf<String>()
+            header.select("a[href]").forEach {
+                val h = it.attr("href")
+                if (h.contains(linkHostRegex)) links.add(h)
+            }
+            var sibling = header.nextElementSibling()
+            var hops = 0
+            while (sibling != null && hops < 3 &&
+                   sibling.tagName() !in listOf("h1", "h2", "h3", "h4")) {
+                sibling.select("a[href]").forEach {
+                    val h = it.attr("href")
+                    if (h.contains(linkHostRegex) && h !in links) links.add(h)
+                }
+                sibling = sibling.nextElementSibling()
+                hops++
+            }
+
+            if (links.isNotEmpty() && htext.isNotBlank()) {
+                packEpisodes.add(
+                    newEpisode(links.joinToString("\n")) {
+                        this.name = htext.take(60)
+                        this.season = seasonNumber
+                        this.episode = packIdx
+                    }
+                )
+                packIdx++
+            }
+        }
+        if (packEpisodes.isNotEmpty()) {
+            Log.d(TAG, "Layout B: detected ${packEpisodes.size} pack(s)")
+            return packEpisodes
         }
 
-        return map.entries.map { (ep, links) ->
-            newEpisode(links.joinToString("\n")) {
-                this.name = "Episode $ep"
+        // Phase 3 — last resort.
+        Log.w(TAG, "Both layouts failed, dumping all kmhd links as episodes")
+        val allLinks = container.select("a[href]")
+            .map { it.attr("href") }
+            .filter { it.contains(linkHostRegex) }
+            .distinct()
+        return allLinks.mapIndexed { idx, link ->
+            newEpisode(link) {
+                this.name = "Source ${idx + 1}"
                 this.season = seasonNumber
-                this.episode = ep
+                this.episode = idx + 1
             }
         }
     }
