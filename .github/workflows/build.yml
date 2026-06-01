@@ -68,7 +68,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('src/**/*.gradle*', 'src/**/gradle-wrapper.properties') }}
+          key: gradle-v2-${{ runner.os }}-${{ hashFiles('src/**/*.gradle*', 'src/**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Build plugins
