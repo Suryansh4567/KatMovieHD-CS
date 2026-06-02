@@ -796,8 +796,13 @@ class KatMovieHDProvider : MainAPI() {
         if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
         return try {
             when {
-                // Our custom kmhd extractor (covers links.kmhd.{eu,fans,...}).
-                Regex("""(?i)links\.kmhd\.""").containsMatchIn(url) -> {
+                // Our custom kmhd extractor handles both:
+                //   - links.kmhd.{eu,fans,net,...}/{file,play,pack}/<id>
+                //     (current SvelteKit format with __data.json sidecar)
+                //   - kmhd.eu/archives/<post_id> (legacy WordPress format
+                //     used by pre-2020 KatMovieHD posts, e.g. Deadly Pickup
+                //     2016) — fetched and re-fanned out to loadExtractor.
+                Regex("""(?i)(links\.kmhd\.|kmhd\.eu/archives/)""").containsMatchIn(url) -> {
                     KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
