@@ -1,0 +1,5 @@
+{
+  "katmoviehd": "https://new1.katmoviehd.cymru",
+  "_comment": "Update this URL if KatMovieHD moves to a new domain. The plugin re-reads this file on each app start, so users don't need to rebuild the extension when the site changes hosts.",
+  "_updated": "2026-06-02"
+}
