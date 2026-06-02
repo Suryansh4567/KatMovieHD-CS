@@ -51,7 +51,7 @@ import java.net.URLEncoder
  *
  *   1. Mirror host whitelist is wider — pages link out to ziddiflix.com
  *      (kmhd's 4K-only redirector), gdflix.dad subdomains, driveleech.org,
- *      vifix.site, burydibase, kmhd.net. These are added to LINK_HOST_REGEX.
+ *      vifix.site, kmhd.net. These are added to LINK_HOST_REGEX.
  *
  *   2. Quality detection prioritises 2160p / 4K / HDR / Dolby Vision over
  *      720p / 480p, and the Stage-3 label heuristic recognises the extra
@@ -66,7 +66,7 @@ import java.net.URLEncoder
  * IMDB-id Path 1, 3-stage episode discovery, kmhd directlink skip,
  * quality-aware Stage-3 naming, v9-style newline-separated episode data,
  * Cinemeta fallback, all the same defensive try/catch wrapping) is
- * intentionally a verbatim port from KatMovieHDProvider v19, because
+ * intentionally a verbatim port from KatMovieHDProvider v3, because
  * those fixes apply equally well to katmovie4k.
  */
 class KatMovie4KProvider : MainAPI() {
@@ -145,7 +145,7 @@ class KatMovie4KProvider : MainAPI() {
                     """imdb\.com|themoviedb\.org|wikipedia\.org|""" +
                     """youtube\.com|youtu\.be|""" +
                     """t\.me|telegram\.|whatsapp\.|""" +
-                    """facebook\.com|fb\.com|twitter\.com|x\.com|instagram\.com|""" +
+                    """facebook\.com|fb\.com|twitter\.com|(?<![a-z])x\.com|instagram\.com|""" +
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
                     """wp-content|wp-includes|wp-json|""" +
@@ -312,7 +312,7 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // load() - per-title page (same logic as KatMovieHDProvider v19)
+    // load() - per-title page (same logic as KatMovieHDProvider v3)
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
@@ -551,7 +551,7 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     /**
-     * Same two-pass collector as KatMovieHDProvider v19, including the
+     * Same two-pass collector as KatMovieHDProvider v3, including the
      * directlink skip filter. KatMovie4K pages have similar decorative
      * "DOWNLOAD LINKS" headings that bounce to nowhere useful.
      */
@@ -621,7 +621,7 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // loadLinks — verbatim port from KatMovieHDProvider v19
+    // loadLinks — verbatim port from KatMovieHDProvider v3
     // ------------------------------------------------------------------
 
     override suspend fun loadLinks(
@@ -744,7 +744,7 @@ class KatMovie4KProvider : MainAPI() {
 
 
     // ------------------------------------------------------------------
-    // Metadata: TMDB (identical to KatMovieHDProvider v19)
+    // Metadata: TMDB (identical to KatMovieHDProvider v3)
     // ------------------------------------------------------------------
 
     private data class TmdbDetails(
@@ -796,7 +796,7 @@ class KatMovie4KProvider : MainAPI() {
         }
 
         // Path 2: text search with title-similarity + year-proximity guard.
-        // Same scoring algorithm as KatMovieHDProvider v19 — see the
+        // Same scoring algorithm as KatMovieHDProvider v3 — see the
         // titleSimilarity() docs there for full rationale.
         return runCatching {
             val queryTitle = cleanedTitle.substringBefore("(").trim()
@@ -852,7 +852,7 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     /**
-     * Hybrid token-set + Jaccard similarity. Same as KatMovieHDProvider v19.
+     * Hybrid token-set + Jaccard similarity. Same as KatMovieHDProvider v3.
      * 4K release titles tend to be VERY verbose ("Terrifier 3 (2024) 4K
      * Ultra HD Blu-Ray 2160p UHD [Hindi Dubbed & English (5.1 DDP)] Dual
      * Audio | [Dolby Vision / HDR10 & HDR10+ / SDR ]"), so the coverage
@@ -964,7 +964,7 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // Metadata: Cinemeta (identical to KatMovieHDProvider v19)
+    // Metadata: Cinemeta (identical to KatMovieHDProvider v3)
     // ------------------------------------------------------------------
 
     private data class CinemetaMeta(
