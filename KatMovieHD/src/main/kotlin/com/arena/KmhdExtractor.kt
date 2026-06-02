@@ -232,8 +232,25 @@ class KmhdExtractor : ExtractorApi() {
                 return
             }
 
-            val mirrors = parseSvelteKitData(dataText)
+            var mirrors = parseSvelteKitData(dataText)
             Log.d(TAG, "Parsed ${mirrors.size} mirrors: ${mirrors.map { it.host }}")
+
+            // Robustness net: SvelteKit periodically changes its dehydrated
+            // payload shape (e.g. switching the "chunk" wrapper, renaming the
+            // "links"/"link" index keys). When that happens the structured
+            // parser above silently returns 0 mirrors and the user sees
+            // "no links". As a safety net we then scrape the RAW json text
+            // for any known mirror host URL with a regex - it won't recover
+            // the per-file ids the structured parser builds, but it does
+            // recover fully-qualified mirror URLs that appear verbatim in
+            // the payload, so playback keeps working through a format change.
+            if (mirrors.isEmpty()) {
+                val salvaged = salvageMirrorsByRegex(dataText)
+                if (salvaged.isNotEmpty()) {
+                    Log.w(TAG, "Structured parse found 0 mirrors; regex salvage recovered ${salvaged.size}")
+                    mirrors = salvaged
+                }
+            }
 
             if (mirrors.isEmpty()) {
                 Log.w(TAG, "No mirrors parsed from JSON for $url")
@@ -282,6 +299,27 @@ class KmhdExtractor : ExtractorApi() {
     }
 
     private data class Mirror(val host: String, val url: String)
+
+    /**
+     * Fallback recovery: pull complete mirror URLs straight out of the raw
+     * SvelteKit JSON text when the structured parser can't (format drift).
+     * Only matches hosts we actually know how to extract, and strips the
+     * advertiser/analytics domains the page injects (cathaytrash, al5sm,
+     * catimages, so-gr3at3, etc.) so we never hand junk to an extractor.
+     */
+    private fun salvageMirrorsByRegex(rawJson: String): List<Mirror> {
+        val urlRegex = Regex("""https?://[^\s"'\\<>]+""")
+        return urlRegex.findAll(rawJson)
+            .map { it.value.trimEnd('\\', ',', '"', '\'') }
+            .filter { KNOWN_MIRROR_REGEX.containsMatchIn(it) }
+            .filter { !AD_HOST_REGEX.containsMatchIn(it) }
+            // A bare host root like "https://send.cm/" carries no file id and
+            // is useless, so require something after the host.
+            .filter { it.substringAfter("://").substringAfter("/", "").isNotBlank() }
+            .distinct()
+            .map { Mirror(host = it.substringAfter("://").substringBefore("/"), url = it) }
+            .toList()
+    }
 
     private fun parseSvelteKitData(dataText: String): List<Mirror> {
         val mirrors = mutableListOf<Mirror>()
@@ -334,6 +372,24 @@ class KmhdExtractor : ExtractorApi() {
         private const val TAG = "KmhdExtractor"
         private const val UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+        /**
+         * The set of mirror hosts KatMovieHD actually serves inside its
+         * file/__data.json (verified live against the current site):
+         * gd.kmhd.eu, hubcloud, katdrive, send.cm, fuckingfast, 1fichier,
+         * streamtape, hglink/streamwish. Used only by the regex salvage
+         * fallback.
+         */
+        private val KNOWN_MIRROR_REGEX = Regex(
+            """(?i)(gd\.kmhd|hubcloud|hubdrive|katdrive|send\.cm|""" +
+                    """fuckingfast|1fichier|streamtape|hglink|streamwish|gdflix)"""
+        )
+
+        /** Advertiser / analytics hosts the page injects - never streams. */
+        private val AD_HOST_REGEX = Regex(
+            """(?i)(cathaytrash|al5sm|catimages|so-gr3at3|gstatic|google|""" +
+                    """doubleclick|popads|propeller)"""
+        )
 
         /**
          * Anchors on a legacy archives page that are NEVER stream sources -
