@@ -113,7 +113,7 @@ class KatMovie4KProvider : MainAPI() {
          *   - driveleech.org  (mirror for HDR releases)
          *   - vifix.site      (gdflix wrapper for 4K)
          *   - gdflix.dad      (new TLD for gdflix subdomains)
-         *   - burydibase      (ad-gate but sometimes a real intermediate; let extractor decide)
+         *   - burydibase      (ad-gate, explicitly filtered in collectMirrorLinks)
          */
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
@@ -133,9 +133,9 @@ class KatMovie4KProvider : MainAPI() {
                     """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|""" +
                     // Hindi-dub / 4K-specific upload mirrors
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
-                    """bbupload|gofileserver|bbserver|gdtot|techkit|burydibase|""" +
+                    """bbupload|gofileserver|bbserver|gdtot|techkit|""" +
                     // KatMovie* upload mirrors
-                    """katmovie|katdrive|kmhd""" +
+                    """katmovie\.|katdrive|kmhd""" +
                     """)"""
         )
 
@@ -674,17 +674,14 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     /**
-     * Per-URL dispatch. Same routing rules as KatMovieHDProvider plus:
-     *   - ziddiflix.com/file/<id>         → loadExtractor (it's a kmhd
-     *                                       redirector; the registered
-     *                                       extractors auto-follow to
-     *                                       the underlying gdflix/kmhd).
-     *   - vifix.site/gdflix/<id>          → loadExtractor (GDFlix wrapper).
-     *   - driveleech.org/file/<id>        → loadExtractor (handled by
-     *                                       Cloudstream's stock Driveleech
-     *                                       extractor if installed).
-     *   - new3/4.gdflix.dad/file/<id>     → GDFlix variants registered
-     *                                       in KatMovie4KPlugin.load().
+     * Per-URL dispatch with explicit routing for KatMovie4K-specific hosts.
+     *
+     * v3: Previously we relied solely on CloudStream's loadExtractor() for
+     * prefix-based dispatch to registered ExtractorApi subclasses.  That
+     * works when the extractor implementation is correct, but gives no
+     * diagnostic when a host breaks (e.g. vifix.site's JS challenge →
+     * parked domain, driveleech.org going dark).  Explicit routing here
+     * means we can add per-host fallback logic and always get clear logs.
      */
     private suspend fun dispatchExtractor(
         rawUrl: String,
@@ -695,10 +692,45 @@ class KatMovie4KProvider : MainAPI() {
         if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
         return try {
             when {
+                // KMHD native — our KmhdExtractor handles both the current
+                // SvelteKit /file/<id> format and legacy /archives/<id> pages.
                 Regex("""(?i)(links\.kmhd\.|kmhd\.eu/archives/)""").containsMatchIn(url) -> {
                     KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
+                // vifix.site — v3 FIX: JS challenge → parked domain.  Extract
+                // gdflix file id and route straight to new18.gdflix.net.
+                url.contains("vifix.site", ignoreCase = true) -> {
+                    Vifix().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // driveleech.org / .pro / .net — intermittently down.
+                // Use the Driveleech extractor which has id-extraction fallback.
+                Regex("""(?i)driveleech\.(org|pro|net)""").containsMatchIn(url) -> {
+                    Driveleech().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // new3 / new4 .gdflix.dad → 302 chain to new18.gdflix.net
+                url.contains("new3.gdflix.dad", ignoreCase = true) -> {
+                    GDFlixDad3().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                url.contains("new4.gdflix.dad", ignoreCase = true) -> {
+                    GDFlixDad4().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // ziddiflix.com → 302 chain to new18.gdflix.net
+                url.contains("ziddiflix.com", ignoreCase = true) -> {
+                    Ziddiflix().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // gdlink.dev → 302 to gdflix.dev → new18.gdflix.net
+                url.contains("gdlink.dev", ignoreCase = true) -> {
+                    GDLinkDev().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // Everything else: try CloudStream's stock registry (HubCloud,
+                // GDFlix, Pixeldrain, Streamtape, etc.).
                 else -> {
                     loadExtractor(url, mainUrl, subtitleCallback, callback)
                     true
@@ -709,6 +741,7 @@ class KatMovie4KProvider : MainAPI() {
             true
         }
     }
+
 
     // ------------------------------------------------------------------
     // Metadata: TMDB (identical to KatMovieHDProvider v19)
