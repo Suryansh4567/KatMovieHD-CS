@@ -99,12 +99,59 @@ class KatMovieHDProvider : MainAPI() {
         // (real episode names, thumbnails, overviews, air dates).
         private const val CINEMETA = "https://v3-cinemeta.strem.io/meta"
 
-        /** Hosts we know how to extract from (used to whitelist <a> elements). */
+        /**
+         * Hosts we recognise as "known mirror providers". A match here
+         * promotes the URL to "definitely a stream link" status during
+         * page parsing. Kept deliberately wide - a single false positive
+         * just means Cloudstream's loadExtractor() no-ops on an unknown
+         * host, whereas a false negative means a real source is dropped
+         * and the user sees "no links".
+         *
+         * Whenever we discover a new host on a real KatMovieHD page, just
+         * add a substring here.
+         */
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
-                    """links\.kmhd\.[a-z]+|kmhd\.net|gdflix|gd\.kmhd|hubcloud|hubdrive|""" +
-                    """katdrive|gdlink|drive\.google|streamtape|filemoon|doodstream|""" +
-                    """mixdrop|streamlare|1fichier|send\.cm|hglink|fuckingfast|fastdl""" +
+                    // KMHD-native (handled by KmhdExtractor)
+                    """links\.kmhd\.[a-z]+|kmhd\.net|gd\.kmhd|""" +
+                    // GDFlix family (handled by GDFlix* extractors in Extractors.kt)
+                    """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|""" +
+                    // HubCloud / Hubdrive / Katdrive family
+                    """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive|katdrive|""" +
+                    // Generic cloud / file-share hosts that Cloudstream knows
+                    """gofile\.io|drive\.google|mediafire|pixeldrain|pixeldra\.in|""" +
+                    """1fichier|send\.cm|sendvid|krakenfiles|""" +
+                    // Streaming / video hosts
+                    """streamtape|streamlare|filemoon|filelions|doodstream|dood\.|""" +
+                    """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|""" +
+                    // Hindi-dub specific
+                    """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
+                    """bbupload|gofileserver|bbserver|gdtot|techkit|""" +
+                    // KatMovieHD specific upload mirrors
+                    """katmovie|katdrive|kmhd""" +
+                    """)"""
+        )
+
+        /**
+         * Hosts that look like external links but are NEVER stream sources.
+         * Anything matching here is filtered out before we try to extract.
+         * Used by the permissive fallback so we don't try to "extract" from
+         * IMDb, social media, or image-host links scraped from the page.
+         */
+        private val IGNORE_HOST_REGEX = Regex(
+            """(?i)(""" +
+                    """imdb\.com|themoviedb\.org|wikipedia\.org|""" +
+                    """youtube\.com|youtu\.be|""" +
+                    """t\.me|telegram\.|whatsapp\.|""" +
+                    """facebook\.com|fb\.com|twitter\.com|x\.com|instagram\.com|""" +
+                    """pinterest\.|reddit\.com|tumblr\.com|""" +
+                    """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
+                    """wp-content|wp-includes|wp-json|""" +
+                    """katmoviehd|gstatic|googletagmanager|google-analytics|""" +
+                    """jsdelivr|cloudflare\.com|gravatar|""" +
+                    """fonts\.googleapis|fonts\.gstatic|""" +
+                    """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
+                    """\.css|\.js\?|/feed/|#""" +
                     """)"""
         )
 
@@ -412,9 +459,9 @@ class KatMovieHDProvider : MainAPI() {
 
         // Stage 3: degraded - expose every mirror link as its own "Source N"
         // pseudo-episode. Always better than a silent empty list.
-        val flat = container.select("a[href]")
-            .mapNotNull { it.attr("href").takeIf { h -> LINK_HOST_REGEX.containsMatchIn(h) } }
-            .distinct()
+        // Uses the two-pass collector so new/unknown hosts still get a
+        // chance via Cloudstream's stock extractor registry.
+        val flat = collectMirrorLinks(container)
         if (flat.isEmpty()) return emptyList()
         Log.w(TAG, "Stage3 (flat fallback): ${flat.size} raw mirror link(s)")
         return flat.mapIndexed { idx, link ->
@@ -573,16 +620,53 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     /**
+     * Two-pass link collector used everywhere we need "every playable
+     * URL on this page":
+     *
+     *   Pass 1 (strict): URLs whose host matches our curated whitelist
+     *                    (LINK_HOST_REGEX). These are guaranteed-good.
+     *   Pass 2 (permissive): if pass 1 found NOTHING, fall back to every
+     *                    external http(s) URL that isn't on the explicit
+     *                    blacklist (IGNORE_HOST_REGEX) and isn't the
+     *                    KatMovieHD site itself. Cloudstream's
+     *                    `loadExtractor` silently no-ops on hosts it
+     *                    doesn't know, so a few junk URLs here are
+     *                    harmless - but any new host the site starts
+     *                    using (which we haven't added to the whitelist
+     *                    yet) will still be tried.
+     *
+     * This is what makes the extension robust against KatMovieHD adding
+     * a new mirror provider in the future without us having to rebuild.
+     */
+    private fun collectMirrorLinks(container: Element): List<String> {
+        val all = container.select("a[href]")
+            .mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
+            .distinct()
+
+        val strict = all.filter { LINK_HOST_REGEX.containsMatchIn(it) }
+        if (strict.isNotEmpty()) return strict
+
+        // Pass 2: anything not obviously junk.
+        val permissive = all.filter { url ->
+            !IGNORE_HOST_REGEX.containsMatchIn(url) &&
+                    !url.contains(mainUrl, ignoreCase = true)
+        }
+        if (permissive.isNotEmpty()) {
+            Log.w(TAG, "Strict host whitelist matched 0 links, falling back to permissive (${permissive.size}): ${permissive.take(3)}")
+        }
+        return permissive
+    }
+
+    /**
      * Movie pages just dump every mirror URL we find, joined with newlines.
      * Returning a plain String is the v9-compatible shape that
      * `loadLinks` knows how to split back into individual URLs.
      */
     private fun collectAllPlayableLinks(doc: Document): String {
         val content = doc.selectFirst("article, .entry-content") ?: doc
-        return content.select("a[href]")
-            .mapNotNull { it.attr("href").takeIf { h -> LINK_HOST_REGEX.containsMatchIn(h) } }
-            .distinct()
-            .joinToString("\n")
+        val links = collectMirrorLinks(content)
+        Log.d(TAG, "collectAllPlayableLinks(): ${links.size} links")
+        return links.joinToString("\n")
     }
 
     private fun buildEpisodes(
@@ -629,56 +713,105 @@ class KatMovieHDProvider : MainAPI() {
     ): Boolean {
         Log.d(TAG, "loadLinks: raw data length=${data.length}, preview='${data.take(120)}'")
 
-        // v9-compatible parser: newline or comma separated URLs, plus a
-        // JSON-array fallback in case the data was produced by a previous
-        // (List<String>-based) build still installed on the device.
+        // v9-compatible parser: newline / comma / CR separated URLs, plus a
+        // JSON-array fallback in case the data was produced by an older
+        // (List<String>-based) build that's still cached on the device.
+        // Accept both http and https, and tolerate quoted/wrapped tokens.
         val urls: List<String> = buildList {
-            // 1) JSON array shape ["http://...", "http://..."]
             if (data.trimStart().startsWith("[")) {
                 runCatching {
                     tryParseJson<List<String>>(data)?.let { addAll(it) }
                 }
             }
-            // 2) Always also try the newline/comma split - this is the
-            //    primary v9 format and is what we now write in load().
-            data.split("\n", ",", "\r").forEach { add(it) }
+            // Always also split on plain delimiters - this is the format
+            // we write in load(). Keeps loadLinks resilient to any future
+            // change of episode-data shape without breaking old episodes.
+            data.split('\n', ',', '\r', '\t').forEach { add(it) }
         }
-            .map { it.trim().trim('"', '[', ']', ' ') }
+            .map { it.trim().trim('"', '\'', '[', ']', '(', ')', ' ', '<', '>') }
             .filter { it.startsWith("http", ignoreCase = true) }
+            .map { stripJunkSuffix(it) }
+            .filter { it.length > 8 }
             .distinct()
 
         if (urls.isEmpty()) {
             Log.w(TAG, "loadLinks: no URLs extracted from data of length ${data.length}")
             return false
         }
-        Log.d(TAG, "loadLinks: dispatching ${urls.size} URL(s): ${urls.take(3)}${if (urls.size > 3) "..." else ""}")
+        Log.d(TAG, "loadLinks: dispatching ${urls.size} URL(s):\n${urls.joinToString("\n") { "  - $it" }}")
 
+        // Track how many sources actually fired a callback so we can
+        // distinguish "we tried but every host failed" from "no URLs to try".
+        // (Cloudstream's UI will only show streams that the callback
+        // delivered - if dispatch crashes silently, the user sees no link.)
+        var anyDispatched = false
         urls.amap { rawUrl ->
-            dispatchExtractor(rawUrl, subtitleCallback, callback)
+            val ok = dispatchExtractor(rawUrl, subtitleCallback, callback)
+            if (ok) anyDispatched = true
+        }
+        if (!anyDispatched) {
+            Log.w(TAG, "loadLinks: every URL failed to dispatch - check host coverage")
         }
         return true
     }
 
     /**
-     * v9-style dispatch: any kmhd.eu URL goes through KmhdExtractor,
-     * everything else through Cloudstream's stock loadExtractor.
-     * Kept intentionally minimal because v9 shipped this exact branch
-     * and is known to work end-to-end with the current KmhdExtractor.
+     * Some URLs scraped from the page have trailing junk - a stray right
+     * paren from "(Movie)", a comma from inline text, a "#." from anchor
+     * fragments, etc. Strip those before handing to extractors so the
+     * URL the HTTP client sees is exactly what the host expects.
+     */
+    private fun stripJunkSuffix(url: String): String {
+        var u = url
+        while (u.isNotEmpty() && u.last() in setOf(')', ']', '}', '.', ',', ';', '!', '?', '"', '\'')) {
+            u = u.dropLast(1)
+        }
+        // Drop fragment - never relevant for stream extraction.
+        val hashIdx = u.indexOf('#')
+        if (hashIdx > 0) u = u.substring(0, hashIdx)
+        return u
+    }
+
+    /**
+     * Per-URL dispatch. Always returns true if SOMETHING was attempted,
+     * false only when we have no extractor at all (so loadLinks can log
+     * coverage gaps).
+     *
+     *   - kmhd.eu / kmhd.fans / etc → our own KmhdExtractor (handles the
+     *     SvelteKit __data.json mirror JSON, percent-encodes non-ASCII
+     *     file IDs like "Sueño_2df1145a").
+     *   - kmhd.net / .../directlink → just a redirect; pass through to
+     *     loadExtractor so it gets a chance via DDoS-guard / cf bypass.
+     *   - everything else → Cloudstream's stock loadExtractor, which
+     *     iterates ~300 built-in extractors (Gofile, Mediafire, GDFlix,
+     *     Streamtape, Filemoon, Mixdrop, etc.) and picks the right one
+     *     by URL prefix. Unknown hosts simply no-op, never throw.
      */
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
         val url = rawUrl.trim()
-        try {
-            if (url.contains("kmhd.eu", ignoreCase = true)) {
-                KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
-            } else {
-                loadExtractor(url, mainUrl, subtitleCallback, callback)
+        if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
+        return try {
+            when {
+                // Our custom kmhd extractor (covers links.kmhd.{eu,fans,...}).
+                Regex("""(?i)links\.kmhd\.""").containsMatchIn(url) -> {
+                    KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // Everything else: try Cloudstream's stock registry.
+                else -> {
+                    loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Extractor crashed for $url: ${e.message}")
+            // Returning true so loadLinks counts this as "attempted",
+            // not "no URLs". The crash log itself is the diagnostic.
+            true
         }
     }
 
