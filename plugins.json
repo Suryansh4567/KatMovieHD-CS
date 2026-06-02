@@ -9,7 +9,7 @@
             "arena"
         ],
         "description": "4K Ultra HD / 2160p UHD movies & TV series from KatMovie4K (Dolby Vision, HDR10+, SDR). Sister site of KatMovieHD focused on the highest-quality releases. Multi-mirror dispatch via ziddiflix, gdflix, hubcloud, driveleech, kmhd. TMDB + Cinemeta metadata, dynamic domain via shared domains.json.",
-        "fileSize": 82093,
+        "fileSize": 83010,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -18,7 +18,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=katmovie4k.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-0500ef5a3f112b0c6341cedd17c7cef1e0deb67ddd4c8b2b292ec39dfa8173ee"
+        "fileHash": "sha256-ac848fab636d7d04bd8871a9024e85ba2e2208e4fd1e32b979a048d5880b73f9"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
