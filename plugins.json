@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 12,
+        "version": 13,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
         "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain.",
-        "fileSize": 73200,
+        "fileSize": 73201,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-a239f1a418b4ea62c723f67bb00515b7b4efbf3745441302ed72758bfe60e46c"
+        "fileHash": "sha256-386d17de00428b9359262dbbf56ce486c82171824d175dcde3cedf2856a82791"
     }
 ]
