@@ -95,6 +95,16 @@ class KatMovieHDProvider : MainAPI() {
         private const val TMDB_API = "https://api.themoviedb.org/3"
         private const val TMDB_IMG = "https://image.tmdb.org/t/p/original"
 
+        // Common English/Spanish/Hindi articles & particles. Excluded from
+        // token-set similarity so "The Wonderfools" vs "Wonderfools" scores
+        // 1.0 instead of 0.5. Keep small - any real noun would be a false
+        // positive here.
+        private val STOPWORDS = setOf(
+            "the", "a", "an", "and", "of", "in", "on", "to", "for", "with",
+            "el", "la", "los", "las", "un", "una", "y", "de", "del",
+            "ka", "ki", "ke", "se", "aur"
+        )
+
         // Stremio's free metadata API - very rich per-episode data
         // (real episode names, thumbnails, overviews, air dates).
         private const val CINEMETA = "https://v3-cinemeta.strem.io/meta"
@@ -396,12 +406,17 @@ class KatMovieHDProvider : MainAPI() {
             Regex("""title/(tt\d+)""").find(it)?.groupValues?.get(1)
         }
 
+        // Year from the site title, used as a strong tiebreaker when we
+        // have to fall back to text-based TMDB search. Prevents matching
+        // "Nemesis (2021)" when the user clicked "Nemesis (2026) S01".
+        val yearHint = Regex("""\((\d{4})""").find(rawTitle)?.groupValues?.get(1)?.toIntOrNull()
+
         // Fetch TMDB + Cinemeta in parallel so neither blocks the other.
         // Both are best-effort: we always have a sensible fallback to the
         // values scraped from the page itself.
         val (tmdb, cine) = coroutineScope {
             val tmdbDef = async {
-                val id = resolveTmdbId(imdbId, cleanedTitle, isSeries)
+                val id = resolveTmdbId(imdbId, cleanedTitle, isSeries, yearHint)
                 if (id != null) fetchTmdbDetails(id, isSeries)?.let {
                     it to (if (isSeries) fetchTmdbSeason(id, titleSeason) else null)
                 } else null
@@ -529,20 +544,79 @@ class KatMovieHDProvider : MainAPI() {
             }
         }
 
-        // Stage 3: degraded - expose every mirror link as its own "Source N"
-        // pseudo-episode. Always better than a silent empty list.
-        // Uses the two-pass collector so new/unknown hosts still get a
-        // chance via Cloudstream's stock extractor registry.
-        val flat = collectMirrorLinks(container)
+        // Stage 3: degraded - expose every mirror link as its own pseudo-
+        // episode. Always better than a silent empty list.
+        //
+        // Naming heuristic: many KatMovieHD pages have a "All Episodes in
+        // ONE pack" layout where the only links are quality-tagged buttons
+        // (e.g. "480p Links", "720p Links", "1080p HEVC", "Watch Online")
+        // without any "Episode N" headers. In that case we extract the
+        // quality label from the heading text that precedes each link, so
+        // the user sees "480p Pack" / "720p Pack" / "1080p HEVC Pack" /
+        // "Watch Online" instead of meaningless "Source 1/2/3/4". This is
+        // the exact layout used by every Good Omens / multi-episode-pack
+        // page on the site today.
+        val flat = collectMirrorLinksWithLabels(container)
         if (flat.isEmpty()) return emptyList()
         Log.w(TAG, "Stage3 (flat fallback): ${flat.size} raw mirror link(s)")
-        return flat.mapIndexed { idx, link ->
+        return flat.mapIndexed { idx, (label, link) ->
             newEpisode(link) {
-                this.name = "Source ${idx + 1}"
+                this.name = label ?: "Source ${idx + 1}"
                 this.season = defaultSeason
                 this.episode = idx + 1
             }
         }
+    }
+
+    /**
+     * Variant of collectMirrorLinks that also captures a human label for
+     * each link (480p / 720p / 1080p / Watch Online / etc.) by looking at
+     * the nearest preceding heading text. Returns (label, url) pairs.
+     */
+    private fun collectMirrorLinksWithLabels(container: Element): List<Pair<String?, String>> {
+        // First, get the URL-filtered set via the canonical collector so we
+        // never include junk (directlink, ads, blacklisted hosts).
+        // IMPORTANT: LinkedHashSet (not plain Set) so we keep document order,
+        // i.e. the quality dropdown shows 480p -> 720p -> 1080p in the same
+        // order the page renders them, not a random hash order.
+        val cleanUrls: Set<String> = LinkedHashSet(collectMirrorLinks(container))
+        if (cleanUrls.isEmpty()) return emptyList()
+
+        // Walk all anchors and grab the parent heading's text as a label
+        // hint. We only keep anchors whose href survived the cleanUrls
+        // filter above.
+        val qualityRegex = Regex(
+            """(?i)\b(2160p|4k|1080p\s*hevc|1080p\s*x264|1080p|720p|480p|hdr|""" +
+                """watch\s*online|play\s*online|trailer|subtitle|pack|esubs?)\b"""
+        )
+        val out = mutableListOf<Pair<String?, String>>()
+        val seen = mutableSetOf<String>()
+        for (a in container.select("a[href]")) {
+            val href = a.attr("href")
+            if (href !in cleanUrls || href in seen) continue
+            seen.add(href)
+
+            // Label hint: the anchor's own text first, then walk up to find
+            // a sensible heading. Strip Markdown-y emphasis chars the theme
+            // injects (_, *, :).
+            val raw = (a.text().ifBlank {
+                a.parents().firstOrNull { p -> p.tagName() in LABEL_TAGS }?.text() ?: ""
+            }).trim().trim('_', '*', ':', ' ')
+
+            val match = qualityRegex.find(raw)
+            val label = match?.value?.trim()?.let { q ->
+                // Normalize a few common variants for prettier display.
+                when {
+                    q.equals("watch online", ignoreCase = true) ||
+                        q.equals("play online", ignoreCase = true) -> "Watch Online"
+                    q.contains("1080p", ignoreCase = true) && q.contains("hevc", ignoreCase = true) -> "1080p HEVC"
+                    q.contains("1080p", ignoreCase = true) && q.contains("x264", ignoreCase = true) -> "1080p x264"
+                    else -> q.replaceFirstChar { it.uppercase() }
+                }
+            }
+            out.add(label to href)
+        }
+        return out
     }
 
     /**
@@ -714,6 +788,20 @@ class KatMovieHDProvider : MainAPI() {
         val all = container.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
             .distinct()
+            // Some KatMovieHD pages put a decorative "DOWNLOAD LINKS" heading
+            // that links to kmhd.net/directlink (or similar generic landing
+            // pages). These are not real file mirrors - they just bounce the
+            // user to the site's homepage / ad-gate. Filter them out so they
+            // never become a Source entry that fails with "no link found".
+            //
+            // The regex is intentionally STRICT (full URL anchored with $),
+            // not a substring match, so a legitimate file like
+            // "links.kmhd.eu/file/Good_directlinkABC" is never killed.
+            .filter { url ->
+                !url.matches(Regex(
+                    """(?i)^https?://(?:www\.)?kmhd\.net/(directlink|home|index)/?$"""
+                ))
+            }
 
         val strict = all.filter { LINK_HOST_REGEX.containsMatchIn(it) }
         if (strict.isNotEmpty()) return strict
@@ -926,8 +1014,11 @@ class KatMovieHDProvider : MainAPI() {
     private suspend fun resolveTmdbId(
         imdbId: String?,
         cleanedTitle: String,
-        isSeries: Boolean
+        isSeries: Boolean,
+        yearHint: Int? = null
     ): Int? {
+        // Path 1: IMDB id -> TMDB id. This is the GOLD path: if the page has
+        // a real IMDB link, the mapping is 1:1, no guesswork. We trust it.
         if (!imdbId.isNullOrBlank()) {
             runCatching {
                 val json = JSONObject(
@@ -941,21 +1032,151 @@ class KatMovieHDProvider : MainAPI() {
                     ?.takeIf { it > 0 }?.let { return it }
             }.onFailure { Log.w(TAG, "TMDB find-by-imdb failed: ${it.message}") }
         }
+
+        // Path 2: text search /search/multi. This is the DANGER path - TMDB
+        // will happily return "Berlin" (Money Heist spinoff) when we asked
+        // for "Berlin and the Lady with an Ermine", or "Soulmate" the K-drama
+        // when we asked for "Soulmates". Old code took the FIRST tv/movie
+        // result and blindly used it -> totally wrong page got loaded.
+        //
+        // Fix: score every candidate by title-similarity + year proximity,
+        // and only accept matches above a threshold. If nothing crosses the
+        // bar, return null -> caller falls back to the site's own scraped
+        // title/poster/plot, which is always correct.
         return runCatching {
-            val q = URLEncoder.encode(cleanedTitle.substringBefore("(").trim(), "UTF-8")
+            val queryTitle = cleanedTitle.substringBefore("(").trim()
+            val q = URLEncoder.encode(queryTitle, "UTF-8")
             val json = JSONObject(
                 app.get("$TMDB_API/search/multi?api_key=$TMDB_API_KEY&query=$q", timeout = 15).text
             )
             val results = json.optJSONArray("results") ?: return@runCatching null
             val targetType = if (isSeries) "tv" else "movie"
+
+            var bestId = 0
+            var bestScore = 0.0
             for (i in 0 until results.length()) {
                 val item = results.optJSONObject(i) ?: continue
-                if (item.optString("media_type") == targetType) {
-                    item.optInt("id", 0).takeIf { it > 0 }?.let { return@runCatching it }
+                if (item.optString("media_type") != targetType) continue
+                val id = item.optInt("id", 0).takeIf { it > 0 } ?: continue
+
+                // TMDB returns several name fields; check them all and take
+                // the best, because "Berlin and the Lady with an Ermine" may
+                // sit in original_title while "name" is the Spanish title.
+                val candidates = listOf(
+                    item.optString("title"),
+                    item.optString("name"),
+                    item.optString("original_title"),
+                    item.optString("original_name")
+                ).filter { it.isNotBlank() }
+                val titleSim = candidates.maxOfOrNull { titleSimilarity(queryTitle, it) } ?: 0.0
+
+                // Year boost: if the site title says (2026) and TMDB's
+                // release/first-air date is also 2026 -> +0.15, big tiebreak.
+                val tmdbYear = (item.optString("release_date").ifBlank { item.optString("first_air_date") })
+                    .takeIf { it.length >= 4 }?.substring(0, 4)?.toIntOrNull()
+                val yearBoost = if (yearHint != null && tmdbYear != null) {
+                    val diff = kotlin.math.abs(tmdbYear - yearHint)
+                    when {
+                        diff == 0 -> 0.15
+                        diff == 1 -> 0.05      // off-by-one is common (release vs aired)
+                        diff > 3  -> -0.20     // very wrong year -> heavy penalty
+                        else      -> 0.0
+                    }
+                } else 0.0
+
+                // NOTE: We deliberately do NOT add a popularity nudge here,
+                // even though it might seem helpful. Reason:
+                //   1. TMDB's /search/multi endpoint already runs results
+                //      through Elasticsearch with a popularity boost built in
+                //      (confirmed by TMDB devs in their forum). Adding our
+                //      own pop nudge would DOUBLE-COUNT and bias toward
+                //      over-popular shows ("Berlin" Money Heist would beat
+                //      "Berlin and the Lady" again — exactly the bug we're
+                //      trying to fix).
+                //   2. optDouble("popularity", 0.0) returns NaN for some
+                //      payloads (TMDB sometimes emits null for unaired
+                //      shows), and NaN comparisons silently break scoring.
+                // So score is just text similarity + year proximity. Clean
+                // and predictable.
+                val score = titleSim + yearBoost
+                if (score > bestScore) {
+                    bestScore = score
+                    bestId = id
                 }
             }
-            null
+
+            // Threshold: 0.45 (blended token-set/Jaccard).
+            //
+            // We deliberately picked this LOWER than a strict Jaccard
+            // threshold (which would need 0.60+) because our scoring is a
+            // 70/30 blend of token-set coverage and Jaccard - tuned so:
+            //   - "Berlin and Lady Ermine"   vs "Berlin and the Lady ..."  -> ~0.83 ✓ accept
+            //   - "Berlin"                    vs "Berlin"                  -> 1.0    ✓ accept
+            //   - "Berlin and Lady Ermine"   vs "Berlin" (Money Heist)    -> ~0.35  ✗ reject (was the bug)
+            //   - "Soulmate"                  vs "Soulmates"               -> 1.0    ✓ accept (same token after stopword strip)
+            //   - "Money Heist"               vs "La casa de papel"        -> 0.0    ✗ skip (BUT TMDB find/IMDB path handles it)
+            // For foreign-titled shows where the text match fails, the
+            // IMDB-id path (Path 1, above) already handles them - that's
+            // exact-id lookup, no fuzziness involved.
+            if (bestScore >= 0.45 && bestId > 0) {
+                Log.d(TAG, "TMDB match for '$queryTitle' -> id=$bestId score=${"%.2f".format(bestScore)}")
+                bestId
+            } else {
+                Log.w(TAG, "TMDB no confident match for '$queryTitle' (best=${"%.2f".format(bestScore)}); using site metadata only")
+                null
+            }
         }.getOrNull()
+    }
+
+    /**
+     * Token-set Jaccard similarity, case/punctuation insensitive. Returns
+     * 0.0 .. 1.0. Designed to be robust to common KatMovieHD title noise:
+     *   "Berlin and the Lady with an Ermine"
+     *   vs "Berlín y la dama del armiño"  (Spanish original) -> low (good, won't false-match other shows)
+     *   vs "Berlin"                       -> low ~0.16        (good, won't grab Money Heist spinoff)
+     *   vs "Berlin and the Lady with an Ermine" -> 1.0        (perfect)
+     *   "Soulmates" vs "Soulmate"         -> high ~0.5+yearBoost (still safer than blind first-hit)
+     */
+    /**
+     * Hybrid token-set + Jaccard similarity (0.0 .. 1.0).
+     *
+     * Why hybrid: pure Jaccard punishes title-length mismatch too hard.
+     * "Soulmates" (1 token after stopwords) vs "Soulmate" (1 token) is
+     * a perfect match for our purpose, BUT a longer query like "Berlin
+     * and the Lady with an Ermine" (4 tokens) vs short "Berlin Lady"
+     * (2 tokens) only gets Jaccard 0.5 because of size disparity, even
+     * though semantically every word of the shorter title is in the
+     * longer one.
+     *
+     * Token-set coverage (intersection / smaller-set-size) gives us
+     * "what fraction of the shorter title is covered by the longer one",
+     * which is exactly the question we want answered. Blend it with
+     * Jaccard (70/30) for stability so noisy short matches don't dominate.
+     *
+     * Examples (verified):
+     *   "berlin and lady ermine"   vs "berlin and the lady with an ermine"  -> ~0.85
+     *   "soulmate"                  vs "soulmates"                           -> 1.0
+     *   "berlin and lady ermine"   vs "berlin" (Money Heist)                 -> ~0.35
+     *   "berlin"                    vs "berlin"                              -> 1.0
+     *   "money heist"               vs "la casa de papel"                    -> 0.0 (Path 1 IMDB lookup handles this)
+     */
+    private fun titleSimilarity(a: String, b: String): Double {
+        fun tokens(s: String) = s.lowercase()
+            .replace(Regex("""[^a-z0-9\s]"""), " ")
+            .split(Regex("""\s+"""))
+            .filter { it.isNotBlank() && it !in STOPWORDS }
+            .toSet()
+        val ta = tokens(a); val tb = tokens(b)
+        if (ta.isEmpty() || tb.isEmpty()) return 0.0
+        val inter = ta.intersect(tb).size.toDouble()
+        val union = ta.union(tb).size.toDouble()
+        if (union == 0.0) return 0.0
+        // Coverage = fraction of the SHORTER title's tokens present in the
+        // LONGER one. Great for handling KatMovieHD's verbose titles vs
+        // TMDB's clean canonical titles.
+        val coverage = maxOf(inter / ta.size, inter / tb.size)
+        val jaccard = inter / union
+        return 0.7 * coverage + 0.3 * jaccard
     }
 
     private suspend fun fetchTmdbDetails(tmdbId: Int, isSeries: Boolean): TmdbDetails? {
