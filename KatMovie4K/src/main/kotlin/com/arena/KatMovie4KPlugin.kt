@@ -36,17 +36,30 @@ class KatMovie4KPlugin : BasePlugin() {
         // Born Again S01 page).
         registerExtractorAPI(KmhdExtractor())
 
-        // Same mirror-host extractors as KatMovieHD — gdflix variants
-        // (new3.gdflix.dad, new4.gdflix.dad etc. all match the .dad TLD
-        // already covered by GDFlix.mainUrl substring matcher) and
-        // HubCloud (some 4K series use hubcloud as overflow when ziddiflix
-        // is saturated).
+        // Standard GDFlix family — same registrations as KatMovieHD plugin.
         registerExtractorAPI(HubCloud())
         registerExtractorAPI(GDFlix())
         registerExtractorAPI(GDFlixNet())
         registerExtractorAPI(GDFlixNew1())
         registerExtractorAPI(GDFlixNew17())
         registerExtractorAPI(GDFlixDotDev())
+
+        // KatMovie4K-specific extra hosts. Diagnosed v1 "no link found" bug:
+        // these URLs were appearing on every 4K page but CloudStream's
+        // loadExtractor() router silently no-op'd because no registered
+        // ExtractorApi declared a matching mainUrl prefix. Each one below
+        // is a thin subclass of GDFlix with the correct mainUrl, which
+        // makes CS's prefix-based dispatch actually route to our handler.
+        // See Extractors.kt v2 docs at the bottom of the file for the
+        // full redirect-chain analysis.
+        registerExtractorAPI(GDFlixDad3())     // new3.gdflix.dad
+        registerExtractorAPI(GDFlixDad4())     // new4.gdflix.dad
+        registerExtractorAPI(GDLinkDev())      // gdlink.dev (post-redirect target)
+        registerExtractorAPI(Ziddiflix())      // ziddiflix.com
+        registerExtractorAPI(Vifix())          // vifix.site
+        registerExtractorAPI(Driveleech())     // driveleech.org
+        registerExtractorAPI(DriveleechPro())  // driveleech.pro
+        registerExtractorAPI(DriveleechNet())  // driveleech.net
     }
 
     companion object {
