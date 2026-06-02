@@ -1,16 +1,21 @@
 package com.arena
 
 import com.lagradost.api.Log
+import com.lagradost.cloudstream3.Actor
+import com.lagradost.cloudstream3.ActorData
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SearchResponseList
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.addDate
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
@@ -22,8 +27,10 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 
 class KatMovieHDProvider : MainAPI() {
 
@@ -42,6 +49,13 @@ class KatMovieHDProvider : MainAPI() {
         "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
     )
+
+    companion object {
+        private const val TAG = "KatMovieHD"
+        const val TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49"
+        const val TMDB_API = "https://api.themoviedb.org/3"
+        const val TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original"
+    }
 
     override val mainPage = mainPageOf(
         "page/"                              to "Latest",
@@ -124,53 +138,81 @@ class KatMovieHDProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url, headers = headers).document
         val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text() ?: doc.title()
-        val title = cleanTitle(rawTitle)
-
-        val poster = doc.selectFirst(".entry-content img, article img")?.absUrl("src")
+        val sitePoster = doc.selectFirst(".entry-content img, article img")?.absUrl("src")
             ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
-
-        val plot = doc.select(".entry-content p")
+        val sitePlot = doc.select(".entry-content p")
             .firstOrNull { it.text().length > 80 }?.text()
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
-        val imdbUrl = doc.selectFirst("a[href*=imdb.com/title]")?.attr("href")
-        val year = Regex("""\((\d{4})""").find(rawTitle)?.groupValues?.get(1)?.toIntOrNull()
-
+        val cleanedTitle = cleanTitle(rawTitle)
         val isSeries = guessTvType(rawTitle) == TvType.TvSeries
         val seasonNumber = Regex("""(?i)Season\s*(\d+)|\bS(\d{1,2})""")
             .find(rawTitle)?.let { m -> m.groupValues[1].ifBlank { m.groupValues[2] } }
             ?.toIntOrNull() ?: 1
 
+        val imdbUrl = doc.selectFirst("a[href*=imdb.com/title]")?.attr("href")
+        val imdbId = imdbUrl?.let {
+            Regex("""title/(tt\d+)""").find(it)?.groupValues?.get(1)
+        }
+
+        val tmdbId: Int? = resolveTmdbId(imdbId, cleanedTitle, isSeries)
+        val tmdb = tmdbId?.let { fetchTmdbDetails(it, isSeries) }
+
+        val title    = tmdb?.title       ?: cleanedTitle
+        val poster   = tmdb?.poster      ?: sitePoster
+        val backdrop = tmdb?.backdrop    ?: sitePoster
+        val plot     = tmdb?.overview    ?: sitePlot
+        val year     = tmdb?.year        ?: Regex("""\((\d{4})""").find(rawTitle)?.groupValues?.get(1)?.toIntOrNull()
+        val rating   = tmdb?.rating
+        val tags     = tmdb?.genres ?: emptyList()
+        val actors   = tmdb?.actors ?: emptyList()
+        val trailer  = tmdb?.trailer
+
+        Log.d(TAG, "load(): '$title' isSeries=$isSeries tmdbId=$tmdbId")
+
         if (isSeries) {
-            val episodes = parseEpisodes(doc, seasonNumber)
-            Log.d(TAG, "load(): series '$title' parsed ${episodes.size} episode(s)")
+            val tmdbSeason = tmdbId?.let { fetchTmdbSeason(it, seasonNumber) }
+            val episodes = parseEpisodes(doc, seasonNumber, tmdbSeason)
+            Log.d(TAG, "load(): series parsed ${episodes.size} episode(s)")
 
             if (episodes.isEmpty()) {
                 Log.w(TAG, "Series had 0 episodes — falling back to movie-style")
                 val allLinks = parseMovieLinks(doc)
-                Log.d(TAG, "Fallback movieList has ${allLinks.split('\n').size} links")
                 return newMovieLoadResponse(title, url, TvType.Movie, allLinks) {
                     this.posterUrl = poster
+                    this.backgroundPosterUrl = backdrop
                     this.plot = plot
                     this.year = year
+                    this.tags = tags
+                    this.actors = actors
+                    this.score = rating
+                    addTrailer(trailer)
                     imdbUrl?.let { addImdbUrl(it) }
                 }
             }
 
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
+                this.backgroundPosterUrl = backdrop
                 this.plot = plot
                 this.year = year
+                this.tags = tags
+                this.actors = actors
+                this.score = rating
+                addTrailer(trailer)
                 imdbUrl?.let { addImdbUrl(it) }
             }
         } else {
-            val movieDataString = parseMovieLinks(doc)
-            Log.d(TAG, "load(): movie '$title' has ${movieDataString.split('\n').size} link(s)")
-
-            return newMovieLoadResponse(title, url, TvType.Movie, movieDataString) {
+            val movieData = parseMovieLinks(doc)
+            return newMovieLoadResponse(title, url, TvType.Movie, movieData) {
                 this.posterUrl = poster
+                this.backgroundPosterUrl = backdrop
                 this.plot = plot
                 this.year = year
+                this.tags = tags
+                this.actors = actors
+                this.score = rating
+                addTrailer(trailer)
                 imdbUrl?.let { addImdbUrl(it) }
             }
         }
@@ -185,13 +227,16 @@ class KatMovieHDProvider : MainAPI() {
             .joinToString("\n")
     }
 
-    private fun parseEpisodes(doc: Document, seasonNumber: Int): List<Episode> {
+    private fun parseEpisodes(
+        doc: Document,
+        seasonNumber: Int,
+        tmdbSeason: TmdbSeason?
+    ): List<Episode> {
         val container = doc.selectFirst("article, .entry-content") ?: return emptyList()
         val epHeaderRegex = Regex("""(?i)\bEpisode\s*[-–:#]?\s*(\d{1,3})\b""")
         val map = linkedMapOf<Int, MutableList<String>>()
         var currentEp: Int? = null
 
-        // Phase 1 — Layout A walker (Episode N → links)
         for (node in container.allElements) {
             val nodeText = node.text()
             if (nodeText.length < 40 &&
@@ -221,15 +266,10 @@ class KatMovieHDProvider : MainAPI() {
         if (map.isNotEmpty()) {
             Log.d(TAG, "Layout A: detected ${map.size} episodes")
             return map.entries.map { (ep, links) ->
-                newEpisode(links.joinToString("\n")) {
-                    this.name = "Episode $ep"
-                    this.season = seasonNumber
-                    this.episode = ep
-                }
+                buildEpisode(ep, seasonNumber, links, tmdbSeason)
             }
         }
 
-        // Phase 2 — Layout B: full-season packs.
         Log.d(TAG, "Layout A found nothing, trying Layout B (packs)")
         val packEpisodes = mutableListOf<Episode>()
         var packIdx = 1
@@ -268,7 +308,6 @@ class KatMovieHDProvider : MainAPI() {
             return packEpisodes
         }
 
-        // Phase 3 — last resort.
         Log.w(TAG, "Both layouts failed, dumping all kmhd links as episodes")
         val allLinks = container.select("a[href]")
             .map { it.attr("href") }
@@ -281,6 +320,171 @@ class KatMovieHDProvider : MainAPI() {
                 this.episode = idx + 1
             }
         }
+    }
+
+    private fun buildEpisode(
+        epNum: Int,
+        seasonNum: Int,
+        links: List<String>,
+        tmdbSeason: TmdbSeason?
+    ): Episode {
+        val tmdbEp = tmdbSeason?.episodes?.firstOrNull { it.episodeNumber == epNum }
+        return newEpisode(links.joinToString("\n")) {
+            this.name = tmdbEp?.name ?: "Episode $epNum"
+            this.season = seasonNum
+            this.episode = epNum
+            this.posterUrl = tmdbEp?.stillUrl
+            this.description = tmdbEp?.overview
+            this.score = tmdbEp?.rating
+            tmdbEp?.airDate?.let { addDate(it) }
+        }
+    }
+
+    private data class TmdbDetails(
+        val title: String?,
+        val poster: String?,
+        val backdrop: String?,
+        val overview: String?,
+        val year: Int?,
+        val rating: Score?,
+        val genres: List<String>,
+        val actors: List<ActorData>,
+        val trailer: String?
+    )
+
+    private data class TmdbSeason(
+        val seasonNumber: Int,
+        val episodes: List<TmdbEpisode>
+    )
+
+    private data class TmdbEpisode(
+        val episodeNumber: Int,
+        val name: String?,
+        val overview: String?,
+        val stillUrl: String?,
+        val airDate: String?,
+        val rating: Score?
+    )
+
+    private suspend fun resolveTmdbId(
+        imdbId: String?,
+        cleanedTitle: String,
+        isSeries: Boolean
+    ): Int? {
+        if (!imdbId.isNullOrBlank()) {
+            runCatching {
+                val json = JSONObject(
+                    app.get("$TMDB_API/find/$imdbId?api_key=$TMDB_API_KEY&external_source=imdb_id").text
+                )
+                val arrKey = if (isSeries) "tv_results" else "movie_results"
+                val id = json.optJSONArray(arrKey)?.optJSONObject(0)?.optInt("id", 0)
+                if (id != null && id > 0) return id
+            }.onFailure { Log.w(TAG, "TMDB find-by-imdb failed: ${it.message}") }
+        }
+
+        return runCatching {
+            val q = URLEncoder.encode(cleanedTitle.substringBefore("(").trim(), "UTF-8")
+            val url = "$TMDB_API/search/multi?api_key=$TMDB_API_KEY&query=$q"
+            val json = JSONObject(app.get(url).text)
+            val results = json.optJSONArray("results") ?: return@runCatching null
+            val targetType = if (isSeries) "tv" else "movie"
+            for (i in 0 until results.length()) {
+                val item = results.optJSONObject(i) ?: continue
+                if (item.optString("media_type") == targetType) {
+                    val id = item.optInt("id", 0)
+                    if (id > 0) return@runCatching id
+                }
+            }
+            null
+        }.getOrNull()
+    }
+
+    private suspend fun fetchTmdbDetails(tmdbId: Int, isSeries: Boolean): TmdbDetails? {
+        val type = if (isSeries) "tv" else "movie"
+        return runCatching {
+            val json = JSONObject(
+                app.get(
+                    "$TMDB_API/$type/$tmdbId?api_key=$TMDB_API_KEY&append_to_response=credits,videos"
+                ).text
+            )
+
+            val title = json.optString("title").ifBlank { json.optString("name") }.ifBlank { null }
+            val date = json.optString("release_date").ifBlank { json.optString("first_air_date") }
+            val year = date.takeIf { it.isNotBlank() }?.substringBefore("-")?.toIntOrNull()
+            val poster = json.optString("poster_path").takeIf { it.isNotBlank() }
+                ?.let { TMDB_IMAGE_BASE + it }
+            val backdrop = json.optString("backdrop_path").takeIf { it.isNotBlank() }
+                ?.let { TMDB_IMAGE_BASE + it }
+            val overview = json.optString("overview").takeIf { it.isNotBlank() }
+            val voteAvg = json.optDouble("vote_average").takeIf { !it.isNaN() && it > 0.0 }
+            val rating = voteAvg?.let { Score.from10(it) }
+
+            val genres = json.optJSONArray("genres")?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        arr.optJSONObject(i)?.optString("name")
+                            ?.takeIf { it.isNotBlank() }?.let { add(it) }
+                    }
+                }
+            } ?: emptyList()
+
+            val actors = json.optJSONObject("credits")?.optJSONArray("cast")?.let { arr ->
+                buildList {
+                    val limit = minOf(arr.length(), 20)
+                    for (i in 0 until limit) {
+                        val c = arr.optJSONObject(i) ?: continue
+                        val n = c.optString("name").ifBlank { c.optString("original_name") }
+                        if (n.isBlank()) continue
+                        val pf = c.optString("profile_path").takeIf { it.isNotBlank() }
+                            ?.let { TMDB_IMAGE_BASE + it }
+                        add(ActorData(Actor(n, pf), roleString = c.optString("character").takeIf { it.isNotBlank() }))
+                    }
+                }
+            } ?: emptyList()
+
+            val trailer = json.optJSONObject("videos")?.optJSONArray("results")?.let { arr ->
+                var found: String? = null
+                for (i in 0 until arr.length()) {
+                    val v = arr.optJSONObject(i) ?: continue
+                    if (v.optString("site") == "YouTube" &&
+                        v.optString("type").contains("Trailer", true)) {
+                        found = "https://www.youtube.com/watch?v=${v.optString("key")}"
+                        break
+                    }
+                }
+                found
+            }
+
+            TmdbDetails(title, poster, backdrop, overview, year, rating, genres, actors, trailer)
+        }.getOrNull()
+    }
+
+    private suspend fun fetchTmdbSeason(tmdbId: Int, seasonNum: Int): TmdbSeason? {
+        return runCatching {
+            val json = JSONObject(
+                app.get("$TMDB_API/tv/$tmdbId/season/$seasonNum?api_key=$TMDB_API_KEY").text
+            )
+            val arr = json.optJSONArray("episodes") ?: return@runCatching null
+            val episodes = buildList {
+                for (i in 0 until arr.length()) {
+                    val ep = arr.optJSONObject(i) ?: continue
+                    val epNum = ep.optInt("episode_number", -1).takeIf { it > 0 } ?: continue
+                    add(
+                        TmdbEpisode(
+                            episodeNumber = epNum,
+                            name = ep.optString("name").takeIf { it.isNotBlank() },
+                            overview = ep.optString("overview").takeIf { it.isNotBlank() },
+                            stillUrl = ep.optString("still_path").takeIf { it.isNotBlank() }
+                                ?.let { TMDB_IMAGE_BASE + it },
+                            airDate = ep.optString("air_date").takeIf { it.isNotBlank() },
+                            rating = ep.optDouble("vote_average").takeIf { !it.isNaN() && it > 0.0 }
+                                ?.let { Score.from10(it) }
+                        )
+                    )
+                }
+            }
+            TmdbSeason(seasonNum, episodes)
+        }.getOrNull()
     }
 
     override suspend fun loadLinks(
@@ -333,6 +537,8 @@ class KatMovieHDProvider : MainAPI() {
             .replace(Regex("""(?i)\s*Full Movie.*$"""), "")
             .replace(Regex("""(?i)\s*Download """), "")
             .replace(Regex("""(?i)\s*-\s*KatMovieHD.*$"""), "")
+            .replace(Regex("""(?i)\s*\((season\s*\d+)\)"""), "")
+            .replace(Regex("""(?i)\s*season\s*\d+"""), "")
             .trim()
             .ifBlank { raw.trim() }
     }
@@ -356,8 +562,4 @@ class KatMovieHDProvider : MainAPI() {
                 """streamtape|filemoon|doodstream|mixdrop|streamlare|hubdrive|katdrive|""" +
                 """1fichier|send\.cm|hglink|fuckingfast)"""
     )
-
-    companion object {
-        private const val TAG = "KatMovieHD"
-    }
 }
