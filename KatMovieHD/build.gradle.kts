@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 15
+version = 16
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain, wp-json search API + regex link-salvage fallback."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
