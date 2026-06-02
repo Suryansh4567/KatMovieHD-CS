@@ -9,7 +9,7 @@
             "arena"
         ],
         "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain.",
-        "fileSize": 77802,
+        "fileSize": 77821,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-37d5ae206109fdf8ca7e70e399bde47fd4459f88fe772fbc9dcf3f434fbee432"
+        "fileHash": "sha256-e21033c86d658725518a0a0cab8dc34f4921a8cf86ecdffd4a975f322a536163"
     }
 ]
