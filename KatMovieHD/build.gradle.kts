@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 9
+version = 10
 
 cloudstream {
     authors = listOf("arena")
@@ -10,10 +10,10 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD (TMDB-enriched)"
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain."
     language    = "hi"
 
-    tvTypes = listOf("Movie", "TvSeries", "AsianDrama")
+    tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
 
     iconUrl = "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64"
 }
