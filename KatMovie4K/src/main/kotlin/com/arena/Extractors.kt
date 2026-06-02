@@ -304,3 +304,88 @@ class GDFlixNew17 : GDFlix() {
 class GDFlixDotDev : GDFlix() {
     override val mainUrl = "https://gdflix.dev"
 }
+
+// ====================================================================
+// KatMovie4K-specific extractor variants (added in KatMovie4K v2).
+//
+// Diagnosis (verified live 2026-06-02):
+//   - katmovie4k pages link to a few extra hosts that CloudStream's
+//     loadExtractor() does NOT auto-route to because they are not in
+//     the stock registry and we hadn't registered our own variants:
+//
+//       ziddiflix.com/ionicboy/file/<id>   302→ gdflix.dev/file/<id> 302→ new18.gdflix.net/file/<id>
+//       new3.gdflix.dad/file/<id>          302→ gdlink.dev/file/<id>
+//       new4.gdflix.dad/file/<id>          302→ same chain
+//       driveleech.org/file/<id>           (Driveseed-style page)
+//       vifix.site/gdflix/<id>             302→ gdflix variant
+//
+// Industry pattern (confirmed against phisher98/UHDmoviesProvider,
+// SaurabhKaperwan/CineStream): for every distinct mainUrl prefix the
+// site links to, register a *separate* ExtractorApi subclass. The base
+// class implements the actual logic once; subclasses just override
+// `mainUrl` so CloudStream's prefix-based router dispatches correctly.
+//
+// We follow that pattern: GDFlixDad3 / GDFlixDad4 / GDLinkDev /
+// Ziddiflix / Vifix all extend GDFlix because the underlying file page
+// shape is identical once you've followed redirects.
+// ====================================================================
+
+/** new3.gdflix.dad → 302 to gdlink.dev/file/<id>. */
+class GDFlixDad3 : GDFlix() {
+    override val mainUrl = "https://new3.gdflix.dad"
+}
+
+/** new4.gdflix.dad → same redirect chain. */
+class GDFlixDad4 : GDFlix() {
+    override val mainUrl = "https://new4.gdflix.dad"
+}
+
+/**
+ * gdlink.dev — the post-redirect target of new3/new4.gdflix.dad.
+ * Page shape is the same as gdflix.dev, just a different brand TLD,
+ * so subclassing GDFlix works verbatim.
+ */
+class GDLinkDev : GDFlix() {
+    override val mainUrl = "https://gdlink.dev"
+}
+
+/**
+ * ziddiflix.com — kmhd's 4K-only redirector. Path is
+ * /ionicboy/file/<id> (or sometimes just /file/<id>). The page is
+ * served by Cloudflare with a 302 that lands on gdflix.dev/file/<id>
+ * carrying the same id, so we just let CloudStream follow the redirect
+ * and treat it as a GDFlix page.
+ */
+class Ziddiflix : GDFlix() {
+    override val mainUrl = "https://ziddiflix.com"
+}
+
+/**
+ * vifix.site — a thin gdflix wrapper. URLs look like
+ * /gdflix/<id> and the page is again a 302 to a real gdflix.dev variant.
+ */
+class Vifix : GDFlix() {
+    override val mainUrl = "https://vifix.site"
+}
+
+/**
+ * driveleech.org — Driveseed-family file host used by KatMovie4K for
+ * HDR/DV mirrors. Page contains an "Instant Download" / "Resume Cloud"
+ * button chain that resolves to a final mkv URL. We use the SAME logic
+ * as our base GDFlix here because both surfaces boil down to: fetch
+ * page → find <a class=btn-success> with a real http href → emit as
+ * an ExtractorLink. Future v3 might add Driveseed-specific token flow.
+ */
+class Driveleech : GDFlix() {
+    override val mainUrl = "https://driveleech.org"
+}
+
+/** driveleech.pro mirror. */
+class DriveleechPro : GDFlix() {
+    override val mainUrl = "https://driveleech.pro"
+}
+
+/** driveleech.net mirror. */
+class DriveleechNet : GDFlix() {
+    override val mainUrl = "https://driveleech.net"
+}
