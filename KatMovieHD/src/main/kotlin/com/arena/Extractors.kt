@@ -80,7 +80,15 @@ open class HubCloud : ExtractorApi() {
             val doc = app.get(url).document
 
             var link = if (url.contains("/video/")) {
-                doc.selectFirst("div.vd > center > a")?.attr("href") ?: ""
+                doc.selectFirst("div.vd > center > a")?.attr("href")
+                    ?: doc.select("a[href]").firstOrNull { a ->
+                        val href = a.attr("href")
+                        val text = a.text()
+                        href.contains("hubcloud.php", ignoreCase = true) ||
+                                text.contains("generate direct", ignoreCase = true) ||
+                                text.contains("direct download", ignoreCase = true)
+                    }?.attr("href")
+                    ?: ""
             } else {
                 val scriptTag = doc.selectFirst("script:containsData(url)")?.toString() ?: ""
                 Regex("var url = '([^']*)'").find(scriptTag)?.groupValues?.get(1) ?: ""
