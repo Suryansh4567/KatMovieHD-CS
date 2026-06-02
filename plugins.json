@@ -2,7 +2,7 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 16,
+        "version": 17,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-d01cc7c1741d7ca7e2bc506a61918687c8e7a0ac63ec5fabf90cedd6bfcfcda2"
+        "fileHash": "sha256-95a6912d7e46ca1f955129d5fbeaf0781aacaf8ff3e9f0beece863d7aa2fce67"
     }
 ]
