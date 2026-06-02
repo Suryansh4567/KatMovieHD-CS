@@ -153,7 +153,7 @@ class KatMovieHDProvider : MainAPI() {
                     """imdb\.com|themoviedb\.org|wikipedia\.org|""" +
                     """youtube\.com|youtu\.be|""" +
                     """t\.me|telegram\.|whatsapp\.|""" +
-                    """facebook\.com|fb\.com|twitter\.com|x\.com|instagram\.com|""" +
+                    """facebook\.com|fb\.com|twitter\.com|(?<![a-z])x\.com|instagram\.com|""" +
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
                     """wp-content|wp-includes|wp-json|""" +
