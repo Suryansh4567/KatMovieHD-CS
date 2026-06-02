@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.json.JSONArray
 import org.json.JSONObject
+import org.jsoup.Jsoup
 
 class KmhdExtractor : ExtractorApi() {
     override val name = "KMHD"
@@ -23,6 +24,91 @@ class KmhdExtractor : ExtractorApi() {
     ) {
         Log.d(TAG, "getUrl invoked: $url")
 
+        // Branch 1: legacy WordPress archive pages -
+        //   https://kmhd.eu/archives/<post_id>
+        // These predate the SvelteKit links.kmhd.eu/file/<id> system and
+        // are used by old KatMovieHD posts (e.g. pre-2020 movies like
+        // "Deadly Pickup 2016"). The page contains a flat list of mirror
+        // links (acefile, drive.tv21, openload, mp4upload, etc.). We
+        // fetch the page, scrape every external anchor, and re-dispatch
+        // each through Cloudstream's stock extractor registry.
+        if (Regex("""(?i)kmhd\.eu/archives/\d+""").containsMatchIn(url)) {
+            handleArchivePage(url, subtitleCallback, callback)
+            return
+        }
+
+        // Branch 2: SvelteKit /file/<id> or /play?id=<id> URLs (current
+        // KatMovieHD format). Hit the page's /__data.json sidecar and
+        // parse the dehydrated mirror map.
+        handleSvelteKitFileOrPlay(url, subtitleCallback, callback)
+    }
+
+    /**
+     * Legacy archive page handler. Pure HTML scrape + dispatch.
+     *
+     * Logs every URL we find for easy diagnostics, then fans them out
+     * in parallel through Cloudstream's loadExtractor (which has built-in
+     * support for most 2016-era hosts: openload, mp4upload, vidbob,
+     * uptobox, clicknupload, userscloud, etc).
+     */
+    private suspend fun handleArchivePage(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        Log.d(TAG, "Archive page handler: $url")
+        val html = runCatching {
+            app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to UA,
+                    "Cookie" to "unlocked=true",
+                    "Referer" to "https://kmhd.eu/"
+                ),
+                timeout = 30
+            ).text
+        }.getOrElse {
+            Log.e(TAG, "Archive page fetch failed: ${it.message}")
+            return
+        }
+        if (html.isBlank()) {
+            Log.w(TAG, "Archive page returned empty body: $url")
+            return
+        }
+
+        val doc = Jsoup.parse(html)
+        val anchors = doc.select("a[href]")
+            .mapNotNull { it.attr("href").trim().takeIf { h -> h.startsWith("http") } }
+            .filter { href ->
+                // Skip navigation, self-references, social media, image hosts,
+                // and other obvious non-stream URLs. Anything else is a candidate.
+                !ARCHIVE_IGNORE_REGEX.containsMatchIn(href)
+            }
+            .distinct()
+
+        Log.d(TAG, "Archive page yielded ${anchors.size} candidate mirrors")
+        if (anchors.isEmpty()) return
+
+        anchors.amap { mirrorUrl ->
+            runCatching {
+                Log.d(TAG, "Archive dispatch → $mirrorUrl")
+                loadExtractor(mirrorUrl, url, subtitleCallback, callback)
+            }.onFailure {
+                Log.w(TAG, "Archive mirror failed $mirrorUrl: ${it.message}")
+            }
+        }
+    }
+
+    /**
+     * Current-format SvelteKit handler. Pulls the dehydrated mirror map
+     * from /__data.json and dispatches each mirror via the per-host
+     * helper below.
+     */
+    private suspend fun handleSvelteKitFileOrPlay(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
         try {
             val rawId = Regex("""/(?:file|play)[/?](?:id=)?([^/?&#]+)""")
                 .find(url)?.groupValues?.get(1)?.trim()
@@ -172,5 +258,23 @@ class KmhdExtractor : ExtractorApi() {
         private const val TAG = "KmhdExtractor"
         private const val UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+        /**
+         * Anchors on a legacy archives page that are NEVER stream sources -
+         * site navigation, social, images, WP internals, etc. Anything
+         * that doesn't match here is forwarded to loadExtractor.
+         */
+        private val ARCHIVE_IGNORE_REGEX = Regex(
+            """(?i)(""" +
+                    """^https?://(?:www\.)?kmhd\.eu(?:/|$)|""" +
+                    """imdb\.com|themoviedb\.org|wikipedia|""" +
+                    """youtube\.com|youtu\.be|""" +
+                    """facebook\.com|twitter\.com|instagram\.com|t\.me|telegram\.|whatsapp\.|""" +
+                    """pinterest\.|reddit\.com|""" +
+                    """pichub|catimages|imgur|postimg|imgbox|""" +
+                    """wp-content|wp-includes|wp-json|xmlrpc|""" +
+                    """\.(?:png|jpe?g|gif|webp|svg|ico|css|woff2?)(?:\?|$)""" +
+                    """)"""
+        )
     }
 }
