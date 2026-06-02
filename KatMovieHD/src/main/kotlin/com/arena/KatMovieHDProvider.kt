@@ -30,8 +30,6 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
-import com.lagradost.cloudstream3.utils.AppUtils.parseJson
-import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -153,12 +151,14 @@ class KatMovieHDProvider : MainAPI() {
         )
     }
 
-    /**
-     * Each entry in [Episode.data] is a serialized JSON list of these.
-     * Using a typed wrapper instead of a `\n`-joined string future-proofs
-     * us against link strings that happen to contain delimiter characters.
-     */
-    data class EpisodeSource(val url: String)
+    // Episode.data is serialized as a plain JSON list of strings
+    // (e.g. ["https://...","https://..."]). Cloudstream's generic
+    // newEpisode(data: T) / newMovieLoadResponse(data: T) overloads
+    // take care of the serialization via Jackson, and tryParseJson<List<String>>
+    // in loadLinks safely reverses it. We deliberately avoid a wrapper
+    // data class here because nested classes inside MainAPI subclasses
+    // routinely trip Jackson type erasure when the plugin is loaded
+    // from a .cs3 - using primitive List<String> sidesteps the issue.
 
     // ------------------------------------------------------------------
     // Main page & search
@@ -323,8 +323,8 @@ class KatMovieHDProvider : MainAPI() {
             // the page is never dead-empty.
             if (episodes.isEmpty()) {
                 Log.w(TAG, "0 episodes after all strategies, emitting as movie-style links")
-                val data = collectAllPlayableLinks(doc)
-                return newMovieLoadResponse(title, url, TvType.Movie, data) {
+                val links = collectAllPlayableLinks(doc)
+                return newMovieLoadResponse(title, url, TvType.Movie, links) {
                     applyCommonMeta(this, poster, backdrop, plot, year, tags,
                         actorData, cineActors, rating, trailer, imdbUrl)
                 }
@@ -341,9 +341,10 @@ class KatMovieHDProvider : MainAPI() {
                 }
             }
         } else {
-            // Movie - data is a JSON list of EpisodeSource.
-            val data = collectAllPlayableLinks(doc)
-            return newMovieLoadResponse(title, url, TvType.Movie, data) {
+            // Movie - data is a List<String> of mirror URLs; the generic
+            // newMovieLoadResponse<T> overload JSON-encodes it for us.
+            val links = collectAllPlayableLinks(doc)
+            return newMovieLoadResponse(title, url, TvType.Movie, links) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl)
             }
@@ -419,7 +420,7 @@ class KatMovieHDProvider : MainAPI() {
         if (flat.isEmpty()) return emptyList()
         Log.w(TAG, "Stage3 (flat fallback): ${flat.size} raw mirror link(s)")
         return flat.mapIndexed { idx, link ->
-            newEpisode(listOf(EpisodeSource(link)).toJson()) {
+            newEpisode(listOf(link)) {
                 this.name = "Source ${idx + 1}"
                 this.season = defaultSeason
                 this.episode = idx + 1
@@ -574,13 +575,11 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     /** Movie pages just dump every mirror URL we find. */
-    private fun collectAllPlayableLinks(doc: Document): String {
+    private fun collectAllPlayableLinks(doc: Document): List<String> {
         val content = doc.selectFirst("article, .entry-content") ?: doc
         return content.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> LINK_HOST_REGEX.containsMatchIn(h) } }
             .distinct()
-            .map { EpisodeSource(it) }
-            .toJson()
     }
 
     private fun buildEpisodes(
@@ -597,8 +596,8 @@ class KatMovieHDProvider : MainAPI() {
             val cineEp = cine?.videos
                 ?.firstOrNull { it.season == season && it.episode == ep }
 
-            val sources = links.map { EpisodeSource(it) }
-            newEpisode(sources.toJson()) {
+            // Pass the raw URL list - newEpisode(T) JSON-encodes it.
+            newEpisode(links.toList()) {
                 this.name = tmdbEp?.name ?: cineEp?.name ?: cineEp?.title ?: "Episode $ep"
                 this.season = season
                 this.episode = ep
@@ -623,23 +622,33 @@ class KatMovieHDProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // `data` is either the JSON list we wrote (new format), or a raw
-        // \n / , separated string (legacy / movie fallback).
+        Log.d(TAG, "loadLinks: raw data length=${data.length}, preview='${data.take(120)}'")
+
+        // Primary path: the JSON list we serialized in load().
+        // Fallbacks (in order):
+        //   - newline / comma separated raw string (legacy callers and any
+        //     manual edit of an old plugin-installed Episode)
+        //   - a single bare URL
         val urls: List<String> = when {
             data.isBlank() -> emptyList()
-            data.trimStart().startsWith("[") -> tryParseJson<List<EpisodeSource>>(data)
-                ?.map { it.url }
-                ?: parseJson<List<String>>(data).map { it.trim() }
-            else -> data.split("\n", ",")
-                .map { it.trim().trim('"', '[', ']') }
-                .filter { it.startsWith("http") }
+            data.trimStart().startsWith("[") ->
+                tryParseJson<List<String>>(data)
+                    ?.map { it.trim() }
+                    ?.filter { it.startsWith("http") }
+                    ?: emptyList()
+            data.startsWith("http") && "\n" !in data && "," !in data ->
+                listOf(data.trim())
+            else ->
+                data.split("\n", ",")
+                    .map { it.trim().trim('"', '[', ']') }
+                    .filter { it.startsWith("http") }
         }.distinct()
 
         if (urls.isEmpty()) {
             Log.w(TAG, "loadLinks: no URLs extracted from data of length ${data.length}")
             return false
         }
-        Log.d(TAG, "loadLinks: dispatching ${urls.size} URL(s)")
+        Log.d(TAG, "loadLinks: dispatching ${urls.size} URL(s): ${urls.take(3)}${if (urls.size > 3) "..." else ""}")
 
         urls.amap { rawUrl ->
             dispatchExtractor(rawUrl, subtitleCallback, callback)
