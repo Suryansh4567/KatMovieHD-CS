@@ -9,7 +9,7 @@
             "arena"
         ],
         "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD (TMDB-enriched)",
-        "fileSize": 54732,
+        "fileSize": 74006,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -19,6 +19,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-e4dac726b8172ea88644554578efeb362af2ab21481eb6f3c23ddd1c15a992b3"
+        "fileHash": "sha256-f2a16a7a2161054e7bfcbc7c5edf1e569b6a4aa38c687bf32d0773550dc8ed14"
     }
 ]
