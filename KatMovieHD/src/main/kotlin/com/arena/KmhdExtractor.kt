@@ -253,7 +253,21 @@ class KmhdExtractor : ExtractorApi() {
             }
 
             if (mirrors.isEmpty()) {
-                Log.w(TAG, "No mirrors parsed from JSON for $url")
+                // Diagnostic dump: include a payload preview so when this
+                // happens in the wild we can tell at a glance whether the
+                // site is returning the locked/CF gate page (looks like
+                // HTML) or whether SvelteKit changed its payload schema
+                // (looks like JSON but unfamiliar shape).
+                val preview = dataText.take(200).replace("\n", "\\n")
+                Log.w(TAG, "No mirrors parsed from JSON for $url. " +
+                    "Payload preview (${dataText.length} bytes): $preview")
+                if (dataText.contains("locked", ignoreCase = true) ||
+                    dataText.contains("redirect", ignoreCase = true)) {
+                    Log.w(TAG, "Looks like the 'unlocked=true' cookie was " +
+                        "rejected by the site (locked/redirect gate hit). " +
+                        "Check that CloudStream's HTTP client is sending the " +
+                        "Cookie header and not stripping it through CF DNS.")
+                }
                 return
             }
 
