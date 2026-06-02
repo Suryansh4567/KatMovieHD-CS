@@ -111,10 +111,6 @@ class KatMovieHDProvider : MainAPI() {
         /** Identifies a kmhd /pack/<id> URL (these need JSON expansion). */
         private val KMHD_PACK_REGEX = Regex("""(?i)links\.kmhd\.[a-z]+/pack/""")
 
-        /** Identifies a per-file kmhd link (terminal, fed to KmhdExtractor). */
-        private val KMHD_FILE_OR_PLAY_REGEX =
-            Regex("""(?i)links\.kmhd\.[a-z]+/(file|play)""")
-
         /** Match "Episode 7" / "Episode-07" / "Episode: 12" etc. */
         private val EPISODE_HEADER_REGEX =
             Regex("""(?i)\bEpisode\s*[-–:#]?\s*(\d{1,3})\b""")
@@ -151,14 +147,15 @@ class KatMovieHDProvider : MainAPI() {
         )
     }
 
-    // Episode.data is serialized as a plain JSON list of strings
-    // (e.g. ["https://...","https://..."]). Cloudstream's generic
-    // newEpisode(data: T) / newMovieLoadResponse(data: T) overloads
-    // take care of the serialization via Jackson, and tryParseJson<List<String>>
-    // in loadLinks safely reverses it. We deliberately avoid a wrapper
-    // data class here because nested classes inside MainAPI subclasses
-    // routinely trip Jackson type erasure when the plugin is loaded
-    // from a .cs3 - using primitive List<String> sidesteps the issue.
+    // Episode.data is stored as a plain newline-separated string of URLs
+    // (e.g. "https://...\nhttps://..."). This is the EXACT format that v9
+    // shipped with and which works reliably on every Cloudstream build /
+    // device combination we've tested. We deliberately avoid:
+    //   - List<String> via the generic newEpisode<T> overload (relies on
+    //     kotlinx.serialization runtime resolution that can return null
+    //     for raw List types inside a .cs3-loaded plugin)
+    //   - a custom data class wrapper (Jackson type erasure)
+    // The newline split in loadLinks is trivial to parse back.
 
     // ------------------------------------------------------------------
     // Main page & search
@@ -341,8 +338,9 @@ class KatMovieHDProvider : MainAPI() {
                 }
             }
         } else {
-            // Movie - data is a List<String> of mirror URLs; the generic
-            // newMovieLoadResponse<T> overload JSON-encodes it for us.
+            // Movie - `links` is a newline-joined String of mirror URLs.
+            // The newMovieLoadResponse(dataUrl: String) overload stores
+            // it verbatim so loadLinks sees exactly what we wrote.
             val links = collectAllPlayableLinks(doc)
             return newMovieLoadResponse(title, url, TvType.Movie, links) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
@@ -420,7 +418,7 @@ class KatMovieHDProvider : MainAPI() {
         if (flat.isEmpty()) return emptyList()
         Log.w(TAG, "Stage3 (flat fallback): ${flat.size} raw mirror link(s)")
         return flat.mapIndexed { idx, link ->
-            newEpisode(listOf(link)) {
+            newEpisode(link) {
                 this.name = "Source ${idx + 1}"
                 this.season = defaultSeason
                 this.episode = idx + 1
@@ -574,12 +572,17 @@ class KatMovieHDProvider : MainAPI() {
         return out
     }
 
-    /** Movie pages just dump every mirror URL we find. */
-    private fun collectAllPlayableLinks(doc: Document): List<String> {
+    /**
+     * Movie pages just dump every mirror URL we find, joined with newlines.
+     * Returning a plain String is the v9-compatible shape that
+     * `loadLinks` knows how to split back into individual URLs.
+     */
+    private fun collectAllPlayableLinks(doc: Document): String {
         val content = doc.selectFirst("article, .entry-content") ?: doc
         return content.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> LINK_HOST_REGEX.containsMatchIn(h) } }
             .distinct()
+            .joinToString("\n")
     }
 
     private fun buildEpisodes(
@@ -596,8 +599,10 @@ class KatMovieHDProvider : MainAPI() {
             val cineEp = cine?.videos
                 ?.firstOrNull { it.season == season && it.episode == ep }
 
-            // Pass the raw URL list - newEpisode(T) JSON-encodes it.
-            newEpisode(links.toList()) {
+            // v9-style: pass a newline-joined string. The String overload of
+            // newEpisode stores `data` verbatim, no Jackson/serialization
+            // round-trip - whatever bytes we put in are what loadLinks gets.
+            newEpisode(links.joinToString("\n")) {
                 this.name = tmdbEp?.name ?: cineEp?.name ?: cineEp?.title ?: "Episode $ep"
                 this.season = season
                 this.episode = ep
@@ -624,25 +629,23 @@ class KatMovieHDProvider : MainAPI() {
     ): Boolean {
         Log.d(TAG, "loadLinks: raw data length=${data.length}, preview='${data.take(120)}'")
 
-        // Primary path: the JSON list we serialized in load().
-        // Fallbacks (in order):
-        //   - newline / comma separated raw string (legacy callers and any
-        //     manual edit of an old plugin-installed Episode)
-        //   - a single bare URL
-        val urls: List<String> = when {
-            data.isBlank() -> emptyList()
-            data.trimStart().startsWith("[") ->
-                tryParseJson<List<String>>(data)
-                    ?.map { it.trim() }
-                    ?.filter { it.startsWith("http") }
-                    ?: emptyList()
-            data.startsWith("http") && "\n" !in data && "," !in data ->
-                listOf(data.trim())
-            else ->
-                data.split("\n", ",")
-                    .map { it.trim().trim('"', '[', ']') }
-                    .filter { it.startsWith("http") }
-        }.distinct()
+        // v9-compatible parser: newline or comma separated URLs, plus a
+        // JSON-array fallback in case the data was produced by a previous
+        // (List<String>-based) build still installed on the device.
+        val urls: List<String> = buildList {
+            // 1) JSON array shape ["http://...", "http://..."]
+            if (data.trimStart().startsWith("[")) {
+                runCatching {
+                    tryParseJson<List<String>>(data)?.let { addAll(it) }
+                }
+            }
+            // 2) Always also try the newline/comma split - this is the
+            //    primary v9 format and is what we now write in load().
+            data.split("\n", ",", "\r").forEach { add(it) }
+        }
+            .map { it.trim().trim('"', '[', ']', ' ') }
+            .filter { it.startsWith("http", ignoreCase = true) }
+            .distinct()
 
         if (urls.isEmpty()) {
             Log.w(TAG, "loadLinks: no URLs extracted from data of length ${data.length}")
@@ -656,6 +659,12 @@ class KatMovieHDProvider : MainAPI() {
         return true
     }
 
+    /**
+     * v9-style dispatch: any kmhd.eu URL goes through KmhdExtractor,
+     * everything else through Cloudstream's stock loadExtractor.
+     * Kept intentionally minimal because v9 shipped this exact branch
+     * and is known to work end-to-end with the current KmhdExtractor.
+     */
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -663,17 +672,10 @@ class KatMovieHDProvider : MainAPI() {
     ) {
         val url = rawUrl.trim()
         try {
-            // kmhd.net shortener: chase HTTP redirects once and re-dispatch
-            // the resolved URL through the normal path.
-            val resolved = if (url.contains("kmhd.net", ignoreCase = true)) {
-                resolveFinalUrl(url) ?: url
-            } else url
-
-            when {
-                KMHD_FILE_OR_PLAY_REGEX.containsMatchIn(resolved) ->
-                    KmhdExtractor().getUrl(resolved, mainUrl, subtitleCallback, callback)
-                else ->
-                    loadExtractor(resolved, mainUrl, subtitleCallback, callback)
+            if (url.contains("kmhd.eu", ignoreCase = true)) {
+                KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
+            } else {
+                loadExtractor(url, mainUrl, subtitleCallback, callback)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Extractor crashed for $url: ${e.message}")
