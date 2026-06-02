@@ -90,12 +90,88 @@ class KmhdExtractor : ExtractorApi() {
         if (anchors.isEmpty()) return
 
         anchors.amap { mirrorUrl ->
-            runCatching {
-                Log.d(TAG, "Archive dispatch → $mirrorUrl")
-                loadExtractor(mirrorUrl, url, subtitleCallback, callback)
-            }.onFailure {
-                Log.w(TAG, "Archive mirror failed $mirrorUrl: ${it.message}")
+            dispatchArchiveMirror(url, mirrorUrl, subtitleCallback, callback)
+        }
+    }
+
+    /**
+     * Archive pages contain already-expanded mirror URLs. Some of KatMovieHD's
+     * own legacy mirrors are redirector domains (gd.kmhd.eu / katdrive.eu)
+     * that Cloudstream's generic loadExtractor will not recognise by prefix.
+     * Route those through our known extractors first, then fall back to the
+     * stock registry for normal hosts like send.cm / 1fichier / streamtape.
+     */
+    private suspend fun dispatchArchiveMirror(
+        archivePageUrl: String,
+        mirrorUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        runCatching {
+            val lower = mirrorUrl.lowercase()
+            when {
+                lower.contains("gd.kmhd.eu/file/") -> {
+                    val fileId = mirrorUrl.substringAfterLast("/")
+                        .substringBefore("?")
+                        .substringBefore("#")
+                    val finalUrl = resolveFinalUrl(mirrorUrl)
+                        ?.takeIf { it.contains("gdflix", ignoreCase = true) }
+                        ?: "https://new18.gdflix.net/file/$fileId"
+
+                    Log.d(TAG, "Archive GD-KMHD → GDFlix: $mirrorUrl -> $finalUrl")
+                    GDFlixNet().getUrl(finalUrl, archivePageUrl, subtitleCallback, callback)
+                }
+
+                lower.contains("gdflix") || lower.contains("gd-flix") -> {
+                    Log.d(TAG, "Archive GDFlix dispatch → $mirrorUrl")
+                    GDFlix().getUrl(mirrorUrl, archivePageUrl, subtitleCallback, callback)
+                }
+
+                lower.contains("hubcloud.") || lower.contains("hubdrive") -> {
+                    Log.d(TAG, "Archive HubCloud dispatch → $mirrorUrl")
+                    HubCloud().getUrl(mirrorUrl, archivePageUrl, subtitleCallback, callback)
+                }
+
+                lower.contains("katdrive.") -> {
+                    Log.d(TAG, "Archive KatDrive dispatch → $mirrorUrl")
+                    handleKatdriveArchive(mirrorUrl, subtitleCallback, callback)
+                }
+
+                else -> {
+                    Log.d(TAG, "Archive loadExtractor dispatch → $mirrorUrl")
+                    loadExtractor(mirrorUrl, archivePageUrl, subtitleCallback, callback)
+                }
             }
+        }.onFailure {
+            Log.w(TAG, "Archive mirror failed $mirrorUrl: ${it.message}")
+        }
+    }
+
+    /** KatDrive pages usually expose a HubCloud /video/ link. */
+    private suspend fun handleKatdriveArchive(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val doc = app.get(
+            url,
+            headers = mapOf("User-Agent" to UA),
+            timeout = 30
+        ).document
+
+        val hubUrl = doc.select("a[href]")
+            .mapNotNull { a ->
+                a.absUrl("href").ifBlank { a.attr("href") }
+                    .takeIf { it.contains("hubcloud", ignoreCase = true) }
+            }
+            .firstOrNull()
+
+        if (!hubUrl.isNullOrBlank()) {
+            Log.d(TAG, "KatDrive → HubCloud: $hubUrl")
+            HubCloud().getUrl(hubUrl, url, subtitleCallback, callback)
+        } else {
+            Log.w(TAG, "KatDrive page had no HubCloud link, falling back: $url")
+            loadExtractor(url, mainUrl, subtitleCallback, callback)
         }
     }
 
