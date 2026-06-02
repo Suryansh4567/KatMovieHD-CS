@@ -232,81 +232,58 @@ class KatMovieHDProvider : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         mainUrl = KatMovieHDPlugin.getActiveMainUrl()
 
-        // Strategy 1 (primary): WordPress REST search API. This is the same
-        // approach the professional VegaMovies / HDHub4u extensions take -
-        // it returns clean JSON (id/title/url) instead of forcing us to
-        // parse a full HTML results page, so it's faster and far less
-        // likely to break when the site re-themes. KatMovieHD exposes it at
-        // /wp-json/wp/v2/search and it responds 200 with up to per_page hits.
-        runCatching {
-            val apiUrl = "$mainUrl/wp-json/wp/v2/search" +
-                    "?search=${URLEncoder.encode(query.trim(), "UTF-8")}" +
-                    "&per_page=20&page=$page"
-            val json = app.get(apiUrl, headers = headers, timeout = 30).text
-            val results = parseWpJsonSearch(json)
-            if (results.isNotEmpty()) {
-                Log.d(TAG, "search(): wp-json returned ${results.size} hits")
-                return results.toNewSearchResponseList()
-            }
-        }.onFailure { Log.w(TAG, "wp-json search failed, falling back to HTML: ${it.message}") }
-
-        // Strategy 2 (fallback): classic HTML results scrape. Kept so search
-        // keeps working even if the REST endpoint is ever disabled.
+        // KatMovieHD's HTML search page (/?s=query) is BOTH fast (~1s) AND
+        // carries posters (catimages.org / TMDB thumbnails) inside the
+        // ".post-thumb" cards. The WordPress REST /wp-json/wp/v2/search
+        // endpoint, by contrast, returns *no* poster (only id/title/url)
+        // and is slower on some queries - so we scrape HTML directly here.
         val encoded = query.trim().replace(" ", "+")
         val url = if (page <= 1) "$mainUrl/?s=$encoded"
                   else "$mainUrl/page/$page/?s=$encoded"
         val doc = app.get(url, headers = headers, timeout = 30).document
-        return parseListing(doc).toNewSearchResponseList()
+        val results = parseListing(doc)
+        Log.d(TAG, "search('$query', p$page): ${results.size} results")
+        return results.toNewSearchResponseList()
+    }
+
+    private fun parseListing(doc: Document): List<SearchResponse> {
+        // Primary: the theme renders each result inside a ".post-thumb"
+        // wrapper -> <a href title><img src=poster>. This carries title,
+        // permalink AND poster in one place, so it's our preferred path.
+        val cards = doc.select("div.post-thumb").mapNotNull { it.toSearchResultFromCard() }
+        if (cards.isNotEmpty()) return cards.distinctBy { it.url }
+
+        // Fallback 1: classic article/.post card layout (older theme).
+        val direct = doc.select("article, .post").mapNotNull { it.toSearchResult() }
+        if (direct.isNotEmpty()) return direct.distinctBy { it.url }
+
+        // Fallback 2: any anchor wrapping an <img> that points at a post.
+        return doc.select("a:has(img)").mapNotNull { it.toSearchResultFromAnchor() }
+            .distinctBy { it.url }
     }
 
     /**
-     * Parse the JSON array returned by WordPress's /wp-json/wp/v2/search.
-     * Each element looks like:
-     *   {"id":94169,"title":"<HTML-escaped title>","url":"https://...","type":"post"}
-     * We only keep real "post" results (movies/series), skipping pages
-     * like /about/ or /contact/.
+     * Parse a ".post-thumb" search-result card:
+     *   <div class="post-thumb"><a href title><img src=poster alt></a></div>
      */
-    private fun parseWpJsonSearch(json: String): List<SearchResponse> {
-        if (json.isBlank() || !json.trimStart().startsWith("[")) return emptyList()
-        val arr = runCatching { org.json.JSONArray(json) }.getOrNull() ?: return emptyList()
-        val out = mutableListOf<SearchResponse>()
-        for (i in 0 until arr.length()) {
-            val obj = arr.optJSONObject(i) ?: continue
-            // subtype "post" = actual content; skip pages.
-            val subtype = obj.optString("subtype")
-            if (subtype.isNotBlank() && subtype != "post") continue
-            val href = obj.optString("url").takeIf { it.isNotBlank() } ?: continue
-            val rawTitle = decodeHtmlEntities(obj.optString("title"))
-            if (rawTitle.isBlank()) continue
-            out.add(
-                newMovieSearchResponse(cleanTitle(rawTitle), fixUrl(href), guessTvType(rawTitle)) {
-                    this.quality = detectSearchQuality(rawTitle)
-                }
-            )
+    private fun Element.toSearchResultFromCard(): SearchResponse? {
+        val anchor = selectFirst("a[href]") ?: return null
+        val href = anchor.attr("href").ifBlank { return null }
+        val rawTitle = anchor.attr("title")
+            .ifBlank { selectFirst("img")?.attr("alt") ?: "" }
+            .ifBlank { return null }
+        val img = selectFirst("img")
+        val poster = img?.absUrl("data-src")?.ifBlank { null }
+            ?: img?.absUrl("src")?.ifBlank { null }
+
+        return newMovieSearchResponse(
+            cleanTitle(rawTitle),
+            fixUrl(href),
+            guessTvType(rawTitle)
+        ) {
+            this.posterUrl = poster
+            this.quality = detectSearchQuality(rawTitle)
         }
-        return out.distinctBy { it.url }
-    }
-
-    /** Minimal HTML-entity decode for titles coming back from wp-json. */
-    private fun decodeHtmlEntities(s: String): String =
-        s.replace("&amp;", "&")
-            .replace("&#038;", "&")
-            .replace("&#8217;", "'")
-            .replace("&#8211;", "-")
-            .replace("&#8230;", "...")
-            .replace("&quot;", "\"")
-            .replace("&#039;", "'")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .trim()
-
-    private fun parseListing(doc: Document): List<SearchResponse> {
-        // KatMovieHD's WP theme exposes article cards; fallback to any anchor
-        // wrapping an <img> if the theme markup ever changes.
-        val direct = doc.select("article, .post").mapNotNull { it.toSearchResult() }
-        if (direct.isNotEmpty()) return direct.distinctBy { it.url }
-        return doc.select("a:has(img)").mapNotNull { it.toSearchResultFromAnchor() }
-            .distinctBy { it.url }
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
