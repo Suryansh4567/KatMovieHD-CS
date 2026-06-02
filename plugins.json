@@ -2,7 +2,7 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovie4K.cs3",
         "status": 1,
-        "version": 1,
+        "version": 2,
         "name": "KatMovie4K",
         "internalName": "KatMovie4K",
         "authors": [
@@ -18,7 +18,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=katmovie4k.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-647aae35a54698467c8aa1f74cf6243bc33abd203296374ccd4048a7a4b26af0"
+        "fileHash": "sha256-0500ef5a3f112b0c6341cedd17c7cef1e0deb67ddd4c8b2b292ec39dfa8173ee"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
