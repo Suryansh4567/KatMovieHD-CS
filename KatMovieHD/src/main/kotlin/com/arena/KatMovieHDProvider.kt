@@ -247,11 +247,14 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     private fun parseListing(doc: Document): List<SearchResponse> {
-        // Primary: the theme renders each result inside a ".post-thumb"
-        // wrapper -> <a href title><img src=poster>. This carries title,
-        // permalink AND poster in one place, so it's our preferred path.
-        val cards = doc.select("div.post-thumb").mapNotNull { it.toSearchResultFromCard() }
-        if (cards.isNotEmpty()) return cards.distinctBy { it.url }
+        // Primary: each result is an <li id="post-NNNN"> container. We read
+        // the TITLE LINK from the heading (h2/h3/.post-title a) - this is the
+        // ONLY reliable permalink. We deliberately do NOT take the first
+        // anchor inside .post-thumb, because some cards put a "label-overlay"
+        // badge image (e.g. "Unofficial Dubbed") as the first element there,
+        // which has no/another href -> that was opening the WRONG movie.
+        val items = doc.select("li[id^=post-]").mapNotNull { it.toSearchResultFromItem() }
+        if (items.isNotEmpty()) return items.distinctBy { it.url }
 
         // Fallback 1: classic article/.post card layout (older theme).
         val direct = doc.select("article, .post").mapNotNull { it.toSearchResult() }
@@ -263,18 +266,47 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     /**
-     * Parse a ".post-thumb" search-result card:
-     *   <div class="post-thumb"><a href title><img src=poster alt></a></div>
+     * Parse one "<li id=post-NNNN>" search/listing card.
+     *
+     * Markup (current theme):
+     *   <li id="post-94169" class="post ...">
+     *     <div class="post-thumb">
+     *        [optional <div class="label-overlay"><img badge></div>]
+     *        <a href title><img src=POSTER></a>
+     *     </div>
+     *     <div class="post-content">
+     *        <h2><a href=PERMALINK title>TITLE</a></h2> ...
+     *     </div>
+     *   </li>
+     *
+     * Title link comes from the heading (always correct). Poster comes from
+     * the .post-thumb image whose src points at a real poster host, NOT the
+     * label-overlay badge.
      */
-    private fun Element.toSearchResultFromCard(): SearchResponse? {
-        val anchor = selectFirst("a[href]") ?: return null
-        val href = anchor.attr("href").ifBlank { return null }
-        val rawTitle = anchor.attr("title")
-            .ifBlank { selectFirst("img")?.attr("alt") ?: "" }
+    private fun Element.toSearchResultFromItem(): SearchResponse? {
+        // Title link: heading anchor is the reliable permalink.
+        val titleAnchor = selectFirst("h2 a[href], h3 a[href], .post-title a[href], .title a[href]")
+            ?: selectFirst("div.post-content a[href]")
+            ?: return null
+        val href = titleAnchor.attr("href").ifBlank { return null }
+        val rawTitle = titleAnchor.attr("title")
+            .ifBlank { titleAnchor.text() }
+            .ifBlank { selectFirst("div.post-thumb img")?.attr("alt") ?: "" }
             .ifBlank { return null }
-        val img = selectFirst("img")
-        val poster = img?.absUrl("data-src")?.ifBlank { null }
-            ?: img?.absUrl("src")?.ifBlank { null }
+
+        // Poster: pick the .post-thumb <img> whose src is an actual poster,
+        // skipping label-overlay badges (small PNGs like "Unofficial-Dubbed").
+        val poster = select("div.post-thumb img").firstNotNullOfOrNull { img ->
+            val u = img.absUrl("data-src").ifBlank { img.absUrl("src") }
+            u.takeIf {
+                it.isNotBlank() &&
+                    !it.contains("label", ignoreCase = true) &&
+                    !it.contains("overlay", ignoreCase = true) &&
+                    !it.contains("Unofficial", ignoreCase = true)
+            }
+        } ?: selectFirst("div.post-thumb img")?.let {
+            it.absUrl("data-src").ifBlank { it.absUrl("src") }.ifBlank { null }
+        }
 
         return newMovieSearchResponse(
             cleanTitle(rawTitle),
