@@ -24,12 +24,22 @@ class KmhdExtractor : ExtractorApi() {
         Log.d(TAG, "getUrl invoked: $url")
 
         try {
-            val id = Regex("""/(?:file|play)[/?](?:id=)?([^/?&#]+)""")
+            val rawId = Regex("""/(?:file|play)[/?](?:id=)?([^/?&#]+)""")
                 .find(url)?.groupValues?.get(1)?.trim()
-            if (id.isNullOrBlank()) {
+            if (rawId.isNullOrBlank()) {
                 Log.e(TAG, "Could not extract id from $url")
                 return
             }
+
+            // Some kmhd file IDs contain non-ASCII characters (e.g. the
+            // Spanish-language release "Sueño_2df1145a" - note the ñ).
+            // Concatenating those into a URL string raw makes OkHttp throw
+            // (or silently send a corrupt request), which surfaces in the
+            // app as a movie page with "no links". Percent-encoding the
+            // id fixes it for every show we tested and is a no-op for
+            // plain ASCII IDs. Letters/digits/"-_.~" pass through; space
+            // (which URLEncoder turns into "+") becomes "%20".
+            val id = java.net.URLEncoder.encode(rawId, "UTF-8").replace("+", "%20")
 
             val isPlay = url.contains("/play", ignoreCase = true)
             val path = if (isPlay) "/play?id=$id" else "/file/$id"
