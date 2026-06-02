@@ -11,6 +11,7 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import java.net.URI
+import java.net.URLDecoder
 
 suspend fun resolveFinalUrl(startUrl: String): String? {
     var currentUrl = startUrl
@@ -173,13 +174,24 @@ open class GDFlix : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            val baseUrl = getBaseUrl(url)
+            // CRITICAL: After redirect chains (ziddiflix→gdflix.dev→new18.gdflix.net),
+            // the page is served from new18.gdflix.net, but getBaseUrl(url) returns
+            // the ORIGINAL host. Relative URLs like /zfile/<id> would resolve to the
+            // wrong domain. Always use new18.gdflix.net as the canonical base.
+            val baseUrl = "https://new18.gdflix.net"
             val document = app.get(url).document
+            
             val fileName = document.select("ul > li.list-group-item:contains(Name)").text()
                 .substringAfter("Name : ").orEmpty()
             val fileSize = document.select("ul > li.list-group-item:contains(Size)").text()
                 .substringAfter("Size : ").substringBefore(" | ").orEmpty()
             val quality = getIndexQuality(fileName)
+
+            // Warn if page is login-walled (no useful buttons)
+            val btnCount = document.select("div.text-center a.btn").size
+            if (btnCount <= 1) {
+                Log.w(name, "Page may be login-walled ($btnCount btn(s) found). Trying anyway...")
+            }
 
             suspend fun pushLink(link: String, server: String = "") {
                 callback.invoke(
@@ -195,7 +207,7 @@ open class GDFlix : ExtractorApi() {
             }
 
             val anchors = document.select("div.text-center a")
-            Log.d("GDFlix", "Found ${anchors.size} GDFlix buttons for $url")
+            Log.d("GDFlix", "Found ${anchors.size} anchors for $url")
 
             anchors.amap { anchor ->
                 val originalText = anchor.text()
@@ -212,19 +224,40 @@ open class GDFlix : ExtractorApi() {
                     text.contains("telegram") -> {
                         Log.d("GDFlix", "Skipping Telegram button")
                     }
+                    // INSTANT DL: busycdn.xyz → 302 → fastcdn-dl.pages.dev/?url=GOOGLE_CDN
+                    // The fastcdn page is HTML (not a redirect), so CloudStream gets stuck.
+                    // Fix: intercept the 302 Location header → extract url= param →
+                    // Google CDN URL which returns video/mkv directly.
                     text.contains("instant dl") || text.contains("instant download") -> {
                         try {
-                            if (link.startsWith("http")) {
-                                pushLink(link, "[Instant 10GBPS]")
+                            if (link.contains("busycdn.xyz") || link.contains("instant.")) {
+                                // Capture the redirect Location without following it
+                                val headRes = app.head(absLink, allowRedirects = false, timeout = 10)
+                                val location = headRes.headers["Location"] ?: ""
+                                if (location.isNotBlank()) {
+                                    // Extract Google CDN URL from fastcdn-dl url param
+                                    val googleUrl = Regex("""[?&]url=([^&]+)""")
+                                        .find(location)?.groupValues?.get(1)
+                                    if (!googleUrl.isNullOrBlank()) {
+                                        val decodedUrl = URLDecoder.decode(googleUrl, "UTF-8")
+                                        if (decodedUrl.startsWith("http")) {
+                                            Log.d(name, "Instant DL → Google CDN: ${decodedUrl.take(80)}...")
+                                            pushLink(decodedUrl, "[Google CDN]")
+                                        } else {
+                                            pushLink(absLink, "[Instant DL]")
+                                        }
+                                    } else {
+                                        pushLink(absLink, "[Instant DL]")
+                                    }
+                                } else {
+                                    pushLink(absLink, "[Instant DL]")
+                                }
                             } else {
-                                val instantLink = app.get(absLink, allowRedirects = false)
-                                    .headers["location"]?.let { loc ->
-                                        if (loc.contains("url=")) loc.substringAfter("url=") else loc
-                                    }.orEmpty()
-                                if (instantLink.isNotBlank()) pushLink(instantLink, "[Instant 10GBPS]")
+                                pushLink(absLink, "[Instant DL]")
                             }
                         } catch (e: Exception) {
                             Log.d("GDFlix-Instant", e.toString())
+                            pushLink(absLink, "[Instant DL]")
                         }
                     }
                     text.contains("cloud download") || text.contains("[r2]") -> {
@@ -245,6 +278,12 @@ open class GDFlix : ExtractorApi() {
                             if (dlink.isNotBlank()) {
                                 val finalDlink = if (dlink.startsWith("http")) dlink else baseUrl + dlink
                                 pushLink(finalDlink, "[Fast Cloud]")
+                            } else {
+                                // /zfile/ page may be JS-driven with CAPTCHA.
+                                // Push the /zfile/ URL itself — CloudStream might
+                                // resolve it or the user can try it.
+                                Log.w(name, "Fast Cloud /zfile/ page had no download links (CAPTCHA wall?)")
+                                pushLink(absLink, "[Fast Cloud]")
                             }
                         } catch (e: Exception) {
                             Log.d("GDFlix-FastCloud", e.toString())
@@ -306,54 +345,36 @@ class GDFlixDotDev : GDFlix() {
 }
 
 // ====================================================================
-// KatMovie4K-specific extractor variants.
+// KatMovie4K-specific extractors.
 //
-// These hosts appear on katmovie4k.mov pages and need registered
-// ExtractorApi subclasses so CloudStream's prefix-based router can
-// dispatch correctly.
+// Each redirector host (ziddiflix, new3/new4.gdflix.dad, gdlink.dev)
+// 302-redirects to new18.gdflix.net/file/<id> with cookies set along
+// the way.  We let the base GDFlix.getUrl() handle the redirect chain
+// (cookie collection) + page parsing.
 //
-// Redirect chains (verified live 2026-06-02):
-//   ziddiflix.com/*/file/<id>     302→ gdflix.dev/file/<id> 302→ new18.gdflix.net/file/<id>
-//   new3.gdflix.dad/file/<id>    302→ gdlink.dev/file/<id>  302→ gdflix.dev → new18.gdflix.net
-//   new4.gdflix.dad/file/<id>    302→ same chain
-//   vifix.site/gdflix/<id>        JS challenge → ww1.vifix.site (ad-gate PARKED domain)
-//   driveleech.org/file/<id>      intermittently down (empty response)
+// vifix.site is the exception: it serves a JS challenge, not a 302.
+// We extract the file id from /gdflix/<id> and try new18.gdflix.net
+// directly (cookies may be missing → login wall possible).
+//
+// driveleech.org is a separate system (Driveseed), not gdflix-compatible.
 // ====================================================================
 
-/** new3.gdflix.dad → 302 to gdlink.dev/file/<id>. */
 class GDFlixDad3 : GDFlix() {
     override val mainUrl = "https://new3.gdflix.dad"
 }
 
-/** new4.gdflix.dad → same redirect chain. */
 class GDFlixDad4 : GDFlix() {
     override val mainUrl = "https://new4.gdflix.dad"
 }
 
-/** gdlink.dev — post-redirect target of new3/new4.gdflix.dad. */
 class GDLinkDev : GDFlix() {
     override val mainUrl = "https://gdlink.dev"
 }
 
-/** ziddiflix.com — kmhd's 4K-only redirector. */
 class Ziddiflix : GDFlix() {
     override val mainUrl = "https://ziddiflix.com"
 }
 
-/**
- * vifix.site — v3 FIX (2026-06-02).
- *
- * This host serves a JavaScript challenge page that redirects to
- * ww1.vifix.site, a PARKED ad-gate domain. The base GDFlix.getUrl()
- * never reaches a real file page, causing "no link found" on every
- * 4K mirror that uses vifix.site (which is most of them).
- *
- * Fix: Extract the gdflix file id from the vifix URL (/gdflix/<id>)
- * and route directly to new18.gdflix.net/file/<id>, bypassing the
- * JavaScript gate entirely. Verified against Daredevil: Born Again
- * S01 — the same file id yields a working GDFlix page with real
- * Instant DL / Fast Cloud buttons.
- */
 class Vifix : GDFlix() {
     override val mainUrl = "https://vifix.site"
 
@@ -363,34 +384,27 @@ class Vifix : GDFlix() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        try {
-            // Extract the gdflix file id from /gdflix/<id>
-            val fileId = Regex("""/gdflix/([a-zA-Z0-9]+)""")
-                .find(url)?.groupValues?.get(1)
-            if (!fileId.isNullOrBlank()) {
-                val gdflixUrl = "https://new18.gdflix.net/file/$fileId"
-                Log.d(name, "Vifix v3: routing $url → $gdflixUrl")
-                GDFlixNet().getUrl(gdflixUrl, referer, subtitleCallback, callback)
-                return
-            }
-            // Fallback: try as-is through base GDFlix parser
-            Log.w(name, "Vifix: unexpected URL format, fallback: $url")
-            super.getUrl(url, referer, subtitleCallback, callback)
-        } catch (e: Exception) {
-            Log.e(name, "Vifix v3 failed for $url: ${e.message}")
+        // vifix.site serves a JS challenge, not a 302 redirect.
+        // Extract file id and try new18.gdflix.net directly.
+        val fileId = Regex("""/gdflix/([a-zA-Z0-9_]+)""")
+            .find(url)?.groupValues?.get(1)
+        if (!fileId.isNullOrBlank()) {
+            val gdflixUrl = "https://new18.gdflix.net/file/$fileId"
+            Log.d(name, "Vifix JS bypass: $url → $gdflixUrl")
+            GDFlixNet().getUrl(gdflixUrl, referer ?: url, subtitleCallback, callback)
+            return
         }
+        Log.w(name, "Vifix: unexpected URL format: $url")
+        super.getUrl(url, referer, subtitleCallback, callback)
     }
 }
 
 /**
- * driveleech.org — Driveseed-family file host for HDR/DV mirrors.
- * As of 2026-06-02 this host is intermittently unreachable (empty
- * response), causing base GDFlix parser to fail silently.
+ * driveleech.org — Driveseed-family file host, NOT gdflix-compatible.
+ * File IDs do not transfer between systems.  Server is frequently down.
  *
- * Fix: Try the original URL first; if the response is empty/short,
- * extract the file id and fall back to new18.gdflix.net. This is a
- * best-effort recovery — the file ids are often the same across
- * gdflix mirrors.
+ * Each KatMovie4K episode page links both a driveleech AND a gdflix/kmhd
+ * mirror — so if driveleech is down, the companion link still works.
  */
 class Driveleech : GDFlix() {
     override val mainUrl = "https://driveleech.org"
@@ -402,64 +416,31 @@ class Driveleech : GDFlix() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            // Try the original driveleech URL first
             val response = app.get(url, timeout = 15)
             val body = response.text
-            if (body.isBlank() || body.length < 100) {
-                Log.w(name, "Driveleech: empty/short response (${body.length} bytes), server may be down")
-
-                // Attempt fallback: extract file id and try new18.gdflix.net
-                val fileId = Regex("""/file/([a-zA-Z0-9]+)""")
-                    .find(url)?.groupValues?.get(1)
-                if (!fileId.isNullOrBlank()) {
-                    val gdflixUrl = "https://new18.gdflix.net/file/$fileId"
-                    Log.d(name, "Driveleech fallback: $url → $gdflixUrl")
-                    GDFlixNet().getUrl(gdflixUrl, referer, subtitleCallback, callback)
-                    return
-                }
+            if (body.isBlank() || body.length < 200) {
+                Log.w(name, "Driveleech down (${body.length} bytes). Companion gdflix/kmhd mirror should work.")
+                return
             }
-            // If we got a real response, parse with base GDFlix logic
             super.getUrl(url, referer, subtitleCallback, callback)
         } catch (e: Exception) {
-            Log.e(name, "Driveleech failed: ${e.message}")
-            // Try fallback on any error
-            val fileId = Regex("""/file/([a-zA-Z0-9]+)""")
-                .find(url)?.groupValues?.get(1)
-            if (!fileId.isNullOrBlank()) {
-                try {
-                    val gdflixUrl = "https://new18.gdflix.net/file/$fileId"
-                    Log.d(name, "Driveleech error fallback: $url → $gdflixUrl")
-                    GDFlixNet().getUrl(gdflixUrl, referer, subtitleCallback, callback)
-                } catch (_: Exception) { }
-            }
+            Log.w(name, "Driveleech unreachable: ${e.message}")
         }
     }
 }
 
-/** driveleech.pro mirror — delegates to Driveleech fallback logic. */
 class DriveleechPro : GDFlix() {
     override val mainUrl = "https://driveleech.pro"
-
     override suspend fun getUrl(
-        url: String,
-        referer: String?,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        Driveleech().getUrl(url, referer, subtitleCallback, callback)
-    }
+        url: String, referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit
+    ) { Driveleech().getUrl(url, referer, subtitleCallback, callback) }
 }
 
-/** driveleech.net mirror — delegates to Driveleech fallback logic. */
 class DriveleechNet : GDFlix() {
     override val mainUrl = "https://driveleech.net"
-
     override suspend fun getUrl(
-        url: String,
-        referer: String?,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        Driveleech().getUrl(url, referer, subtitleCallback, callback)
-    }
+        url: String, referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit
+    ) { Driveleech().getUrl(url, referer, subtitleCallback, callback) }
 }
