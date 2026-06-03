@@ -87,10 +87,12 @@ class KatMovie4KProvider : MainAPI() {
                     """links\.kmhd\.[a-z]+|kmhd\.net|kmhd\.eu|gd\.kmhd|""" +
                     // KatMovie4K-specific redirectors
                     """ziddiflix\.com|driveleech\.org|vifix\.site|""" +
-                    // GDFlix / GDTot family
+                    // GDFlix / GDTot family (covers gdflix.rest, .dad, .dev, .cfd etc.)
                     """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|""" +
-                    // HubCloud / Hubdrive / Katdrive family
+                    // HubCloud / Hubdrive / Katdrive family (covers hubcloud.lol etc.)
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive|katdrive|""" +
+                    // Appdrive / drive-redirect hosts
+                    """appdrive\.lol|appdrive\.[a-z]+|drive\d*\.link|""" +
                     // Generic cloud / file-share hosts
                     """gofile\.io|drive\.google|mediafire|pixeldrain|pixeldra\.in|""" +
                     """1fichier|send\.cm|sendvid|krakenfiles|filesgram|""" +
@@ -714,6 +716,14 @@ class KatMovie4KProvider : MainAPI() {
                     Driveleech().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
+                url.contains("appdrive.lol", ignoreCase = true) || Regex("""(?i)appdrive\.[a-z]+""").containsMatchIn(url) -> {
+                    Appdrive().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                url.contains("new.gdflix.dad", ignoreCase = true) -> {
+                    GDFlixDad().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
                 url.contains("new3.gdflix.dad", ignoreCase = true) -> {
                     GDFlixDad3().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
@@ -722,7 +732,19 @@ class KatMovie4KProvider : MainAPI() {
                     GDFlixDad4().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
-                url.contains(Regex("""(?i)(gdflix|gdtot|gdmirror|gd-flix|gdlink|ziddiflix)""")) -> {
+                url.contains("gdflix.rest", ignoreCase = true) -> {
+                    GDFlixRest().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                url.contains("new5.gdflix.cfd", ignoreCase = true) -> {
+                    GDFlixCfd5().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                url.contains("gdtot.cfd", ignoreCase = true) || Regex("""(?i)gdtot\.[a-z]+""").containsMatchIn(url) -> {
+                    GDTotCfd().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                Regex("""(?i)(gdflix|gdmirror|gd-flix|gdlink|ziddiflix)""").containsMatchIn(url) -> {
                     GDFlix().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }

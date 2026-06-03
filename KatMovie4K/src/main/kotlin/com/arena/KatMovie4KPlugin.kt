@@ -52,11 +52,16 @@ class KatMovie4KPlugin : BasePlugin() {
         // makes CS's prefix-based dispatch actually route to our handler.
         // See Extractors.kt v2 docs at the bottom of the file for the
         // full redirect-chain analysis.
+        registerExtractorAPI(GDFlixDad())      // new.gdflix.dad
         registerExtractorAPI(GDFlixDad3())     // new3.gdflix.dad
         registerExtractorAPI(GDFlixDad4())     // new4.gdflix.dad
+        registerExtractorAPI(GDFlixRest())     // gdflix.rest
+        registerExtractorAPI(GDFlixCfd5())     // new5.gdflix.cfd
+        registerExtractorAPI(GDTotCfd())       // new10.gdtot.cfd
         registerExtractorAPI(GDLinkDev())      // gdlink.dev (post-redirect target)
         registerExtractorAPI(Ziddiflix())      // ziddiflix.com
         registerExtractorAPI(Vifix())          // vifix.site
+        registerExtractorAPI(Appdrive())       // appdrive.lol
         registerExtractorAPI(Driveleech())     // driveleech.org
         registerExtractorAPI(DriveleechPro())  // driveleech.pro
         registerExtractorAPI(DriveleechNet())  // driveleech.net

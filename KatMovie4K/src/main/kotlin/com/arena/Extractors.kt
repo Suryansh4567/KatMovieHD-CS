@@ -121,10 +121,15 @@ class GDFlixNet : GDFlix() { override val mainUrl = "https://new18.gdflix.net" }
 class GDFlixNew1 : GDFlix() { override val mainUrl = "https://new1.gdflix.dev" }
 class GDFlixNew17 : GDFlix() { override val mainUrl = "https://new17.gdflix.net" }
 class GDFlixDotDev : GDFlix() { override val mainUrl = "https://gdflix.dev" }
+class GDFlixDad : GDFlix() { override val mainUrl = "https://new.gdflix.dad" }
 class GDFlixDad3 : GDFlix() { override val mainUrl = "https://new3.gdflix.dad" }
 class GDFlixDad4 : GDFlix() { override val mainUrl = "https://new4.gdflix.dad" }
+class GDFlixRest : GDFlix() { override val mainUrl = "https://gdflix.rest" }
+class GDFlixCfd5 : GDFlix() { override val mainUrl = "https://new5.gdflix.cfd" }
+class GDTotCfd : GDFlix() { override val mainUrl = "https://new10.gdtot.cfd" }
 class GDLinkDev : GDFlix() { override val mainUrl = "https://gdlink.dev" }
 class Ziddiflix : GDFlix() { override val mainUrl = "https://ziddiflix.com" }
+class Appdrive : GDFlix() { override val mainUrl = "https://appdrive.lol" }
 
 class Vifix : GDFlix() {
     override val mainUrl = "https://vifix.site"
