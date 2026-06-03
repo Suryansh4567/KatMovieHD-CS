@@ -308,17 +308,14 @@ suspend fun bypassCloudflare(
 }
 
 /**
- * Feature #10: Safe concurrent mapping — catches per-item failures
- * Unlike regular amap which propagates exceptions, this continues
- * processing other items even if one fails.
+ * Feature #10: Safe concurrent mapping — catches per-item failures.
+ * Wraps CloudStream's amap with per-item try/catch so one failure
+ * doesn't kill the whole batch. Usage: safeAmap(urls) { url -> ... }
  */
-suspend fun <T, R> safeAmap(items: List<T>, block: suspend (T) -> R): List<R> {
-    return kotlinx.coroutines.coroutineScope {
-        val deferreds = items.map { item ->
-            kotlinx.coroutines.async(this@coroutineScope) {
-                runCatching { block(item) }.getOrNull()
-            }
+suspend fun <T> safeAmap(items: List<T>, block: suspend (T) -> Unit) {
+    com.lagradost.cloudstream3.amap(items) { item ->
+        runCatching { block(item) }.onFailure {
+            com.lagradost.api.Log.w("safeAmap", "Item failed: ${it.message}")
         }
-        deferreds.mapNotNull { it.await() }
     }
 }
