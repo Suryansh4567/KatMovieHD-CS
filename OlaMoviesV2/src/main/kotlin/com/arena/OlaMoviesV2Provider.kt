@@ -22,6 +22,7 @@ import com.lagradost.cloudstream3.addDate
 import com.lagradost.cloudstream3.addSeasonNames
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.getQualityFromString
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
