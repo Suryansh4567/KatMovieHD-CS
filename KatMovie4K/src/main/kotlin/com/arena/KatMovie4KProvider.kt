@@ -405,7 +405,7 @@ class KatMovie4KProvider : MainAPI() {
         }
     }
 
-    private fun discoverEpisodes(
+    private suspend fun discoverEpisodes(
         doc: Document,
         defaultSeason: Int,
         tmdbSeason: TmdbSeason?,
