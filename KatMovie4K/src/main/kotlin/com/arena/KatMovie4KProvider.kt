@@ -19,6 +19,7 @@ import com.lagradost.cloudstream3.SearchResponseList
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.addDate
+import com.lagradost.cloudstream3.addSeasonNames
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.getQualityFromString
@@ -33,8 +34,10 @@ import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.supervisorScope
 import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -119,15 +122,37 @@ class KatMovie4KProvider : MainAPI() {
                     """)"""
         )
 
-        /** Match "Episode 7" / "Ep 07" / "Part 1" / "E01" / "S01E01" etc. */
+        /** Match "Episode 7" / "Episode-07" / "Episode: 12" etc. */
         private val EPISODE_HEADER_REGEX =
-            Regex("""(?i)(?:Episode|Ep|Part|E)\s*[-–:#]?\s*(\d{1,3})\b""")
+            Regex("""(?i)\bEpisode\s*[-–:#]?\s*(\d{1,3})\b""")
 
-        /** Match "Season 4" / "S04" / "S4". */
+        /** Match "Season 4" / "S04" / "S4" inside a header. */
         private val SEASON_HEADER_REGEX =
-            Regex("""(?i)\b(?:Season|S)\s*[-–:#]?\s*(\d{1,2})\b""")
+            Regex("""(?i)\bSeason\s*(\d{1,2})\b|\bS(\d{1,2})\b(?!\d)""")
 
-        private val LABEL_TAGS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "span", "div")
+        /** Identifies a kmhd /pack/<id> URL (these need JSON expansion). */
+        private val KMHD_PACK_REGEX = Regex("""(?i)links\.kmhd\.[a-z]+/pack/""")
+
+        /**
+         * Extract (season, episode) from a release filename such as
+         * `Brazil.70.S01E03.480p.WEB-DL...mkv`. Falls back gracefully when
+         * only an episode number can be recovered.
+         */
+        private fun parseSeasonEpisode(filename: String): Pair<Int?, Int?> {
+            Regex("""(?i)S(\d{1,2})[\s._-]?E(\d{1,3})""").find(filename)?.let {
+                return it.groupValues[1].toIntOrNull() to it.groupValues[2].toIntOrNull()
+            }
+            Regex("""(?i)(?:^|[\s._-])E(\d{1,3})(?:[\s._-]|$)""").find(filename)?.let {
+                return null to it.groupValues[1].toIntOrNull()
+            }
+            Regex("""(?i)\bEp(?:isode)?[\s._-]?(\d{1,3})\b""").find(filename)?.let {
+                return null to it.groupValues[1].toIntOrNull()
+            }
+            return null to null
+        }
+
+        /** Header tags that can hold "Episode N" / "Season N" / quality labels. */
+        private val LABEL_TAGS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b")
 
         private val EPISODE_NEGATIVE_PHRASES = listOf(
             "more episodes", "will be added", "episode list", "all episodes",
@@ -272,7 +297,7 @@ class KatMovie4KProvider : MainAPI() {
         val isSeries = guessTvType(rawTitle) == TvType.TvSeries
 
         val titleSeason = SEASON_HEADER_REGEX.find(rawTitle)?.let { m ->
-            m.groupValues[1].toIntOrNull()
+            (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
         } ?: 1
 
         val imdbUrl = doc.selectFirst("a[href*=imdb.com/title]")?.attr("href")
@@ -309,19 +334,35 @@ class KatMovie4KProvider : MainAPI() {
         val actorData = tmdbMeta?.actors ?: emptyList()
         val cineActors = cine?.cast ?: emptyList()
         val trailer = tmdbMeta?.trailer
+        val totalSeasons = tmdbMeta?.totalSeasons
+
+        Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries imdb=$imdbId titleSeason=$titleSeason")
 
         if (isSeries) {
             val episodes = discoverEpisodes(doc, titleSeason, tmdbSeason, cine)
+            Log.d(TAG, "load() discovered ${episodes.size} episodes")
+
+            // Degenerate case: even after pack expansion we got nothing.
+            // Fall back to a "movie-style" response (still playable) so
+            // the page is never dead-empty.
             if (episodes.isEmpty()) {
+                Log.w(TAG, "0 episodes after all strategies, emitting as movie-style links")
                 val links = collectAllPlayableLinks(doc)
                 return newMovieLoadResponse(title, url, TvType.Movie, links) {
                     applyCommonMeta(this, poster, backdrop, plot, year, tags,
                         actorData, cineActors, rating, trailer, imdbUrl)
                 }
             }
+
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl)
+                // If TMDB tells us how many seasons exist, expose human
+                // names so the season-picker shows e.g. "Season 4" rather
+                // than just "4".
+                if (totalSeasons != null && totalSeasons > 1) {
+                    addSeasonNames((1..totalSeasons).map { "Season $it" })
+                }
             }
         } else {
             val links = collectAllPlayableLinks(doc)
@@ -370,13 +411,30 @@ class KatMovie4KProvider : MainAPI() {
     ): List<Episode> {
         val container = doc.selectFirst("article, .entry-content") ?: return emptyList()
 
+        // Stage 1: per-episode headers ("Episode 3 –" + a few <a> below).
         val perHeader = parseEpisodeHeaderLayout(container, defaultSeason)
         if (perHeader.isNotEmpty()) {
+            Log.d(TAG, "Stage1 (header layout): ${perHeader.size} episodes across ${perHeader.keys.map { it.first }.distinct().size} season(s)")
             return buildEpisodes(perHeader, tmdbSeason, cine)
         }
 
+        // Stage 2: pack-only pages.
+        val packUrls = container.select("a[href]")
+            .mapNotNull { it.attr("href").takeIf { h -> KMHD_PACK_REGEX.containsMatchIn(h) } }
+            .distinct()
+        if (packUrls.isNotEmpty()) {
+            Log.d(TAG, "Stage2 (pack expansion): ${packUrls.size} pack(s): $packUrls")
+            val expanded = expandKmhdPacks(packUrls, defaultSeason)
+            if (expanded.isNotEmpty()) {
+                return buildEpisodes(expanded, tmdbSeason, cine)
+            }
+        }
+
+        // Stage 3: degraded - expose every mirror link as its own pseudo-
+        // episode. Always better than a silent empty list.
         val flat = collectMirrorLinksWithLabels(container)
         if (flat.isEmpty()) return emptyList()
+        Log.w(TAG, "Stage3 (flat fallback): ${flat.size} raw mirror link(s)")
         return flat.mapIndexed { idx, (label, link) ->
             newEpisode(link) {
                 this.name = label ?: "Source ${idx + 1}"
@@ -391,10 +449,8 @@ class KatMovie4KProvider : MainAPI() {
         if (cleanUrls.isEmpty()) return emptyList()
 
         val qualityRegex = Regex(
-            """(?i)\b(2160p\s*(?:hdr\s*dv|hdr|sdr|remux)?|4k\s*(?:uhd|hdr|sdr)?|""" +
-                """1080p\s*hevc|1080p\s*x264|1080p|720p|480p|hdr|dolby\s*vision|""" +
-                """remux|hdr\s*10\+?|watch\s*online|play\s*online|trailer|""" +
-                """subtitle|pack|esubs?)\b"""
+            """(?i)\b(2160p|4k|1080p\s*hevc|1080p\s*x264|1080p|720p|480p|hdr|""" +
+                """watch\s*online|play\s*online|trailer|subtitle|pack|esubs?)\b"""
         )
         val out = mutableListOf<Pair<String?, String>>()
         val seen = mutableSetOf<String>()
@@ -409,18 +465,12 @@ class KatMovie4KProvider : MainAPI() {
 
             val match = qualityRegex.find(raw)
             val label = match?.value?.trim()?.let { q ->
-                val lower = q.lowercase()
+                // Normalize a few common variants for prettier display.
                 when {
-                    lower == "watch online" || lower == "play online" -> "Watch Online"
-                    lower.contains("2160p") && lower.contains("hdr") && lower.contains("dv") -> "2160p HDR DV"
-                    lower.contains("2160p") && lower.contains("hdr") -> "2160p HDR"
-                    lower.contains("2160p") && lower.contains("sdr") -> "2160p SDR"
-                    lower.contains("2160p") && lower.contains("remux") -> "2160p REMUX"
-                    lower.contains("2160p") -> "2160p"
-                    lower.contains("4k") -> "4K"
-                    lower.contains("1080p") && lower.contains("hevc") -> "1080p HEVC"
-                    lower.contains("1080p") && lower.contains("x264") -> "1080p x264"
-                    lower.contains("dolby") -> "Dolby Vision"
+                    q.equals("watch online", ignoreCase = true) ||
+                        q.equals("play online", ignoreCase = true) -> "Watch Online"
+                    q.contains("1080p", ignoreCase = true) && q.contains("hevc", ignoreCase = true) -> "1080p HEVC"
+                    q.contains("1080p", ignoreCase = true) && q.contains("x264", ignoreCase = true) -> "1080p x264"
                     else -> q.replaceFirstChar { it.uppercase() }
                 }
             }
@@ -437,15 +487,16 @@ class KatMovie4KProvider : MainAPI() {
         var currentSeason = defaultSeason
         var currentEpisode: Int? = null
 
-        container.select("*").forEach { node ->
+        for (node in container.allElements) {
+            // Headers update our (season, episode) cursor.
             if (node.tagName() in LABEL_TAGS) {
                 val text = node.ownText().ifBlank { node.text() }.trim()
                 if (text.isNotEmpty() && text.length < 120 &&
                     EPISODE_NEGATIVE_PHRASES.none { it in text.lowercase() }) {
 
                     SEASON_HEADER_REGEX.find(text)?.let { m ->
-                        val s = m.groupValues[1].toIntOrNull()
-                        if (s != null) currentSeason = s
+                        (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
+                            ?.let { currentSeason = it }
                     }
                     EPISODE_HEADER_REGEX.find(text)?.let { m ->
                         m.groupValues[1].toIntOrNull()?.let { currentEpisode = it }
@@ -453,10 +504,12 @@ class KatMovie4KProvider : MainAPI() {
                 }
             }
 
-            if (currentEpisode != null && node.tagName() == "a") {
+            // Anchors are bucketed under the current cursor.
+            val ep = currentEpisode
+            if (ep != null && node.tagName() == "a") {
                 val href = node.attr("href")
                 if (LINK_HOST_REGEX.containsMatchIn(href)) {
-                    val bucket = map.getOrPut(currentSeason to currentEpisode!!) { mutableListOf() }
+                    val bucket = map.getOrPut(currentSeason to ep) { mutableListOf() }
                     if (href !in bucket) bucket.add(href)
                 }
             }
@@ -468,16 +521,30 @@ class KatMovie4KProvider : MainAPI() {
         val all = container.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
             .distinct()
+            // Some KatMovie4K pages put a decorative "DOWNLOAD LINKS" heading
+            // that links to kmhd.net/directlink (or similar generic landing
+            // pages). These are not real file mirrors - they just bounce the
+            // user to the site's homepage / ad-gate. Filter them out so they
+            // never become a Source entry that fails with "no link found".
             .filter { url ->
-                !url.matches(Regex("""(?i)^https?://(?:www\.)?kmhd\.net/(directlink|home|index)/?$""")) &&
-                !url.matches(Regex("""(?i)^https?://(?:www\.)?burydibase\.com/.*$"""))
+                !url.matches(Regex(
+                    """(?i)^https?://(?:www\.)?kmhd\.net/(directlink|home|index)/?$"""
+                )) &&
+                !url.matches(Regex(
+                    """(?i)^https?://(?:www\.)?burydibase\.com/.*$"""
+                ))
             }
 
         val strict = all.filter { LINK_HOST_REGEX.containsMatchIn(it) }
         if (strict.isNotEmpty()) return strict
 
+        // Pass 2: anything not obviously junk.
         val permissive = all.filter { url ->
-            !IGNORE_HOST_REGEX.containsMatchIn(url) && !url.contains(mainUrl, ignoreCase = true)
+            !IGNORE_HOST_REGEX.containsMatchIn(url) &&
+                    !url.contains(mainUrl, ignoreCase = true)
+        }
+        if (permissive.isNotEmpty()) {
+            Log.w(TAG, "Strict host whitelist matched 0 links, falling back to permissive (${permissive.size}): ${permissive.take(3)}")
         }
         return permissive
     }
@@ -485,7 +552,88 @@ class KatMovie4KProvider : MainAPI() {
     private fun collectAllPlayableLinks(doc: Document): String {
         val content = doc.selectFirst("article, .entry-content") ?: doc
         val links = collectMirrorLinks(content)
+        Log.d(TAG, "collectAllPlayableLinks(): ${links.size} links")
         return links.joinToString("\n")
+    }
+
+    /**
+     * Fetch each kmhd pack JSON in parallel and merge the recovered
+     * (season, episode) -> [perFileUrl] entries.
+     */
+    private suspend fun expandKmhdPacks(
+        packUrls: List<String>,
+        defaultSeason: Int
+    ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
+        val merged = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+
+        val perPack = supervisorScope {
+            packUrls.map { pack ->
+                async {
+                    runCatching { fetchKmhdPack(pack) }
+                        .onFailure { Log.w(TAG, "Pack fetch failed for $pack: ${it.message}") }
+                        .getOrNull().orEmpty()
+                }
+            }.awaitAll()
+        }
+
+        for ((packUrl, entries) in packUrls.zip(perPack)) {
+            val host = Regex("""^(https?://[^/]+)""").find(packUrl)?.groupValues?.get(1)
+                ?: "https://links.kmhd.eu"
+            for ((fileId, fileName) in entries) {
+                val (parsedSeason, parsedEpisode) = parseSeasonEpisode(fileName)
+                val ep = parsedEpisode ?: continue
+                val s = parsedSeason ?: defaultSeason
+                val link = "$host/file/$fileId"
+                merged.getOrPut(s to ep) { mutableListOf() }.let {
+                    if (link !in it) it.add(link)
+                }
+            }
+        }
+        return merged
+    }
+
+    private suspend fun fetchKmhdPack(packUrl: String): List<Pair<String, String>> {
+        val normalized = packUrl.trim().trimEnd('/')
+        val dataUrl = "$normalized/__data.json"
+        val text = app.get(
+            dataUrl,
+            headers = headers + mapOf(
+                "Cookie" to "unlocked=true",
+                "Referer" to normalized,
+                "Accept" to "application/json"
+            ),
+            timeout = 20
+        ).text
+        if (text.isBlank()) return emptyList()
+        return parseKmhdPackJson(text)
+    }
+
+    /**
+     * Parse SvelteKit's dehydrated NDJSON payload for kmhd's pack pages.
+     */
+    private fun parseKmhdPackJson(text: String): List<Pair<String, String>> {
+        val out = mutableListOf<Pair<String, String>>()
+        for (line in text.split('\n')) {
+            if (line.isBlank()) continue
+            val obj = runCatching { JSONObject(line) }.getOrNull() ?: continue
+            if (obj.optString("type") != "chunk") continue
+            val arr = obj.optJSONArray("data") ?: continue
+
+            val root = arr.opt(0) as? JSONObject ?: continue
+            val infoIdx = root.optInt("info", -1).takeIf { it > 0 } ?: continue
+            val infoMap = arr.opt(infoIdx) as? JSONObject ?: continue
+
+            val keys = infoMap.keys()
+            while (keys.hasNext()) {
+                val fileId = keys.next()
+                val nameNodeIdx = infoMap.optInt(fileId, -1).takeIf { it > 0 } ?: continue
+                val nameNode = arr.opt(nameNodeIdx) as? JSONObject ?: continue
+                val nameStrIdx = nameNode.optInt("name", -1).takeIf { it > 0 } ?: continue
+                val fileName = (arr.opt(nameStrIdx) as? String)?.takeIf { it.isNotBlank() } ?: continue
+                out.add(fileId to fileName)
+            }
+        }
+        return out
     }
 
     private fun buildEpisodes(
