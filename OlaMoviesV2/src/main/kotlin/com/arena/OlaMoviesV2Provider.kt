@@ -111,7 +111,7 @@ class OlaMoviesV2Provider : MainAPI() {
          * download links on the site.
          */
         private val OLA_LINK_REGEX = Regex(
-            """(?i)links\.ol-am\.top"""
+            """(?i)(links\.ol-am\.top|links\.olamovies\.mov)"""
         )
 
         /**
@@ -120,9 +120,9 @@ class OlaMoviesV2Provider : MainAPI() {
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
                     // OlaMovies shortener
-                    """links\.ol-am\.top|ol-am\.top|""" +
+                    """links\.ol-am\.top|links\.olamovies\.mov|ol-am\.top|""" +
                     // OlaMovies direct server
-                    """olamovies\.dad|space\.olamovies|""" +
+                    """olamovies\.dad|space\.olamovies|gdmirrorbot|""" +
                     // HubCloud family
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive|katdrive|""" +
                     // GDFlix family
@@ -785,9 +785,14 @@ class OlaMoviesV2Provider : MainAPI() {
             }
 
             when {
-                // OlaMovies link shortener
+                // OlaMovies link shortener (links.ol-am.top OR links.olamovies.mov)
                 OLA_LINK_REGEX.containsMatchIn(url) -> {
                     OlaLinks().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // GDMirrorBot
+                url.contains("gdmirrorbot", ignoreCase = true) -> {
+                    loadExtractor(url, mainUrl, subtitleCallback, callback)
                     true
                 }
                 // HubCloud

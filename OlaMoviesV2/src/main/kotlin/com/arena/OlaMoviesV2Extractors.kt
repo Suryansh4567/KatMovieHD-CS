@@ -29,12 +29,32 @@ private val browserHeaders = mapOf(
     "Referer" to "https://hubcloud.lol/"
 )
 
-// ─── OlaLinks — Shortener Extractor ──────────────────────────────────────────
+/** Known destination hosts that OlaMovies short links resolve to */
+private val KNOWN_HOSTS = listOf(
+    "hubcloud", "gdflix", "gdtot", "drive.google", "gofile",
+    "pixeldrain", "hubdrive", "hubstream", "hubcdn", "katdrive",
+    "olamovies.dad", "space.olamovies", "gdmirrorbot", "gd-flix",
+    "gdlink", "gdmirror", "1fichier", "send.cm", "mediafire",
+    "gdtot", "fuckingfast", "fastdl", "driveseed", "driveleech",
+    "bbupload", "filepress", "vidstack", "doodstream", "mixdrop",
+    "streamtape", "filemoon", "streamlare"
+)
+
+private fun isKnownHost(url: String): Boolean =
+    KNOWN_HOSTS.any { url.contains(it, ignoreCase = true) }
+
+// ─── OlaLinks — Shortener Extractor (COMPLETELY REWRITTEN) ──────────────────
 
 /**
- * Extractor for links.ol-am.top — OlaMovies' Cloudflare-protected
- * link shortener. Tries HTTP redirect resolution first; if that
- * fails (CF Turnstile), falls back to page scraping.
+ * Extractor for links.ol-am.top / links.olamovies.mov — OlaMovies'
+ * Cloudflare-protected link shortener.
+ *
+ * Resolution strategies (in order):
+ *   1. Direct GET with CF bypass — check response.url for known host
+ *   2. Parse response page for meta-refresh, JS redirects, known host links
+ *   3. Manual HTTP redirect following (allowRedirects=false)
+ *   4. HDHub4U-style JS deobfuscation (getRedirectLinks)
+ *   5. WebViewResolver as ultimate CF bypass
  */
 class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -50,64 +70,147 @@ class OlaLinks : ExtractorApi() {
         try {
             Log.d("OlaLinks", "Resolving: $url")
 
-            // Strategy 1: Follow HTTP redirects
-            val resolved = resolveFinalUrl(url)
-            if (resolved != null && resolved != url) {
-                Log.d("OlaLinks", "HTTP redirect resolved: $url -> $resolved")
-                dispatchResolved(resolved, subtitleCallback, callback)
-                return
-            }
+            // Strategy 1: Direct GET with CF bypass — check response.url
+            try {
+                val response = app.get(url, headers = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language" to "en-US,en;q=0.9",
+                    "Referer" to "https://v2.olamovies.mov/"
+                ), timeout = 30_000L)
 
-            // Strategy 2: Fetch the page and scrape for redirect URLs
-            val doc = app.get(url, headers = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language" to "en-US,en;q=0.9",
-                "Referer" to "https://v2.olamovies.mov/"
-            ), timeout = 30).document
-
-            // Look for meta refresh redirect
-            val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")?.attr("content")
-            if (!metaRefresh.isNullOrBlank()) {
-                val redirectUrl = Regex("""url=(.+)""", RegexOption.IGNORE_CASE)
-                    .find(metaRefresh)?.groupValues?.get(1)?.trim()
-                if (!redirectUrl.isNullOrBlank() && redirectUrl.startsWith("http")) {
-                    Log.d("OlaLinks", "Meta refresh: $redirectUrl")
-                    dispatchResolved(redirectUrl, subtitleCallback, callback)
+                val finalUrl = response.url
+                if (finalUrl != url && isKnownHost(finalUrl)) {
+                    Log.d("OlaLinks", "Strategy1 (response.url): $url -> $finalUrl")
+                    dispatchResolved(finalUrl, subtitleCallback, callback)
                     return
                 }
+
+                // If we got a real page (not CF challenge), try scraping it
+                if (response.code == 200) {
+                    val doc = response.document
+                    val scraped = scrapePageForLinks(doc, url)
+                    if (scraped != null) {
+                        Log.d("OlaLinks", "Strategy1 (page scrape): $url -> $scraped")
+                        dispatchResolved(scraped, subtitleCallback, callback)
+                        return
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d("OlaLinks", "Strategy1 failed: ${e.message}")
             }
 
-            // Look for direct links in the page (JS var, anchor, etc.)
-            val pageText = doc.toString()
-            val knownHosts = listOf(
-                "hubcloud", "gdflix", "gdtot", "drive.google",
-                "pixeldrain", "gofile", "send.cm", "1fichier",
-                "hubdrive", "hubcdn", "hubstream", "katdrive",
-                "olamovies.dad", "space.olamovies"
-            )
-            for (host in knownHosts) {
-                val urlRegex = Regex("""https?://[^\s"'<>]*$host[^\s"'<>]*""")
-                val found = urlRegex.find(pageText)?.value?.trimEnd('\\', ',', '"', '\'')
-                if (!found.isNullOrBlank()) {
-                    Log.d("OlaLinks", "Found $host link in page: $found")
-                    dispatchResolved(found, subtitleCallback, callback)
+            // Strategy 2: Manual redirect following
+            try {
+                val resolved = resolveFinalUrl(url)
+                if (resolved != null && resolved != url && isKnownHost(resolved)) {
+                    Log.d("OlaLinks", "Strategy2 (redirect): $url -> $resolved")
+                    dispatchResolved(resolved, subtitleCallback, callback)
                     return
                 }
+            } catch (e: Exception) {
+                Log.d("OlaLinks", "Strategy2 failed: ${e.message}")
             }
 
-            // Strategy 3: Use the HDHub4U-style redirect resolver
-            val redirectResolved = getRedirectLinks(url)
-            if (redirectResolved != null && redirectResolved != url) {
-                Log.d("OlaLinks", "Redirect resolver: $redirectResolved")
-                dispatchResolved(redirectResolved, subtitleCallback, callback)
-                return
+            // Strategy 3: getRedirectLinks for JS obfuscation
+            try {
+                val redirectResolved = getRedirectLinks(url)
+                if (redirectResolved != null && redirectResolved != url) {
+                    Log.d("OlaLinks", "Strategy3 (JS deobfuscation): $url -> $redirectResolved")
+                    dispatchResolved(redirectResolved, subtitleCallback, callback)
+                    return
+                }
+            } catch (e: Exception) {
+                Log.d("OlaLinks", "Strategy3 failed: ${e.message}")
             }
 
-            Log.w("OlaLinks", "All resolution strategies failed for $url — CF Turnstile likely active")
+            // Strategy 4: WebView-based CF bypass using WebViewResolver
+            try {
+                val interceptor = com.lagradost.cloudstream3.utils.WebViewResolver(
+                    interceptUrl = Regex("""(?i)(hubcloud|gdflix|gdtot|drive\.google|gofile|pixeldrain|olamovies\.dad|space\.olamovies|gdmirrorbot|gd-flix|vidstack|fuckingfast|driveseed|driveleech)"""),
+                    additionalUrls = listOf(Regex("""(?i)(hubcloud|gdflix|gdtot|drive\.google|gofile|pixeldrain)""")),
+                    useOkhttp = false,
+                    timeout = 30_000L
+                )
+                val response = app.get(url, interceptor = interceptor, headers = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+                ), timeout = 30_000L)
+
+                val webViewUrl = response.url
+                if (webViewUrl != url && isKnownHost(webViewUrl)) {
+                    Log.d("OlaLinks", "Strategy4 (WebView): $url -> $webViewUrl")
+                    dispatchResolved(webViewUrl, subtitleCallback, callback)
+                    return
+                }
+
+                // Also try scraping the WebView page
+                try {
+                    val doc = response.document
+                    val scraped = scrapePageForLinks(doc, url)
+                    if (scraped != null) {
+                        Log.d("OlaLinks", "Strategy4 (WebView scrape): $url -> $scraped")
+                        dispatchResolved(scraped, subtitleCallback, callback)
+                        return
+                    }
+                } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.d("OlaLinks", "Strategy4 (WebView) failed: ${e.message}")
+            }
+
+            // Strategy 5: Last resort — try loadExtractor which uses built-in CF bypass
+            try {
+                Log.w("OlaLinks", "All strategies failed for $url, trying loadExtractor as last resort")
+                loadExtractor(url, "https://v2.olamovies.mov/", subtitleCallback, callback)
+            } catch (e: Exception) {
+                Log.e("OlaLinks", "Every strategy failed for $url: ${e.message}")
+            }
         } catch (e: Exception) {
-            Log.e("OlaLinks", "Failed for $url: ${e.message}")
+            Log.e("OlaLinks", "Fatal error for $url: ${e.message}")
         }
+    }
+
+    /**
+     * Scrape a page for redirect URLs:
+     *   - meta http-equiv="refresh" redirect
+     *   - JavaScript window.location / location.href redirect
+     *   - Known host links in the page content
+     *   - #download anchor
+     *   - Any <a> link pointing to a known host
+     */
+    private fun scrapePageForLinks(doc: org.jsoup.nodes.Document, originalUrl: String): String? {
+        // Meta refresh redirect
+        val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")?.attr("content")
+        if (!metaRefresh.isNullOrBlank()) {
+            val redirectUrl = Regex("""url=(.+)""", RegexOption.IGNORE_CASE)
+                .find(metaRefresh)?.groupValues?.get(1)?.trim()
+            if (!redirectUrl.isNullOrBlank() && redirectUrl.startsWith("http")) {
+                return redirectUrl
+            }
+        }
+
+        // #download link
+        val downloadHref = doc.selectFirst("#download")?.attr("href")
+        if (!downloadHref.isNullOrBlank()) {
+            val resolved = if (downloadHref.startsWith("http")) downloadHref
+                           else getBaseUrl(originalUrl) + downloadHref
+            if (isKnownHost(resolved)) return resolved
+        }
+
+        // Search all anchors for known host links
+        for (anchor in doc.select("a[href]")) {
+            val href = anchor.attr("href")
+            if (href.isNotBlank() && isKnownHost(href)) return href
+        }
+
+        // Search page text for known host URLs (JS variables, etc.)
+        val pageText = doc.toString()
+        for (host in KNOWN_HOSTS) {
+            val urlRegex = Regex("""https?://[^\s"'<>]*$host[^\s"'<>]*""")
+            val found = urlRegex.find(pageText)?.value?.trimEnd('\\', ',', '"', '\'', ')')
+            if (!found.isNullOrBlank()) return found
+        }
+
+        return null
     }
 
     private suspend fun dispatchResolved(
@@ -131,9 +234,11 @@ class OlaLinks : ExtractorApi() {
                 OlaPixelDrainDev().getUrl(url, name, subtitleCallback, callback)
             url.contains("vidstack", ignoreCase = true) ->
                 OlaVidStack().getUrl(url, name, subtitleCallback, callback)
+            url.contains("gdmirrorbot", ignoreCase = true) -> {
+                loadExtractor(url, name, subtitleCallback, callback)
+            }
             url.contains("olamovies.dad", ignoreCase = true) ||
             url.contains("space.olamovies", ignoreCase = true) -> {
-                // Direct download from OlaMovies' own server
                 callback.invoke(
                     newExtractorLink(
                         "OlaMovies",
@@ -151,11 +256,22 @@ class OlaLinks : ExtractorApi() {
     }
 }
 
-// ─── HubCloud Extractor ──────────────────────────────────────────────────────
+// ─── OlaLinksMov — Extractor for links.olamovies.mov ────────────────────────
+
+/**
+ * Same as OlaLinks but registered for the links.olamovies.mov domain.
+ * The shortener redirects from links.ol-am.top → links.olamovies.mov,
+ * so both need to be handled.
+ */
+class OlaLinksMov : OlaLinks() {
+    override val mainUrl = "https://links.olamovies.mov"
+}
+
+// ─── HubCloud Extractor (FIXED mainUrl for proper dispatch) ─────────────────
 
 open class OlaHubCloud : ExtractorApi() {
     override val name: String = "Hub-Cloud"
-    override val mainUrl: String = "https://hubcloud.foo"
+    override val mainUrl: String = "https://hubcloud.*"
     override val requiresReferer = false
 
     fun extractPxlUrl(html: String): String? =

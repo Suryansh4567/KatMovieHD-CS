@@ -16,9 +16,10 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  *   - 6-hour cache TTL so domain bumps propagate without app restart
  *   - Triple-fallback URL resolution
  *
- * The site uses a Cloudflare-protected link shortener (links.ol-am.top)
- * which resolves to HubCloud / GDFlix / Google Drive URLs. We register
- * extractors for all known mirror hosts plus our custom OlaLinks resolver.
+ * The site uses a Cloudflare-protected link shortener (links.ol-am.top
+ * which redirects to links.olamovies.mov) which resolves to HubCloud /
+ * GDFlix / Google Drive URLs. We register extractors for all known mirror
+ * hosts plus our custom OlaLinks resolver with multi-strategy CF bypass.
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -26,13 +27,20 @@ class OlaMoviesV2Plugin : BasePlugin() {
     override fun load() {
         registerMainAPI(OlaMoviesV2Provider())
 
-        // ─── Custom OlaMovies link shortener extractor ─────────────────
-        // links.ol-am.top is behind CF Turnstile; OlaLinks extractor
-        // tries HTTP redirect resolution first, then falls back to
-        // CloudStream's built-in WebView handler.
+        // ─── Custom OlaMovies link shortener extractors ────────────────
+        // links.ol-am.top redirects to links.olamovies.mov — both need
+        // to be handled. OlaLinks uses multi-strategy CF bypass:
+        //   1. Direct GET with CF bypass → check response.url
+        //   2. Page scraping for meta-refresh / known host links
+        //   3. Manual HTTP redirect following
+        //   4. HDHub4U-style JS deobfuscation
+        //   5. WebViewResolver as ultimate CF bypass
         registerExtractorAPI(OlaLinks())
+        registerExtractorAPI(OlaLinksMov())
 
         // ─── HubCloud ecosystem ────────────────────────────────────────
+        // mainUrl = "https://hubcloud.*" — wildcard matches any TLD
+        // via CloudStream's FuzzySearch fallback in loadExtractor()
         registerExtractorAPI(OlaHubCloud())
         registerExtractorAPI(OlaHubdrive())
         registerExtractorAPI(OlaHubstream())
