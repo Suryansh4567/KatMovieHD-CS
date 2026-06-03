@@ -87,8 +87,8 @@ class KatMovie4KProvider : MainAPI() {
                     """links\.kmhd\.[a-z]+|kmhd\.net|kmhd\.eu|gd\.kmhd|""" +
                     // KatMovie4K-specific redirectors
                     """ziddiflix\.com|driveleech\.org|vifix\.site|""" +
-                    // GDFlix / GDTot family (covers gdflix.rest, .dad, .dev, .cfd etc.)
-                    """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|""" +
+                    // GDFlix / GDTot family (covers gdflix.rest, .dad, .dev, .cfd, .live etc.)
+                    """gdflix\.[a-z]+|gd-flix|gdlink|gdtot\.[a-z]+|gdmirror|""" +
                     // HubCloud / Hubdrive / Katdrive family (covers hubcloud.lol etc.)
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive|katdrive|""" +
                     // Appdrive / drive-redirect hosts
@@ -101,7 +101,9 @@ class KatMovie4KProvider : MainAPI() {
                     """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|""" +
                     // Hindi-dub / 4K-specific upload mirrors
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
-                    """bbupload|gofileserver|bbserver|gdtot|techkit|busycdn|""" +
+                    """bbupload|gofileserver|bbserver|techkit|busycdn|""" +
+                    // Short-link redirectors / router APIs
+                    """dhakrey\.eu\.org|miniroad\.store|parklogic\.com|""" +
                     // KatMovie* upload mirrors
                     """katmovie|katdrive|kmhd""" +
                     """)"""
@@ -116,7 +118,7 @@ class KatMovie4KProvider : MainAPI() {
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
                     """wp-content|wp-includes|wp-json|""" +
-                    """katmovie4k\.[a-z]+/(tag/|category/|page/|author/|wp-|feed|$)|katmoviehd\.[a-z]+/(tag/|category/|page/|author/|wp-|feed|$)|gstatic|googletagmanager|google-analytics|""" +
+                    """katmovie4k\.[a-z]+/(tag/|category/|page/|author/|wp-|feed|$)|katmoviehd\.[a-z]+/(tag/|category/|page/|author/|wp-|feed|$)|katmoviehd\.(phd|fit|it)|gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
@@ -134,6 +136,16 @@ class KatMovie4KProvider : MainAPI() {
 
         /** Identifies a kmhd /pack/<id> URL (these need JSON expansion). */
         private val KMHD_PACK_REGEX = Regex("""(?i)links\.kmhd\.[a-z]+/pack/""")
+
+        /** Regex to extract the file ID from a gdtot URL for router API resolution. */
+        private val GDTOT_FILE_ID_REGEX = Regex(
+            """(?i)/(?:file/)(\d+)"""
+        )
+
+        /** Regex to match any gdtot domain. */
+        private val GDTOT_DOMAIN_REGEX = Regex(
+            """(?i)gdtot\.[a-z]+"""
+        )
 
         /**
          * Extract (season, episode) from a release filename such as
@@ -159,16 +171,6 @@ class KatMovie4KProvider : MainAPI() {
         private val EPISODE_NEGATIVE_PHRASES = listOf(
             "more episodes", "will be added", "episode list", "all episodes",
             "single episodes link"
-        )
-
-        /**
-         * GDTot domains (new*.gdtot.dad / new*.gdtot.cfd) are dead or behind
-         * Cloudflare JS challenges that CloudStream's HTTP client cannot solve.
-         * They share the same /file/<id> API as gdflix.dev, so we rewrite
-         * these URLs to a working domain at link-collection time.
-         */
-        private val GDTOT_DEAD_REGEX = Regex(
-            """(?i)^https?://(?:new\d+\.)?gdtot\.[a-z]+/file/([A-Za-z0-9]+)"""
         )
     }
 
@@ -546,20 +548,12 @@ class KatMovie4KProvider : MainAPI() {
                     """(?i)^https?://(?:www\.)?burydibase\.com/.*$"""
                 ))
             }
-            // Rewrite dead/JS-challenge GDTot domains to a working GDFlix
-            // path. GDTot dad/cfd domains are behind Cloudflare JS challenges
-            // that CloudStream's HTTP client cannot solve. They share the
-            // same /file/<id> API as gdflix.dad, so we redirect to it.
-            .map { url ->
-                GDTOT_DEAD_REGEX.replace(url) { m ->
-                    "https://gdflix.dev/file/${m.groupValues[1]}"
-                }.let { rewritten ->
-                    if (rewritten != url) {
-                        Log.d(TAG, "Rewrote dead GDTot: $url -> $rewritten")
-                    }
-                    rewritten
-                }
-            }
+            // NOTE: We no longer rewrite gdtot.* URLs to gdflix.dev at
+            // link-collection time. The old GDTOT_DEAD_REGEX rewrite was
+            // actively harmful — gdtot file IDs do NOT exist on gdflix.dev
+            // (shows "file deleted"), so every rewritten URL always failed.
+            // Instead, gdtot URLs are now resolved at dispatch time via
+            // resolveGdtotUrl() which tries the router.parklogic.com API.
 
         val strict = all.filter { LINK_HOST_REGEX.containsMatchIn(it) }
         if (strict.isNotEmpty()) return strict
@@ -728,6 +722,111 @@ class KatMovie4KProvider : MainAPI() {
         return u
     }
 
+    /**
+     * Try to resolve a gdtot.* URL through the router.parklogic.com API.
+     *
+     * GDTot domains (new*.gdtot.dad, new*.gdtot.cfd) are behind Cloudflare
+     * JS challenges that CloudStream's HTTP client cannot solve directly.
+     * However, their pages contain JavaScript that POSTs to
+     * router.parklogic.com/file/{fileId} which returns a redirect URL.
+     * This function replicates that API call.
+     *
+     * @return a resolved URL if the router API returns one, or null.
+     */
+    private suspend fun resolveGdtotUrl(url: String): String? {
+        val fileId = GDTOT_FILE_ID_REGEX.find(url)?.groupValues?.get(1)
+        if (fileId.isNullOrBlank()) {
+            Log.d(TAG, "resolveGdtotUrl: no file ID found in $url")
+            return null
+        }
+        Log.d(TAG, "resolveGdtotUrl: attempting router API for fileId=$fileId from $url")
+
+        // Extract domain components from the original URL
+        val domainRegex = Regex("""(?i)^https?://((?:new\d+\.)?(gdtot\.[a-z]+))/""")
+        val match = domainRegex.find(url)
+        val domainFull = match?.groupValues?.get(1) ?: "new7.gdtot.dad"
+        val domainApex = match?.groupValues?.get(2) ?: "gdtot.dad"
+
+        val routerUrl = "https://router.parklogic.com/file/$fileId"
+        val body = JSONObject().apply {
+            put("parameters", JSONObject().apply {
+                put("domainApex", domainApex)
+                put("domainFull", domainFull)
+                put("protocol", "https")
+                put("path", "/file/$fileId")
+                put("adBlockingDetected", false)
+                put("timezoneBrowser", "UTC")
+                put("webdriver", false)
+            })
+        }.toString()
+
+        return try {
+            val response = app.post(
+                routerUrl,
+                body = body,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Content-Type" to "text/plain",
+                    "Origin" to "https://$domainFull",
+                    "Referer" to url
+                ),
+                timeout = 15
+            ).text.trim()
+
+            if (response.startsWith("http", ignoreCase = true)) {
+                Log.d(TAG, "resolveGdtotUrl: router returned redirect URL: $response")
+                // The redirect URL may itself be behind CF, but some
+                // CloudStream builds with WebView can handle it.
+                return response
+            }
+
+            // If the response is HTML, try to parse it for download links
+            if (response.startsWith("<", ignoreCase = true)) {
+                Log.d(TAG, "resolveGdtotUrl: router returned HTML, parsing for links")
+                val doc = org.jsoup.Jsoup.parse(response)
+                val link = doc.select("a[href]").mapNotNull { a ->
+                    a.attr("href").takeIf { it.startsWith("http", ignoreCase = true) }
+                }.firstOrNull()
+                if (link != null) {
+                    Log.d(TAG, "resolveGdtotUrl: found link in HTML: $link")
+                    return link
+                }
+            }
+
+            Log.d(TAG, "resolveGdtotUrl: router returned unexpected response: ${response.take(100)}")
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveGdtotUrl: router API failed for $url: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Follow redirects from a short-link URL to get the final destination.
+     */
+    private suspend fun resolveFinalUrl(url: String): String? {
+        return try {
+            val resp = app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Accept" to "text/html",
+                    "Accept-Language" to "en-US,en;q=0.9"
+                ),
+                timeout = 15,
+                allowRedirects = true
+            )
+            val finalUrl = resp.url ?: url
+            if (finalUrl != url) {
+                Log.d(TAG, "resolveFinalUrl: $url -> $finalUrl")
+            }
+            finalUrl.takeIf { it != url }
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveFinalUrl: failed for $url: ${e.message}")
+            null
+        }
+    }
+
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -773,6 +872,14 @@ class KatMovie4KProvider : MainAPI() {
                     Appdrive().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
+                // gdflix.live uses fingerprint redirect; bypass with ?fp=-
+                url.contains("gdflix.live", ignoreCase = true) -> {
+                    val bypassUrl = if (url.contains("fp=")) url
+                                    else "$url${if (url.contains("?")) "&" else "?"}fp=-7"
+                    Log.d(TAG, "dispatchExtractor: gdflix.live with fp bypass: $bypassUrl")
+                    GDFlix().getUrl(bypassUrl, mainUrl, subtitleCallback, callback)
+                    true
+                }
                 url.contains("new.gdflix.dad", ignoreCase = true) -> {
                     GDFlixDad().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
@@ -793,8 +900,31 @@ class KatMovie4KProvider : MainAPI() {
                     GDFlixCfd5().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
-                url.contains("gdtot.cfd", ignoreCase = true) || Regex("""(?i)gdtot\.[a-z]+""").containsMatchIn(url) -> {
-                    GDTotCfd().getUrl(url, mainUrl, subtitleCallback, callback)
+                // gdtot.* URLs: try router API first, then fallback to GDTotCfd extractor
+                GDTOT_DOMAIN_REGEX.containsMatchIn(url) -> {
+                    val resolved = resolveGdtotUrl(url)
+                    if (resolved != null) {
+                        Log.d(TAG, "dispatchExtractor: gdtot resolved via router API: $resolved")
+                        dispatchExtractor(resolved, subtitleCallback, callback)
+                    } else {
+                        Log.d(TAG, "dispatchExtractor: gdtot router API failed, trying GDTotCfd fallback")
+                        GDTotCfd().getUrl(url, mainUrl, subtitleCallback, callback)
+                    }
+                    true
+                }
+                // dhakrey.eu.org short link redirector
+                url.contains("dhakrey.eu.org", ignoreCase = true) -> {
+                    try {
+                        val resolved = resolveFinalUrl(url) ?: url
+                        if (resolved != url) {
+                            Log.d(TAG, "dispatchExtractor: dhakrey resolved to $resolved")
+                            dispatchExtractor(resolved, subtitleCallback, callback)
+                        } else {
+                            loadExtractor(url, mainUrl, subtitleCallback, callback)
+                        }
+                    } catch (_: Exception) {
+                        loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    }
                     true
                 }
                 Regex("""(?i)(gdflix|gdmirror|gd-flix|gdlink|ziddiflix)""").containsMatchIn(url) -> {
