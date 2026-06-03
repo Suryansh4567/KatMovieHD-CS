@@ -307,15 +307,4 @@ suspend fun bypassCloudflare(
     return null
 }
 
-/**
- * Feature #10: Safe concurrent mapping — catches per-item failures.
- * Wraps CloudStream's amap with per-item try/catch so one failure
- * doesn't kill the whole batch. Usage: safeAmap(urls) { url -> ... }
- */
-suspend fun <T> safeAmap(items: List<T>, block: suspend (T) -> Unit) {
-    com.lagradost.cloudstream3.amap(items) { item ->
-        runCatching { block(item) }.onFailure {
-            com.lagradost.api.Log.w("safeAmap", "Item failed: ${it.message}")
-        }
-    }
-}
+
