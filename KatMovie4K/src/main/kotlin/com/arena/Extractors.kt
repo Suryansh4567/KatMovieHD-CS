@@ -174,12 +174,17 @@ open class GDFlix : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            // CRITICAL: After redirect chains (ziddiflix→gdflix.dev→new18.gdflix.net),
-            // the page is served from new18.gdflix.net, but getBaseUrl(url) returns
-            // the ORIGINAL host. Relative URLs like /zfile/<id> would resolve to the
-            // wrong domain. Always use new18.gdflix.net as the canonical base.
-            val baseUrl = "https://new18.gdflix.net"
-            val document = app.get(url).document
+            // CRITICAL (v4 fix): GDFlix rotates its canonical host (new1 →
+            // new17 → new18 → …). Hard-coding "new18.gdflix.net" breaks the
+            // day it bumps to new19, and is also wrong for the redirector
+            // chains (ziddiflix → gdflix.dev → newNN.gdflix.net).  Instead we
+            // derive the base from the FINAL resolved URL after redirects, so
+            // relative buttons like /zfile/<id> always resolve to whatever host
+            // actually served the page. Falls back to new18 only if parsing
+            // somehow yields nothing.
+            val response = app.get(url, referer = referer)
+            val document = response.document
+            val baseUrl = getBaseUrl(response.url).ifBlank { "https://new18.gdflix.net" }
             
             val fileName = document.select("ul > li.list-group-item:contains(Name)").text()
                 .substringAfter("Name : ").orEmpty()
@@ -224,40 +229,56 @@ open class GDFlix : ExtractorApi() {
                     text.contains("telegram") -> {
                         Log.d("GDFlix", "Skipping Telegram button")
                     }
-                    // INSTANT DL: busycdn.xyz → 302 → fastcdn-dl.pages.dev/?url=GOOGLE_CDN
-                    // The fastcdn page is HTML (not a redirect), so CloudStream gets stuck.
-                    // Fix: intercept the 302 Location header → extract url= param →
-                    // Google CDN URL which returns video/mkv directly.
+                    // INSTANT DL: busycdn.xyz → 302 → fastcdn-dl/?url=<CDN>
+                    //
+                    // v4 fix: the OLD code pushed `absLink` (the bare
+                    // instant.busycdn.xyz token URL) as a VIDEO link whenever it
+                    // could not parse a redirect. That token endpoint frequently
+                    // answers HTTP 500 with a JSON error body (verified live:
+                    // {"error":"Cannot read properties of undefined ..."}), so
+                    // CloudStream received a "link" that is not a video at all →
+                    // it shows as a Source that fails to play, and when it is the
+                    // ONLY source the user sees "No Links Found".
+                    //
+                    // New behaviour: follow the redirect with GET (the token is
+                    // single-use; HEAD sometimes 500s where GET succeeds), pull
+                    // the real CDN url= param, and ONLY push it if it is a real
+                    // http(s) media URL. If we can't recover a usable CDN URL we
+                    // push NOTHING from this button and let the other mirrors
+                    // (GoFile / PixelDrain / Fast Cloud) carry playback.
                     text.contains("instant dl") || text.contains("instant download") -> {
                         try {
                             if (link.contains("busycdn.xyz") || link.contains("instant.")) {
-                                // Capture the redirect Location without following it
-                                val headRes = app.head(absLink, allowRedirects = false, timeout = 10)
-                                val location = headRes.headers["Location"] ?: ""
-                                if (location.isNotBlank()) {
-                                    // Extract Google CDN URL from fastcdn-dl url param
-                                    val googleUrl = Regex("""[?&]url=([^&]+)""")
-                                        .find(location)?.groupValues?.get(1)
-                                    if (!googleUrl.isNullOrBlank()) {
-                                        val decodedUrl = URLDecoder.decode(googleUrl, "UTF-8")
-                                        if (decodedUrl.startsWith("http")) {
-                                            Log.d(name, "Instant DL → Google CDN: ${decodedUrl.take(80)}...")
-                                            pushLink(decodedUrl, "[Google CDN]")
-                                        } else {
-                                            pushLink(absLink, "[Instant DL]")
-                                        }
-                                    } else {
-                                        pushLink(absLink, "[Instant DL]")
-                                    }
-                                } else {
-                                    pushLink(absLink, "[Instant DL]")
+                                // Try redirect Location first (no body), then a
+                                // full GET (some tokens only 302 on GET).
+                                val location = runCatching {
+                                    app.get(absLink, referer = baseUrl, allowRedirects = false, timeout = 15)
+                                        .headers["Location"]
+                                }.getOrNull().orEmpty()
+
+                                val cdnFromLoc = Regex("""[?&]url=([^&]+)""")
+                                    .find(location)?.groupValues?.get(1)
+                                    ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+
+                                val finalCdn = when {
+                                    !cdnFromLoc.isNullOrBlank() && cdnFromLoc.startsWith("http") -> cdnFromLoc
+                                    location.startsWith("http") &&
+                                        !location.contains("busycdn", true) -> location
+                                    else -> null
                                 }
-                            } else {
+
+                                if (!finalCdn.isNullOrBlank()) {
+                                    Log.d(name, "Instant DL → CDN: ${finalCdn.take(80)}")
+                                    pushLink(finalCdn, "[Instant 10GBPS]")
+                                } else {
+                                    Log.w(name, "Instant DL produced no usable CDN url; skipping dead token URL")
+                                }
+                            } else if (absLink.startsWith("http")) {
                                 pushLink(absLink, "[Instant DL]")
                             }
                         } catch (e: Exception) {
                             Log.d("GDFlix-Instant", e.toString())
-                            pushLink(absLink, "[Instant DL]")
+                            // Do NOT push absLink on failure — see note above.
                         }
                     }
                     text.contains("cloud download") || text.contains("[r2]") -> {
@@ -271,19 +292,31 @@ open class GDFlix : ExtractorApi() {
                     }
                     text.contains("fast cloud") || text.contains("zipdisk") -> {
                         try {
-                            val dlink = app.get(absLink)
-                                .document
-                                .select("div.card-body a, a.btn-success, a.btn")
-                                .firstOrNull()?.attr("href").orEmpty()
+                            val zdoc = app.get(absLink, referer = baseUrl).document
+                            // The real download anchor on a /zfile/ page is a
+                            // worker / awscdn / google CDN link. The site's nav
+                            // also uses .btn (GDFlix logo, "Log in", "Join
+                            // Telegram"), so picking firstOrNull() of a generic
+                            // ".btn" selector grabs the GDFlix HOME link, not a
+                            // file. Restrict to anchors that actually point at a
+                            // downloadable host.
+                            val dlink = zdoc.select("a[href]")
+                                .map { it.attr("href") }
+                                .firstOrNull { h ->
+                                    Regex("""(?i)(workers\.dev|awscdn|googleusercontent|busycdn|\.mkv|\.mp4|/download)""")
+                                        .containsMatchIn(h)
+                                }
+                                .orEmpty()
                             if (dlink.isNotBlank()) {
                                 val finalDlink = if (dlink.startsWith("http")) dlink else baseUrl + dlink
                                 pushLink(finalDlink, "[Fast Cloud]")
                             } else {
-                                // /zfile/ page may be JS-driven with CAPTCHA.
-                                // Push the /zfile/ URL itself — CloudStream might
-                                // resolve it or the user can try it.
-                                Log.w(name, "Fast Cloud /zfile/ page had no download links (CAPTCHA wall?)")
-                                pushLink(absLink, "[Fast Cloud]")
+                                // v4 fix: the /zfile/ landing page is JS/CAPTCHA
+                                // walled — pushing its HTML URL as a VIDEO link
+                                // (old behaviour) created a dead Source that
+                                // failed to play. Skip it; companion mirrors
+                                // (GoFile/PixelDrain/Instant) handle playback.
+                                Log.w(name, "Fast Cloud /zfile/ had no usable CDN link; skipping")
                             }
                         } catch (e: Exception) {
                             Log.d("GDFlix-FastCloud", e.toString())
@@ -303,11 +336,21 @@ open class GDFlix : ExtractorApi() {
                     }
                     text.contains("gofile") -> {
                         try {
-                            app.get(absLink).document.select("a[href*=gofile.io]").amap { goAnchor ->
-                                val goLink = goAnchor.attr("href")
-                                if (goLink.contains("gofile")) {
-                                    loadExtractor(goLink, "", subtitleCallback, callback)
-                                }
+                            // The "GoFile [Multiup]" button points at a
+                            // goflix.sbs mirror page that embeds the real
+                            // gofile.io/d/<id> link. v4 fix: select via attribute
+                            // contains, and if the anchor selector misses (markup
+                            // drift) fall back to a raw-HTML regex so we still
+                            // recover the gofile link. CloudStream has a built-in
+                            // GoFile extractor that resolves /d/<id> to a stream.
+                            val mirrorHtml = app.get(absLink, referer = baseUrl).text
+                            val goLinks = Regex("""https?://gofile\.io/d/[A-Za-z0-9]+""")
+                                .findAll(mirrorHtml).map { it.value }.distinct().toList()
+                            if (goLinks.isEmpty()) {
+                                Log.w(name, "GoFile mirror page had no gofile.io link: $absLink")
+                            }
+                            goLinks.amap { goLink ->
+                                loadExtractor(goLink, absLink, subtitleCallback, callback)
                             }
                         } catch (e: Exception) {
                             Log.d("GDFlix-GoFile", e.toString())
@@ -384,14 +427,21 @@ class Vifix : GDFlix() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        // vifix.site serves a JS challenge, not a 302 redirect.
-        // Extract file id and try new18.gdflix.net directly.
+        // vifix.site is now a parked/JS-challenge domain (verified live: it
+        // 302s to ww1.vifix.site, a parking page — NOT a stream). The gdflix
+        // file id embedded in the /gdflix/<id> path is still valid on the live
+        // GDFlix system though, so we bypass vifix entirely.
+        //
+        // v4 fix: route through the rotation-proof entry "https://gdflix.dev/
+        // file/<id>" instead of a hard-coded "new18" host. gdflix.dev 302s to
+        // whatever the current canonical host is (new18 today, new19 tomorrow),
+        // and GDFlix.getUrl() now derives its base from the resolved URL.
         val fileId = Regex("""/gdflix/([a-zA-Z0-9_]+)""")
             .find(url)?.groupValues?.get(1)
         if (!fileId.isNullOrBlank()) {
-            val gdflixUrl = "https://new18.gdflix.net/file/$fileId"
+            val gdflixUrl = "https://gdflix.dev/file/$fileId"
             Log.d(name, "Vifix JS bypass: $url → $gdflixUrl")
-            GDFlixNet().getUrl(gdflixUrl, referer ?: url, subtitleCallback, callback)
+            GDFlix().getUrl(gdflixUrl, referer ?: url, subtitleCallback, callback)
             return
         }
         Log.w(name, "Vifix: unexpected URL format: $url")
