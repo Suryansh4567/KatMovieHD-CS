@@ -314,10 +314,11 @@ suspend fun bypassCloudflare(
  */
 suspend fun <T, R> safeAmap(items: List<T>, block: suspend (T) -> R): List<R> {
     return kotlinx.coroutines.coroutineScope {
-        items.map { item ->
-            this@coroutineScope.async {
+        val deferreds = items.map { item ->
+            kotlinx.coroutines.async(this@coroutineScope) {
                 runCatching { block(item) }.getOrNull()
             }
-        }.mapNotNull { it.await() }
+        }
+        deferreds.mapNotNull { it.await() }
     }
 }
