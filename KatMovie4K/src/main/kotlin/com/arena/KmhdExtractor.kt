@@ -24,33 +24,38 @@ class KmhdExtractor : ExtractorApi() {
     ) {
         Log.d(TAG, "getUrl invoked: $url")
 
-        // Branch 1: legacy WordPress archive pages -
-        //   https://kmhd.eu/archives/<post_id>
-        // These predate the SvelteKit links.kmhd.eu/file/<id> system and
-        // are used by old KatMovieHD posts (e.g. pre-2020 movies like
-        // "Deadly Pickup 2016"). The page contains a flat list of mirror
-        // links (acefile, drive.tv21, openload, mp4upload, etc.). We
-        // fetch the page, scrape every external anchor, and re-dispatch
-        // each through Cloudstream's stock extractor registry.
         if (Regex("""(?i)kmhd\.eu/archives/\d+""").containsMatchIn(url)) {
             handleArchivePage(url, subtitleCallback, callback)
             return
         }
 
-        // Branch 2: SvelteKit /file/<id> or /play?id=<id> URLs (current
-        // KatMovieHD format). Hit the page's /__data.json sidecar and
-        // parse the dehydrated mirror map.
         handleSvelteKitFileOrPlay(url, subtitleCallback, callback)
     }
 
-    /**
-     * Legacy archive page handler. Pure HTML scrape + dispatch.
-     *
-     * Logs every URL we find for easy diagnostics, then fans them out
-     * in parallel through Cloudstream's loadExtractor (which has built-in
-     * support for most 2016-era hosts: openload, mp4upload, vidbob,
-     * uptobox, clicknupload, userscloud, etc).
-     */
+    private suspend fun fetchWithFallbacks(path: String, candidateHosts: List<String>): Pair<String, String>? {
+        for (host in candidateHosts) {
+            val fullUrl = "$host$path"
+            Log.d(TAG, "Fetching: $fullUrl")
+            try {
+                val res = app.get(
+                    fullUrl,
+                    headers = mapOf(
+                        "User-Agent" to UA,
+                        "Cookie" to "unlocked=true",
+                        "Referer" to "$host$path",
+                    ),
+                    timeout = 30
+                )
+                if (res.code == 200 && res.text.isNotBlank()) {
+                    return res.text to host
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Fetch failed for $fullUrl: ${e.message}")
+            }
+        }
+        return null
+    }
+
     private suspend fun handleArchivePage(
         url: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -71,22 +76,14 @@ class KmhdExtractor : ExtractorApi() {
             Log.e(TAG, "Archive page fetch failed: ${it.message}")
             return
         }
-        if (html.isBlank()) {
-            Log.w(TAG, "Archive page returned empty body: $url")
-            return
-        }
+        if (html.isBlank()) return
 
         val doc = Jsoup.parse(html)
         val anchors = doc.select("a[href]")
             .mapNotNull { it.attr("href").trim().takeIf { h -> h.startsWith("http") } }
-            .filter { href ->
-                // Skip navigation, self-references, social media, image hosts,
-                // and other obvious non-stream URLs. Anything else is a candidate.
-                !ARCHIVE_IGNORE_REGEX.containsMatchIn(href)
-            }
+            .filter { href -> !ARCHIVE_IGNORE_REGEX.containsMatchIn(href) }
             .distinct()
 
-        Log.d(TAG, "Archive page yielded ${anchors.size} candidate mirrors")
         if (anchors.isEmpty()) return
 
         anchors.amap { mirrorUrl ->
@@ -94,13 +91,6 @@ class KmhdExtractor : ExtractorApi() {
         }
     }
 
-    /**
-     * Archive pages contain already-expanded mirror URLs. Some of KatMovieHD's
-     * own legacy mirrors are redirector domains (gd.kmhd.eu / katdrive.eu)
-     * that Cloudstream's generic loadExtractor will not recognise by prefix.
-     * Route those through our known extractors first, then fall back to the
-     * stock registry for normal hosts like send.cm / 1fichier / streamtape.
-     */
     private suspend fun dispatchArchiveMirror(
         archivePageUrl: String,
         mirrorUrl: String,
@@ -111,208 +101,75 @@ class KmhdExtractor : ExtractorApi() {
             val lower = mirrorUrl.lowercase()
             when {
                 lower.contains("gd.kmhd.eu/file/") -> {
-                    val fileId = mirrorUrl.substringAfterLast("/")
-                        .substringBefore("?")
-                        .substringBefore("#")
+                    val fileId = mirrorUrl.substringAfterLast("/").substringBefore("?").substringBefore("#")
                     val finalUrl = resolveFinalUrl(mirrorUrl)
                         ?.takeIf { it.contains("gdflix", ignoreCase = true) }
                         ?: "https://new18.gdflix.net/file/$fileId"
-
-                    Log.d(TAG, "Archive GD-KMHD → GDFlix: $mirrorUrl -> $finalUrl")
                     GDFlixNet().getUrl(finalUrl, archivePageUrl, subtitleCallback, callback)
                 }
-
                 lower.contains("gdflix") || lower.contains("gd-flix") -> {
-                    Log.d(TAG, "Archive GDFlix dispatch → $mirrorUrl")
                     GDFlix().getUrl(mirrorUrl, archivePageUrl, subtitleCallback, callback)
                 }
-
                 lower.contains("hubcloud.") || lower.contains("hubdrive") -> {
-                    Log.d(TAG, "Archive HubCloud dispatch → $mirrorUrl")
                     HubCloud().getUrl(mirrorUrl, archivePageUrl, subtitleCallback, callback)
                 }
-
                 lower.contains("katdrive.") -> {
-                    Log.d(TAG, "Archive KatDrive dispatch → $mirrorUrl")
                     handleKatdriveArchive(mirrorUrl, subtitleCallback, callback)
                 }
-
                 else -> {
-                    Log.d(TAG, "Archive loadExtractor dispatch → $mirrorUrl")
                     loadExtractor(mirrorUrl, archivePageUrl, subtitleCallback, callback)
                 }
             }
-        }.onFailure {
-            Log.w(TAG, "Archive mirror failed $mirrorUrl: ${it.message}")
         }
     }
 
-    /** KatDrive pages usually expose a HubCloud /video/ link. */
     private suspend fun handleKatdriveArchive(
         url: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val doc = app.get(
-            url,
-            headers = mapOf("User-Agent" to UA),
-            timeout = 30
-        ).document
-
-        val hubUrl = doc.select("a[href]")
-            .mapNotNull { a ->
-                a.absUrl("href").ifBlank { a.attr("href") }
-                    .takeIf { it.contains("hubcloud", ignoreCase = true) }
-            }
-            .firstOrNull()
-
-        if (!hubUrl.isNullOrBlank()) {
-            Log.d(TAG, "KatDrive → HubCloud: $hubUrl")
-            HubCloud().getUrl(hubUrl, url, subtitleCallback, callback)
-        } else {
-            Log.w(TAG, "KatDrive page had no HubCloud link, falling back: $url")
-            loadExtractor(url, mainUrl, subtitleCallback, callback)
-        }
+        val doc = app.get(url, headers = mapOf("User-Agent" to UA), timeout = 30).document
+        val hubUrl = doc.select("a[href]").mapNotNull { a -> a.absUrl("href").ifBlank { a.attr("href") }.takeIf { it.contains("hubcloud", ignoreCase = true) } }.firstOrNull()
+        if (!hubUrl.isNullOrBlank()) HubCloud().getUrl(hubUrl, url, subtitleCallback, callback)
+        else loadExtractor(url, mainUrl, subtitleCallback, callback)
     }
 
-    /**
-     * Current-format SvelteKit handler. Pulls the dehydrated mirror map
-     * from /__data.json and dispatches each mirror via the per-host
-     * helper below.
-     */
     private suspend fun handleSvelteKitFileOrPlay(
         url: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            val rawId = Regex("""/(?:file|play)[/?](?:id=)?([^/?&#]+)""")
-                .find(url)?.groupValues?.get(1)?.trim()
-            if (rawId.isNullOrBlank()) {
-                Log.e(TAG, "Could not extract id from $url")
-                return
-            }
+            val rawId = Regex("""/(?:file|play)[/?](?:id=)?([^/?&#]+)""").find(url)?.groupValues?.get(1)?.trim()
+            if (rawId.isNullOrBlank()) return
 
-            // Some kmhd file IDs contain non-ASCII characters (e.g. the
-            // Spanish-language release "Sueño_2df1145a" - note the ñ).
-            // Concatenating those into a URL string raw makes OkHttp throw
-            // (or silently send a corrupt request), which surfaces in the
-            // app as a movie page with "no links". Percent-encoding the
-            // id fixes it for every show we tested and is a no-op for
-            // plain ASCII IDs. Letters/digits/"-_.~" pass through; space
-            // (which URLEncoder turns into "+") becomes "%20".
             val id = java.net.URLEncoder.encode(rawId, "UTF-8").replace("+", "%20")
-
             val isPlay = url.contains("/play", ignoreCase = true)
             val path = if (isPlay) "/play?id=$id" else "/file/$id"
 
-            // v4 CRITICAL FIX: the OLD code always used the hard-coded
-            // `mainUrl` ("https://links.kmhd.eu") and IGNORED the host of the
-            // URL it was actually given. KatMovie4K pages link to
-            // links.kmhd.NET (e.g. Daredevil S01 E06/E07), and links.kmhd.net
-            // is currently DEAD (connection refused). Worse, even when the host
-            // matched, building the data URL off mainUrl meant a host rotation
-            // on the site silently produced a 0-mirror parse → "No Links Found".
-            //
-            // We now build a candidate host list: the host that actually
-            // appears in the incoming URL FIRST, then the known-good
-            // links.kmhd.eu mirror as a fallback (verified live: it serves the
-            // SAME file IDs that the pages publish under links.kmhd.net). We
-            // try each until one returns a parseable payload.
             val incomingHost = Regex("""^https?://[^/]+""").find(url)?.value
             val candidateHosts = listOfNotNull(
                 incomingHost?.takeIf { it.contains("kmhd", ignoreCase = true) },
                 "https://links.kmhd.eu",
-                "https://links.kmhd.net"
+                "https://links.kmhd.net",
+                "https://gd.kmhd.net"
             ).distinct()
 
-            var dataText = ""
-            var usedHost = candidateHosts.first()
-            for (host in candidateHosts) {
-                val dataUrl = "$host$path/__data.json"
-                Log.d(TAG, "Fetching: $dataUrl")
-                val body = try {
-                    app.get(
-                        dataUrl,
-                        headers = mapOf(
-                            "User-Agent" to UA,
-                            "Cookie" to "unlocked=true",
-                            "Referer" to "$host$path",
-                            "Accept" to "application/json"
-                        ),
-                        timeout = 30
-                    ).text
-                } catch (e: Exception) {
-                    Log.w(TAG, "HTTP fetch failed for $host: ${e.message}")
-                    ""
-                }
-                // A good SvelteKit payload contains the "chunk" line with the
-                // dehydrated link map. A locked/parked/empty page won't.
-                if (body.isNotBlank() && body.contains("\"type\":\"chunk\"")) {
-                    dataText = body
-                    usedHost = host
-                    break
-                }
-                if (body.isNotBlank() && dataText.isBlank()) {
-                    // keep first non-blank as a last resort for the salvage regex
-                    dataText = body
-                    usedHost = host
-                }
-            }
-            Log.d(TAG, "KMHD host resolved to $usedHost")
-
-            Log.d(TAG, "Got dataText length: ${dataText.length}")
-
-            if (dataText.isBlank()) {
-                Log.w(TAG, "Empty response from all KMHD hosts ($candidateHosts)")
-                return
-            }
-
-            var mirrors = parseSvelteKitData(dataText)
-            Log.d(TAG, "Parsed ${mirrors.size} mirrors: ${mirrors.map { it.host }}")
-
-            // Robustness net: SvelteKit periodically changes its dehydrated
-            // payload shape (e.g. switching the "chunk" wrapper, renaming the
-            // "links"/"link" index keys). When that happens the structured
-            // parser above silently returns 0 mirrors and the user sees
-            // "no links". As a safety net we then scrape the RAW json text
-            // for any known mirror host URL with a regex - it won't recover
-            // the per-file ids the structured parser builds, but it does
-            // recover fully-qualified mirror URLs that appear verbatim in
-            // the payload, so playback keeps working through a format change.
-            if (mirrors.isEmpty()) {
-                val salvaged = salvageMirrorsByRegex(dataText)
-                if (salvaged.isNotEmpty()) {
-                    Log.w(TAG, "Structured parse found 0 mirrors; regex salvage recovered ${salvaged.size}")
-                    mirrors = salvaged
-                }
-            }
+            val jsonData = fetchWithFallbacks("$path/__data.json", candidateHosts)
+            var mirrors = if (jsonData != null) {
+                val parsed = parseSvelteKitData(jsonData.first)
+                if (parsed.isEmpty()) salvageMirrorsByRegex(jsonData.first) else parsed
+            } else emptyList()
 
             if (mirrors.isEmpty()) {
-                // Diagnostic dump: include a payload preview so when this
-                // happens in the wild we can tell at a glance whether the
-                // site is returning the locked/CF gate page (looks like
-                // HTML) or whether SvelteKit changed its payload schema
-                // (looks like JSON but unfamiliar shape).
-                val preview = dataText.take(200).replace("\n", "\\n")
-                Log.w(TAG, "No mirrors parsed from JSON for $url. " +
-                    "Payload preview (${dataText.length} bytes): $preview")
-                if (dataText.contains("locked", ignoreCase = true) ||
-                    dataText.contains("redirect", ignoreCase = true)) {
-                    Log.w(TAG, "Looks like the 'unlocked=true' cookie was " +
-                        "rejected by the site (locked/redirect gate hit). " +
-                        "Check that CloudStream's HTTP client is sending the " +
-                        "Cookie header and not stripping it through CF DNS.")
-                }
-                return
+                val htmlData = fetchWithFallbacks(path, candidateHosts)
+                if (htmlData != null) mirrors = salvageMirrorsByRegex(htmlData.first)
             }
+
+            if (mirrors.isEmpty()) return
 
             mirrors.amap { mirror ->
-                runCatching {
-                    dispatchMirror(mirror, subtitleCallback, callback)
-                }.onFailure {
-                    Log.e(TAG, "Mirror ${mirror.host} dispatch failed: ${it.message}")
-                }
+                runCatching { dispatchMirror(mirror, subtitleCallback, callback) }
             }
         } catch (e: Exception) {
             Log.e(TAG, "KMHD extractor outer failure for $url: ${e.message}")
@@ -326,45 +183,23 @@ class KmhdExtractor : ExtractorApi() {
     ) {
         val finalUrl = if (mirror.url.contains(Regex("(?i)(gd\\.kmhd|kmhd\\.net|katdrive)"))) {
             resolveFinalUrl(mirror.url) ?: mirror.url
-        } else {
-            mirror.url
-        }
-
-        Log.d(TAG, "Mirror ${mirror.host}: ${mirror.url} -> $finalUrl")
+        } else mirror.url
 
         when {
-            finalUrl.contains("gdflix", ignoreCase = true) -> {
-                Log.d(TAG, "Dispatching to GDFlix: $finalUrl")
-                GDFlix().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
-            }
-            finalUrl.contains("hubcloud", ignoreCase = true) -> {
-                Log.d(TAG, "Dispatching to HubCloud: $finalUrl")
-                HubCloud().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
-            }
-            else -> {
-                Log.d(TAG, "Dispatching to loadExtractor: $finalUrl")
-                loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)
-            }
+            finalUrl.contains("gdflix", ignoreCase = true) -> GDFlix().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
+            finalUrl.contains("hubcloud", ignoreCase = true) -> HubCloud().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
+            else -> loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)
         }
     }
 
     private data class Mirror(val host: String, val url: String)
 
-    /**
-     * Fallback recovery: pull complete mirror URLs straight out of the raw
-     * SvelteKit JSON text when the structured parser can't (format drift).
-     * Only matches hosts we actually know how to extract, and strips the
-     * advertiser/analytics domains the page injects (cathaytrash, al5sm,
-     * catimages, so-gr3at3, etc.) so we never hand junk to an extractor.
-     */
     private fun salvageMirrorsByRegex(rawJson: String): List<Mirror> {
         val urlRegex = Regex("""https?://[^\s"'\\<>]+""")
         return urlRegex.findAll(rawJson)
             .map { it.value.trimEnd('\\', ',', '"', '\'') }
             .filter { KNOWN_MIRROR_REGEX.containsMatchIn(it) }
             .filter { !AD_HOST_REGEX.containsMatchIn(it) }
-            // A bare host root like "https://send.cm/" carries no file id and
-            // is useless, so require something after the host.
             .filter { it.substringAfter("://").substringAfter("/", "").isNotBlank() }
             .distinct()
             .map { Mirror(host = it.substringAfter("://").substringBefore("/"), url = it) }
@@ -377,13 +212,10 @@ class KmhdExtractor : ExtractorApi() {
             if (line.isBlank()) continue
             val obj = runCatching { JSONObject(line) }.getOrNull() ?: continue
             if (obj.optString("type") != "chunk") continue
-
             val arr = obj.optJSONArray("data") ?: continue
-
             val root = arr.optJSONObject(0) ?: continue
             val linksIdx = root.optInt("links", -1)
             if (linksIdx <= 0) continue
-
             val linksMap = arr.opt(linksIdx) as? JSONObject ?: continue
             val keyIter = linksMap.keys()
             while (keyIter.hasNext()) {
@@ -391,12 +223,10 @@ class KmhdExtractor : ExtractorApi() {
                 val nodeIdx = linksMap.optInt(key, -1)
                 if (nodeIdx <= 0) continue
                 val node = arr.opt(nodeIdx) as? JSONObject ?: continue
-
                 val linkIdx = node.optInt("link", -1)
                 if (linkIdx <= 0) continue
                 val baseUrl = arr.opt(linkIdx) as? String ?: continue
                 if (baseUrl.isBlank() || !baseUrl.startsWith("http")) continue
-
                 val appendId = findAppendId(arr, key)
                 if (appendId.isNullOrBlank()) continue
                 mirrors.add(Mirror(host = key, url = baseUrl + appendId))
@@ -420,43 +250,9 @@ class KmhdExtractor : ExtractorApi() {
 
     companion object {
         private const val TAG = "KmhdExtractor"
-        private const val UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
-
-        /**
-         * The set of mirror hosts KatMovieHD actually serves inside its
-         * file/__data.json (verified live against the current site):
-         * gd.kmhd.eu, hubcloud, katdrive, send.cm, fuckingfast, 1fichier,
-         * streamtape, hglink/streamwish. Used only by the regex salvage
-         * fallback.
-         */
-        private val KNOWN_MIRROR_REGEX = Regex(
-            """(?i)(gd\.kmhd|hubcloud|hubdrive|katdrive|send\.cm|""" +
-                    """fuckingfast|1fichier|streamtape|hglink|streamwish|gdflix)"""
-        )
-
-        /** Advertiser / analytics hosts the page injects - never streams. */
-        private val AD_HOST_REGEX = Regex(
-            """(?i)(cathaytrash|al5sm|catimages|so-gr3at3|gstatic|google|""" +
-                    """doubleclick|popads|propeller)"""
-        )
-
-        /**
-         * Anchors on a legacy archives page that are NEVER stream sources -
-         * site navigation, social, images, WP internals, etc. Anything
-         * that doesn't match here is forwarded to loadExtractor.
-         */
-        private val ARCHIVE_IGNORE_REGEX = Regex(
-            """(?i)(""" +
-                    """^https?://(?:www\.)?kmhd\.eu(?:/|$)|""" +
-                    """imdb\.com|themoviedb\.org|wikipedia|""" +
-                    """youtube\.com|youtu\.be|""" +
-                    """facebook\.com|twitter\.com|instagram\.com|t\.me|telegram\.|whatsapp\.|""" +
-                    """pinterest\.|reddit\.com|""" +
-                    """pichub|catimages|imgur|postimg|imgbox|""" +
-                    """wp-content|wp-includes|wp-json|xmlrpc|""" +
-                    """\.(?:png|jpe?g|gif|webp|svg|ico|css|woff2?)(?:\?|$)""" +
-                    """)"""
-        )
+        private const val UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+        private val KNOWN_MIRROR_REGEX = Regex("""(?i)(gd\.kmhd|hubcloud|hubdrive|katdrive|send\.cm|fuckingfast|1fichier|streamtape|hglink|streamwish|gdflix)""")
+        private val AD_HOST_REGEX = Regex("""(?i)(cathaytrash|al5sm|catimages|so-gr3at3|gstatic|google|doubleclick|popads|propeller)""")
+        private val ARCHIVE_IGNORE_REGEX = Regex("""(?i)(^https?://(?:www\.)?kmhd\.eu(?:/|$)|imdb\.com|themoviedb\.org|wikipedia|youtube\.com|youtu\.be|facebook\.com|twitter\.com|instagram\.com|t\.me|telegram\.|whatsapp\.|pinterest\.|reddit\.com|pichub|catimages|imgur|postimg|imgbox|wp-content|wp-includes|wp-json|xmlrpc|\.(?:png|jpe?g|gif|webp|svg|ico|css|woff2?)(?:\?|$))""")
     }
 }
