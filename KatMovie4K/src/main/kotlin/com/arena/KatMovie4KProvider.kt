@@ -761,17 +761,26 @@ class KatMovie4KProvider : MainAPI() {
         }.toString()
 
         return try {
-            val response = app.post(
-                routerUrl,
-                body = body,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Content-Type" to "text/plain",
-                    "Origin" to "https://$domainFull",
-                    "Referer" to url
-                ),
-                timeout = 15
-            ).text.trim()
+            // Use OkHttp directly since NiceHttp's app.post() parameter
+            // names are not stable across CloudStream3 versions.
+            val requestBody = okhttp3.RequestBody.create(
+                okhttp3.MediaType.parse("text/plain"),
+                body
+            )
+            val request = okhttp3.Request.Builder()
+                .url(routerUrl)
+                .post(requestBody)
+                .addHeader("User-Agent", USER_AGENT)
+                .addHeader("Content-Type", "text/plain")
+                .addHeader("Origin", "https://$domainFull")
+                .addHeader("Referer", url)
+                .build()
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            val httpResponse = client.newCall(request).execute()
+            val response = httpResponse.body()?.string()?.trim().orEmpty()
 
             if (response.startsWith("http", ignoreCase = true)) {
                 Log.d(TAG, "resolveGdtotUrl: router returned redirect URL: $response")
@@ -816,11 +825,11 @@ class KatMovie4KProvider : MainAPI() {
                 timeout = 15,
                 allowRedirects = true
             )
-            val finalUrl = resp.url ?: url
+            val finalUrl = resp.url
             if (finalUrl != url) {
                 Log.d(TAG, "resolveFinalUrl: $url -> $finalUrl")
             }
-            finalUrl.takeIf { it != url }
+            finalUrl.takeIf { it != url && it.isNotBlank() }
         } catch (e: Exception) {
             Log.w(TAG, "resolveFinalUrl: failed for $url: ${e.message}")
             null
