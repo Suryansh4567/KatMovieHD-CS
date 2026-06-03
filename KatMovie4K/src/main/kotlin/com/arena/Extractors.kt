@@ -30,6 +30,14 @@ import javax.crypto.spec.SecretKeySpec
  * Feature #13: AES Decryption (VidStack / hubstream)
  * ==========================================================================*/
 
+/** Browser-like headers for HubCloud/Hubdrive/Hblinks — many hosts block bare requests */
+private val browserHeaders = mapOf(
+    "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language" to "en-US,en;q=0.9",
+    "Referer" to "https://hubcloud.lol/"
+)
+
 // ─── HubCloud Extractor (Enhanced Multi-Server) ──────────────────────────────
 
 open class HubCloud : ExtractorApi() {
@@ -55,7 +63,7 @@ open class HubCloud : ExtractorApi() {
             val realUrl = uri.toString()
 
             // Step 1: Resolve to the hubcloud download page
-            val doc = app.get(url).document
+            val doc = app.get(url, headers = browserHeaders).document
             var link = if (url.contains("/video/")) {
                 doc.selectFirst("div.vd > center > a")?.attr("href")
                     ?: doc.select("a[href]").firstOrNull { a ->
@@ -85,7 +93,7 @@ open class HubCloud : ExtractorApi() {
             if (link.isBlank()) return
             if (!link.startsWith("https://")) link = baseUrl + link
 
-            val document = app.get(link).document
+            val document = app.get(link, headers = browserHeaders).document
             val header = document.select("div.card-header").text()
             val size = document.select("i#size").text()
             val quality = getIndexQuality(header)
@@ -240,7 +248,7 @@ class Hubdrive : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            val href = app.get(url, timeout = 5000L).document
+            val href = app.get(url, headers = browserHeaders, timeout = 5000L).document
                 .select(".btn.btn-primary.btn-user.btn-success1.m-1")
                 .attr("href")
             when {
@@ -449,7 +457,7 @@ open class Hblinks : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        app.get(url).document.select("h3 a,h5 a,div.entry-content p a").map {
+        app.get(url, headers = browserHeaders).document.select("h3 a,h5 a,div.entry-content p a").map {
             val href = it.absUrl("href").ifBlank { it.attr("href") }
             when {
                 "hubdrive" in href -> Hubdrive().getUrl(href, name, subtitleCallback, callback)

@@ -122,28 +122,38 @@ fun pen(value: String): String {
     }.joinToString("")
 }
 
-/** Android Base64 encode (for the blog_url?re= parameter) */
+/** Decode base64 then URL-encode for blog_url?re= parameter (HDHub4U pattern) */
 fun androidBase64Encode(value: String): String {
-    return String(Base64.decode(value, Base64.DEFAULT))
+    return try {
+        val decoded = String(Base64.decode(value, Base64.DEFAULT))
+        java.net.URLEncoder.encode(decoded, "UTF-8")
+    } catch (e: Exception) {
+        java.net.URLEncoder.encode(value, "UTF-8")
+    }
 }
 
-/** Resolve final URL by following HTTP redirects (HEAD method) */
+/** Resolve final URL by following HTTP redirects (GET with allowRedirects=false) */
 suspend fun resolveFinalUrl(startUrl: String): String? {
     var currentUrl = startUrl
     var loopCount = 0
     val maxRedirects = 7
     while (loopCount < maxRedirects) {
         try {
-            val res = app.head(currentUrl, allowRedirects = false, timeout = 2500L)
-            if (res.code == 200 || res.code in 300..399) {
-                val location = res.headers["Location"]
-                if (location.isNullOrEmpty()) break
-                currentUrl = location
-            } else return null
+            val res = app.get(currentUrl, allowRedirects = false, timeout = 5000L)
+            when {
+                res.code in 300..399 -> {
+                    val location = res.headers["Location"]
+                    if (location.isNullOrEmpty()) break
+                    currentUrl = if (location.startsWith("http")) location
+                                 else getBaseUrl(currentUrl) + location
+                }
+                res.code == 200 -> break  // final destination reached
+                else -> return null
+            }
             loopCount++
         } catch (e: Exception) { return null }
     }
-    return currentUrl
+    return if (currentUrl != startUrl) currentUrl else null
 }
 
 /** Extract base URL (scheme + host) from a full URL */
@@ -242,4 +252,72 @@ fun cleanTitlePro(title: String): String {
         }
     }
     return filtered.distinct().joinToString(" ")
+}
+
+/**
+ * Feature #7: Cloudflare/Anti-bot bypass helper
+ * Tries multiple strategies to bypass Cloudflare protection.
+ * Returns the document if successful, null if blocked.
+ */
+suspend fun bypassCloudflare(
+    url: String,
+    headers: Map<String, String> = emptyMap(),
+    timeout: Long = 30L
+): org.jsoup.nodes.Document? {
+    val ua = headers["User-Agent"] ?: "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+    
+    // Strategy 1: Direct request with full browser headers
+    val fullHeaders = headers + mapOf(
+        "User-Agent" to ua,
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language" to "en-US,en;q=0.9",
+        "Sec-Fetch-Dest" to "document",
+        "Sec-Fetch-Mode" to "navigate",
+        "Sec-Fetch-Site" to "none",
+        "Sec-Fetch-User" to "?1",
+        "sec-ch-ua" to "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\"",
+        "sec-ch-ua-mobile" to "?0",
+        "sec-ch-ua-platform" to "\"Linux\"",
+        "Cache-Control" to "no-cache"
+    )
+    
+    try {
+        val res = app.get(url, headers = fullHeaders, timeout = timeout)
+        if (res.code == 200) return res.document
+    } catch (_: Exception) {}
+    
+    // Strategy 2: Try with cf_clearance cookie placeholder
+    try {
+        val cookieHeaders = fullHeaders + mapOf(
+            "Cookie" to "cf_clearance=placeholder; xla=s4t"
+        )
+        val res = app.get(url, headers = cookieHeaders, timeout = timeout)
+        if (res.code == 200) return res.document
+    } catch (_: Exception) {}
+    
+    // Strategy 3: Try following redirects manually
+    try {
+        val redirectUrl = resolveFinalUrl(url)
+        if (redirectUrl != null) {
+            val res = app.get(redirectUrl, headers = fullHeaders, timeout = timeout)
+            if (res.code == 200) return res.document
+        }
+    } catch (_: Exception) {}
+    
+    return null
+}
+
+/**
+ * Feature #10: Safe concurrent mapping — catches per-item failures
+ * Unlike regular amap which propagates exceptions, this continues
+ * processing other items even if one fails.
+ */
+suspend fun <T, R> safeAmap(items: List<T>, block: suspend (T) -> R): List<R> {
+    return kotlinx.coroutines.coroutineScope {
+        items.map { item ->
+            kotlinx.coroutines.async {
+                runCatching { block(item) }.getOrNull()
+            }
+        }.mapNotNull { it.await() }
+    }
 }

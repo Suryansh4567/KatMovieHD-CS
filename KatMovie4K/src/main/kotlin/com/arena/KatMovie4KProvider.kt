@@ -836,7 +836,7 @@ class KatMovie4KProvider : MainAPI() {
 
         return try {
             // Feature #2: Resolve obfuscated redirects BEFORE dispatching
-            if (url.contains("?id=")) {
+            if (url.contains("?id=") || url.contains("?go=") || url.contains("?link=") || url.contains("?url=") || url.contains("/goto/") || url.contains("/link/") || url.contains("/go/") || url.contains("/download/") || url.contains("?r=") || url.contains("?k=") || url.contains("?d=") || url.contains("miniroad.store") || url.contains("dhakrey.eu.org") || url.contains("parklogic.com")) {
                 val resolved = getRedirectLinks(url)
                 if (resolved != null && resolved != url) {
                     Log.d(TAG, "dispatchExtractor: resolved obfuscated redirect: $url -> $resolved")
