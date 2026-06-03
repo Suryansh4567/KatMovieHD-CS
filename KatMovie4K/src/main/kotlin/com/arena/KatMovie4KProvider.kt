@@ -31,7 +31,9 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.loadExtractor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -59,9 +61,22 @@ class KatMovie4KProvider : MainAPI() {
         TvType.TvSeries
     )
 
+    /** Feature #6: Browser-like headers (HDHub4U / VegaMovies pattern) */
     private val headers = mapOf(
         "User-Agent" to USER_AGENT,
-        "Accept-Language" to "en-US,en;q=0.9"
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language" to "en-US,en;q=0.9",
+        "Cache-Control" to "no-cache",
+        "Pragma" to "no-cache",
+        "Upgrade-Insecure-Requests" to "1",
+        "Sec-Fetch-Dest" to "document",
+        "Sec-Fetch-Mode" to "navigate",
+        "Sec-Fetch-Site" to "none",
+        "Sec-Fetch-User" to "?1",
+        "sec-ch-ua" to "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\"",
+        "sec-ch-ua-mobile" to "?0",
+        "sec-ch-ua-platform" to "\"Linux\"",
+        "Cookie" to "xla=s4t"
     )
 
     companion object {
@@ -811,49 +826,61 @@ class KatMovie4KProvider : MainAPI() {
         }
     }
 
-    /**
-     * Follow redirects from a short-link URL to get the final destination.
-     */
-    private suspend fun resolveFinalUrl(url: String): String? {
-        return try {
-            val resp = app.get(
-                url,
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Accept" to "text/html",
-                    "Accept-Language" to "en-US,en;q=0.9"
-                ),
-                timeout = 15,
-                allowRedirects = true
-            )
-            val finalUrl = resp.url
-            if (finalUrl != url) {
-                Log.d(TAG, "resolveFinalUrl: $url -> $finalUrl")
-            }
-            finalUrl.takeIf { it != url && it.isNotBlank() }
-        } catch (e: Exception) {
-            Log.w(TAG, "resolveFinalUrl: failed for $url: ${e.message}")
-            null
-        }
-    }
-
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val url = rawUrl.trim()
+        var url = rawUrl.trim()
         if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
+
         return try {
+            // Feature #2: Resolve obfuscated redirects BEFORE dispatching
+            if (url.contains("?id=")) {
+                val resolved = getRedirectLinks(url)
+                if (resolved != null && resolved != url) {
+                    Log.d(TAG, "dispatchExtractor: resolved obfuscated redirect: $url -> $resolved")
+                    url = resolved
+                }
+            }
+
             when {
+                // KMHD family
                 Regex("""(?i)(links\.kmhd\.|kmhd\.(eu|net)/archives/|gd\.kmhd\.)""").containsMatchIn(url) -> {
                     KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
-                Regex("""(?i)(hubcloud\.|hubdrive|katdrive\.)""").containsMatchIn(url) -> {
+                // Feature #3: Hubdrive
+                url.contains("hubdrive", ignoreCase = true) -> {
+                    Hubdrive().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // Feature #3+#4: HubCloud
+                Regex("""(?i)(hubcloud\.)""").containsMatchIn(url) -> {
                     HubCloud().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
+                // Feature #3: HUBCDN
+                url.contains("hubcdn", ignoreCase = true) -> {
+                    HUBCDN().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // Feature #12+#13: Hubstream/VidStack
+                url.contains("hubstream", ignoreCase = true) -> {
+                    Hubstream().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // Feature #3: Hblinks
+                url.contains("hblinks", ignoreCase = true) -> {
+                    Hblinks().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // Feature #3: PixelDrainDev
+                url.contains("pixeldrain.dev", ignoreCase = true) -> {
+                    PixelDrainDev().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                // KatDrive → resolve to HubCloud
                 url.contains("katdrive", ignoreCase = true) -> {
                     runCatching {
                         val doc = app.get(url, headers = mapOf("User-Agent" to USER_AGENT), timeout = 30).document
@@ -862,92 +889,62 @@ class KatMovie4KProvider : MainAPI() {
                                 .takeIf { it.contains("hubcloud", ignoreCase = true) }
                         }.firstOrNull()
                         if (!hubUrl.isNullOrBlank()) HubCloud().getUrl(hubUrl, url, subtitleCallback, callback)
-                        else loadExtractor(url, mainUrl, subtitleCallback, callback)
+                        else {
+                            val resolved = getRedirectLinks(url)
+                            if (resolved != null) dispatchExtractor(resolved, subtitleCallback, callback)
+                            else loadExtractor(url, mainUrl, subtitleCallback, callback)
+                        }
                     }
                     true
                 }
-                url.contains("gdlink.dev", ignoreCase = true) -> {
-                    GDLinkDev().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                url.contains("vifix.site", ignoreCase = true) -> {
-                    Vifix().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                Regex("""(?i)driveleech\.(org|pro|net)""").containsMatchIn(url) -> {
-                    Driveleech().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                url.contains("appdrive.lol", ignoreCase = true) || Regex("""(?i)appdrive\.[a-z]+""").containsMatchIn(url) -> {
-                    Appdrive().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                // gdflix.live uses fingerprint redirect; bypass with ?fp=-
+                url.contains("gdlink.dev", ignoreCase = true) -> { GDLinkDev().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                url.contains("vifix.site", ignoreCase = true) -> { Vifix().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                Regex("""(?i)driveleech\.(org|pro|net)""").containsMatchIn(url) -> { Driveleech().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                url.contains("appdrive.lol", ignoreCase = true) || Regex("""(?i)appdrive\.[a-z]+""").containsMatchIn(url) -> { Appdrive().getUrl(url, mainUrl, subtitleCallback, callback); true }
                 url.contains("gdflix.live", ignoreCase = true) -> {
-                    val bypassUrl = if (url.contains("fp=")) url
-                                    else "$url${if (url.contains("?")) "&" else "?"}fp=-7"
-                    Log.d(TAG, "dispatchExtractor: gdflix.live with fp bypass: $bypassUrl")
-                    GDFlix().getUrl(bypassUrl, mainUrl, subtitleCallback, callback)
-                    true
+                    val bypassUrl = if (url.contains("fp=")) url else "$url${if (url.contains("?")) "&" else "?"}fp=-7"
+                    GDFlix().getUrl(bypassUrl, mainUrl, subtitleCallback, callback); true
                 }
-                url.contains("new.gdflix.dad", ignoreCase = true) -> {
-                    GDFlixDad().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                url.contains("new3.gdflix.dad", ignoreCase = true) -> {
-                    GDFlixDad3().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                url.contains("new4.gdflix.dad", ignoreCase = true) -> {
-                    GDFlixDad4().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                url.contains("gdflix.rest", ignoreCase = true) -> {
-                    GDFlixRest().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                url.contains("new5.gdflix.cfd", ignoreCase = true) -> {
-                    GDFlixCfd5().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                // gdtot.* URLs: try router API first, then fallback to GDTotCfd extractor
+                url.contains("new.gdflix.dad", ignoreCase = true) -> { GDFlixDad().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                url.contains("new3.gdflix.dad", ignoreCase = true) -> { GDFlixDad3().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                url.contains("new4.gdflix.dad", ignoreCase = true) -> { GDFlixDad4().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                url.contains("gdflix.rest", ignoreCase = true) -> { GDFlixRest().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                url.contains("new5.gdflix.cfd", ignoreCase = true) -> { GDFlixCfd5().getUrl(url, mainUrl, subtitleCallback, callback); true }
                 GDTOT_DOMAIN_REGEX.containsMatchIn(url) -> {
                     val resolved = resolveGdtotUrl(url)
-                    if (resolved != null) {
-                        Log.d(TAG, "dispatchExtractor: gdtot resolved via router API: $resolved")
-                        dispatchExtractor(resolved, subtitleCallback, callback)
-                    } else {
-                        Log.d(TAG, "dispatchExtractor: gdtot router API failed, trying GDTotCfd fallback")
-                        GDTotCfd().getUrl(url, mainUrl, subtitleCallback, callback)
-                    }
+                    if (resolved != null) dispatchExtractor(resolved, subtitleCallback, callback)
+                    else GDTotCfd().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
-                // dhakrey.eu.org short link redirector
                 url.contains("dhakrey.eu.org", ignoreCase = true) -> {
                     try {
                         val resolved = resolveFinalUrl(url) ?: url
-                        if (resolved != url) {
-                            Log.d(TAG, "dispatchExtractor: dhakrey resolved to $resolved")
-                            dispatchExtractor(resolved, subtitleCallback, callback)
-                        } else {
-                            loadExtractor(url, mainUrl, subtitleCallback, callback)
-                        }
-                    } catch (_: Exception) {
+                        if (resolved != url) dispatchExtractor(resolved, subtitleCallback, callback)
+                        else loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    } catch (_: Exception) { loadExtractor(url, mainUrl, subtitleCallback, callback) }
+                    true
+                }
+                Regex("""(?i)(gdflix|gdmirror|gd-flix|gdlink|ziddiflix)""").containsMatchIn(url) -> { GDFlix().getUrl(url, mainUrl, subtitleCallback, callback); true }
+                // Feature #2: Catch-all — try redirect resolution first
+                else -> {
+                    val resolved = getRedirectLinks(url)
+                    if (resolved != null && resolved != url && resolved.startsWith("http")) {
+                        Log.d(TAG, "dispatchExtractor: catch-all redirect resolved: $url -> $resolved")
+                        dispatchExtractor(resolved, subtitleCallback, callback)
+                    } else {
                         loadExtractor(url, mainUrl, subtitleCallback, callback)
                     }
-                    true
-                }
-                Regex("""(?i)(gdflix|gdmirror|gd-flix|gdlink|ziddiflix)""").containsMatchIn(url) -> {
-                    GDFlix().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
-                else -> {
-                    loadExtractor(url, mainUrl, subtitleCallback, callback)
                     true
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Extractor crashed for $url: ${e.message}")
+            try {
+                val resolved = getRedirectLinks(rawUrl)
+                if (resolved != null && resolved != rawUrl) {
+                    loadExtractor(resolved, mainUrl, subtitleCallback, callback)
+                }
+            } catch (_: Exception) {}
             true
         }
     }
@@ -1105,14 +1102,6 @@ class KatMovie4KProvider : MainAPI() {
     }
 
     private fun detectSearchQuality(title: String): SearchQuality? {
-        val tokens = listOf("2160p", "4k", "uhd", "hdr", "dolby vision", "1080p", "720p", "480p", "bluray", "web-dl", "webrip", "remux", "hdcam", "hdts", "camrip", "cam", "hdtv", "dvdrip", "dvd")
-        val lower = title.lowercase()
-        for (tok in tokens) {
-            if (lower.contains(tok)) {
-                val mapped = when (tok) { "uhd", "dolby vision" -> "2160p"; "hdr" -> "4k"; else -> tok }
-                return getQualityFromString(mapped)
-            }
-        }
-        return null
+        return detectSearchQualityPro(title)
     }
 }

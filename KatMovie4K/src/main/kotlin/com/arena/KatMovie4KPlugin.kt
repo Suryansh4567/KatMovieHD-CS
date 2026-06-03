@@ -30,35 +30,46 @@ class KatMovie4KPlugin : BasePlugin() {
     override fun load() {
         registerMainAPI(KatMovie4KProvider())
 
-        // KMHD-family extractor — handles links.kmhd.{net,eu}/{file,play}/<id>.
-        // Also wired here because KatMovie4K pages occasionally link to
-        // kmhd.net/file/... for 1080p x264 alt mirrors (seen on Daredevil
-        // Born Again S01 page).
+        // ─── Feature #11: Full extractor registration ──────────────────
+        // Professional extensions like HDHub4U register 10+ extractors.
+        // Each registered ExtractorApi declares a mainUrl prefix, which
+        // makes CloudStream's loadExtractor() router actually route to
+        // our handler instead of silently no-op'ing.
+
+        // KMHD-family extractor
         registerExtractorAPI(KmhdExtractor())
 
-        // Standard GDFlix family — same registrations as KatMovieHD plugin.
-        registerExtractorAPI(HubCloud())
+        // HubCloud ecosystem (Feature #3+#4)
+        registerExtractorAPI(HubCloud())       // hubcloud.foo / hubcloud.lol
+        registerExtractorAPI(Hubdrive())       // hubdrive.space — follows .btn-success1
+        registerExtractorAPI(HUBCDN())         // hubcdn.* — extracts var reurl
+        registerExtractorAPI(Hubcdnn())        // hubcdn.* — r=<base64> pattern
+        registerExtractorAPI(Hubstream())      // hubstream.* — VidStack + AES decrypt
+        registerExtractorAPI(Hubstreamdad())   // hblinks.* — recursive resolver
+        registerExtractorAPI(Hblinks())        // hblinks.* — scrapes & dispatches
+
+        // VidStack with AES decryption (Feature #12+#13)
+        registerExtractorAPI(VidStack())       // vidstack.io
+
+        // PixelDrain variant (Feature #3)
+        registerExtractorAPI(PixelDrainDev())  // pixeldrain.dev
+
+        // HdStream4u (Feature #3)
+        registerExtractorAPI(HdStream4u())     // hdstream4u.com
+
+        // GDFlix family — same registrations as KatMovieHD plugin
         registerExtractorAPI(GDFlix())
         registerExtractorAPI(GDFlixNet())
         registerExtractorAPI(GDFlixNew1())
         registerExtractorAPI(GDFlixNew17())
         registerExtractorAPI(GDFlixDotDev())
-
-        // KatMovie4K-specific extra hosts. Diagnosed v1 "no link found" bug:
-        // these URLs were appearing on every 4K page but CloudStream's
-        // loadExtractor() router silently no-op'd because no registered
-        // ExtractorApi declared a matching mainUrl prefix. Each one below
-        // is a thin subclass of GDFlix with the correct mainUrl, which
-        // makes CS's prefix-based dispatch actually route to our handler.
-        // See Extractors.kt v2 docs at the bottom of the file for the
-        // full redirect-chain analysis.
         registerExtractorAPI(GDFlixDad())      // new.gdflix.dad
         registerExtractorAPI(GDFlixDad3())     // new3.gdflix.dad
         registerExtractorAPI(GDFlixDad4())     // new4.gdflix.dad
         registerExtractorAPI(GDFlixRest())     // gdflix.rest
         registerExtractorAPI(GDFlixCfd5())     // new5.gdflix.cfd
         registerExtractorAPI(GDTotCfd())       // new10.gdtot.cfd
-        registerExtractorAPI(GDLinkDev())      // gdlink.dev (post-redirect target)
+        registerExtractorAPI(GDLinkDev())      // gdlink.dev
         registerExtractorAPI(Ziddiflix())      // ziddiflix.com
         registerExtractorAPI(Vifix())          // vifix.site
         registerExtractorAPI(Appdrive())       // appdrive.lol
