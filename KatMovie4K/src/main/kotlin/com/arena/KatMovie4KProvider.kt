@@ -116,7 +116,7 @@ class KatMovie4KProvider : MainAPI() {
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
                     """wp-content|wp-includes|wp-json|""" +
-                    """katmovie4k\.[a-z]+(/|$)|katmoviehd\.[a-z]+(/|$)|gstatic|googletagmanager|google-analytics|""" +
+                    """katmovie4k\.[a-z]+/(tag/|category/|page/|author/|wp-|feed|$)|katmoviehd\.[a-z]+/(tag/|category/|page/|author/|wp-|feed|$)|gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
@@ -159,6 +159,16 @@ class KatMovie4KProvider : MainAPI() {
         private val EPISODE_NEGATIVE_PHRASES = listOf(
             "more episodes", "will be added", "episode list", "all episodes",
             "single episodes link"
+        )
+
+        /**
+         * GDTot domains (new*.gdtot.dad / new*.gdtot.cfd) are dead or behind
+         * Cloudflare JS challenges that CloudStream's HTTP client cannot solve.
+         * They share the same /file/<id> API as gdflix.dev, so we rewrite
+         * these URLs to a working domain at link-collection time.
+         */
+        private val GDTOT_DEAD_REGEX = Regex(
+            """(?i)^https?://(?:new\d+\.)?gdtot\.[a-z]+/file/([A-Za-z0-9]+)"""
         )
     }
 
@@ -535,6 +545,20 @@ class KatMovie4KProvider : MainAPI() {
                 !url.matches(Regex(
                     """(?i)^https?://(?:www\.)?burydibase\.com/.*$"""
                 ))
+            }
+            // Rewrite dead/JS-challenge GDTot domains to a working GDFlix
+            // path. GDTot dad/cfd domains are behind Cloudflare JS challenges
+            // that CloudStream's HTTP client cannot solve. They share the
+            // same /file/<id> API as gdflix.dad, so we redirect to it.
+            .map { url ->
+                GDTOT_DEAD_REGEX.replace(url) { m ->
+                    "https://gdflix.dev/file/${m.groupValues[1]}"
+                }.let { rewritten ->
+                    if (rewritten != url) {
+                        Log.d(TAG, "Rewrote dead GDTot: $url -> $rewritten")
+                    }
+                    rewritten
+                }
             }
 
         val strict = all.filter { LINK_HOST_REGEX.containsMatchIn(it) }
