@@ -56,7 +56,7 @@ private fun isKnownHost(url: String): Boolean =
  *   4. HDHub4U-style JS deobfuscation (getRedirectLinks)
  *   5. Retry with different headers + text search for known hosts
  */
-class OlaLinks : ExtractorApi() {
+open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
     override val mainUrl = "https://links.ol-am.top"
     override val requiresReferer = false
