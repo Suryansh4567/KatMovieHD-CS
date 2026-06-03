@@ -63,13 +63,15 @@ private val KNOWN_HOSTS = listOf(
     "awscdn", "googleusercontent", "megadb", "shrdsk"
 )
 
-/** Intermediate shortener domains (Anylinks.in network + v2links) */
+/** Intermediate shortener domains (Anylinks.in network + v2links + Ola generate) */
 private val INTERMEDIATE_HOSTS = listOf(
     "ukrupdate.com", "mastkhabre.com", "aryx.xyz",
+    "superheromaniac.com", "spatsify.com",
     "anylinks.in", "rocklinks.net", "dulink.net",
     "ez4short.com", "v2links.com", "v2links.me",
     "olamovies.mov", "links.olamovies.mov",
-    "links.ol-am.top", "ol-am.top"
+    "links.ol-am.top", "ol-am.top",
+    "olamovies.download", "app2.olamovies.download"
 )
 
 private fun isKnownHost(url: String): Boolean =
@@ -78,7 +80,7 @@ private fun isKnownHost(url: String): Boolean =
 private fun isIntermediateHost(url: String): Boolean =
     INTERMEDIATE_HOSTS.any { url.contains(it, ignoreCase = true) }
 
-// ─── OlaLinks — Shortener Extractor (PROFESSIONAL REWRITE v3) ──────────────────
+// ─── OlaLinks — Shortener Extractor (REWRITE v4) ─────────────────────────────
 
 /**
  * Extractor for links.ol-am.top / links.olamovies.mov — OlaMovies'
@@ -87,22 +89,37 @@ private fun isIntermediateHost(url: String): Boolean =
  * The resolution chain is:
  *   1. links.ol-am.top/{code} → 301 → links.olamovies.mov/{code}
  *   2. links.olamovies.mov → CF Turnstile challenge → Anylinks.in page
- *   3. Anylinks.in multi-step (btn6 clicks) → ~30s delay → final host
+ *      (ukrupdate.com / mastkhabre.com / aryx.xyz / superheromaniac.com / spatsify.com)
+ *   3. On Anylinks page: click #tp98, click #btn6, submit form[name='tp']
+ *      → leads to app2.olamovies.download/generate/?id=XXX
+ *   4. On generate page: click button.inline-flex → final host (HubCloud/GDFlix/etc.)
  *
- * Resolution strategies (in order):
- *   1. Direct GET — CloudStream's OkHttp handles CF bypass, check response.url
- *   2. Scrape page HTML for meta-refresh, JS redirects, known host links
- *   3. Manual HTTP redirect chain following (allowRedirects=false)
- *   4. HDHub4U-style JS deobfuscation (getRedirectLinks)
- *   5. Intermediate shortener resolution (Anylinks/rocklinks/dulink)
- *   6. Full page text regex search for known host URLs
- *   7. Retry with desktop Firefox UA + longer timeout
- *   8. loadExtractor fallback (CloudStream built-in CF bypass)
+ * KEY INSIGHT: CloudStream's app.get() uses the internal HTTP client which
+ * handles CF challenges on real devices (opens WebView for user to solve
+ * Turnstile, then stores cf_clearance cookies for subsequent requests).
+ *
+ * Resolution strategies (3 focused approaches):
+ *   S1: Follow chain with app.get() + Anylinks resolution + OlaGenerate resolution
+ *   S2: Try alternate domain (links.ol-am.top ↔ links.olamovies.mov)
+ *   S3: loadExtractor() fallback (CloudStream's built-in CF bypass)
  */
 open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
     override val mainUrl = "https://links.ol-am.top"
     override val requiresReferer = false
+
+    /** Anylinks.in sites that host the multi-step btn6 flow */
+    private val ANYLINKS_HOSTS = listOf(
+        "ukrupdate.com", "mastkhabre.com", "aryx.xyz",
+        "superheromaniac.com", "spatsify.com"
+    )
+
+    private fun isAnylinksPage(url: String): Boolean =
+        ANYLINKS_HOSTS.any { url.contains(it, ignoreCase = true) }
+
+    private fun isOlaGeneratePage(url: String): Boolean =
+        url.contains("olamovies.download/generate", ignoreCase = true) ||
+        url.contains("app2.olamovies.download", ignoreCase = true)
 
     override suspend fun getUrl(
         url: String,
@@ -113,130 +130,19 @@ open class OlaLinks : ExtractorApi() {
         try {
             Log.d("OlaLinks", "=== Resolving: $url ===")
 
-            // Strategy 1: Direct GET with OlaMovies referer — check response.url
+            // ── S1: Follow chain with app.get() + specialized resolvers ──────────
             try {
-                val response = app.get(url, headers = olaHeaders, timeout = 30_000L)
-                val finalUrl = response.url
-
-                // Check if CloudStream's OkHttp followed through CF and we landed on a known host
-                if (finalUrl != url && isKnownHost(finalUrl)) {
-                    Log.d("OlaLinks", "S1 (response.url): $url -> $finalUrl")
-                    dispatchResolved(finalUrl, subtitleCallback, callback)
+                val resolved = resolveChain(url)
+                if (resolved != null && isKnownHost(resolved)) {
+                    Log.d("OlaLinks", "S1 (chain): $url -> $resolved")
+                    dispatchResolved(resolved, subtitleCallback, callback)
                     return
-                }
-
-                // If we got a real page (not CF challenge), try scraping it
-                if (response.code == 200) {
-                    val doc = response.document
-                    val scraped = scrapePageForLinks(doc, url)
-                    if (scraped != null) {
-                        Log.d("OlaLinks", "S1 (page scrape): $url -> $scraped")
-                        dispatchResolved(scraped, subtitleCallback, callback)
-                        return
-                    }
-
-                    // Check if we landed on an intermediate shortener page
-                    if (isIntermediateHost(finalUrl) || isIntermediateHost(url)) {
-                        val intermediateResolved = resolveIntermediatePage(doc, finalUrl, url)
-                        if (intermediateResolved != null && isKnownHost(intermediateResolved)) {
-                            Log.d("OlaLinks", "S1 (intermediate): $url -> $intermediateResolved")
-                            dispatchResolved(intermediateResolved, subtitleCallback, callback)
-                            return
-                        }
-                    }
                 }
             } catch (e: Exception) {
                 Log.d("OlaLinks", "S1 failed: ${e.message}")
             }
 
-            // Strategy 2: Manual redirect chain following
-            try {
-                val redirectChain = followAllRedirects(url)
-                if (redirectChain != null && isKnownHost(redirectChain)) {
-                    Log.d("OlaLinks", "S2 (redirect chain): $url -> $redirectChain")
-                    dispatchResolved(redirectChain, subtitleCallback, callback)
-                    return
-                }
-                // Maybe we got stuck at an intermediate — try resolving it
-                if (redirectChain != null && isIntermediateHost(redirectChain)) {
-                    Log.d("OlaLinks", "S2 (stuck at intermediate): $redirectChain")
-                    val interResult = resolveIntermediateUrl(redirectChain)
-                    if (interResult != null && isKnownHost(interResult)) {
-                        Log.d("OlaLinks", "S2 (intermediate resolved): $interResult")
-                        dispatchResolved(interResult, subtitleCallback, callback)
-                        return
-                    }
-                }
-            } catch (e: Exception) {
-                Log.d("OlaLinks", "S2 failed: ${e.message}")
-            }
-
-            // Strategy 3: getRedirectLinks for JS obfuscation (HDHub4U-style)
-            try {
-                val redirectResolved = getRedirectLinks(url)
-                if (redirectResolved != null && redirectResolved != url) {
-                    if (isKnownHost(redirectResolved)) {
-                        Log.d("OlaLinks", "S3 (JS deobfuscation): $url -> $redirectResolved")
-                        dispatchResolved(redirectResolved, subtitleCallback, callback)
-                        return
-                    } else if (isIntermediateHost(redirectResolved)) {
-                        val interResult = resolveIntermediateUrl(redirectResolved)
-                        if (interResult != null && isKnownHost(interResult)) {
-                            Log.d("OlaLinks", "S3 (intermediate): $interResult")
-                            dispatchResolved(interResult, subtitleCallback, callback)
-                            return
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.d("OlaLinks", "S3 failed: ${e.message}")
-            }
-
-            // Strategy 4: Fetch the shortener page and try to find the "go" link
-            // Many shorteners have a form/button that POSTs to get the real link
-            try {
-                val pageResult = extractShortenerLink(url)
-                if (pageResult != null && isKnownHost(pageResult)) {
-                    Log.d("OlaLinks", "S4 (shortener extract): $url -> $pageResult")
-                    dispatchResolved(pageResult, subtitleCallback, callback)
-                    return
-                }
-            } catch (e: Exception) {
-                Log.d("OlaLinks", "S4 failed: ${e.message}")
-            }
-
-            // Strategy 5: Desktop Firefox UA with longer timeout + full text search
-            try {
-                val response2 = app.get(url, headers = desktopHeaders, timeout = 60_000L)
-                val pageText = response2.text
-
-                // Search for known host URLs in the raw page content
-                for (host in KNOWN_HOSTS) {
-                    val urlRegex = Regex("""https?://[^\s"'<>\\]*$host[^\s"'<>\\]*""")
-                    val found = urlRegex.find(pageText)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';')
-                    if (!found.isNullOrBlank() && found.startsWith("http")) {
-                        Log.d("OlaLinks", "S5 (text search): found $found")
-                        dispatchResolved(found, subtitleCallback, callback)
-                        return
-                    }
-                }
-
-                // Also try scraping the document
-                if (response2.code == 200) {
-                    val doc2 = response2.document
-                    val scraped2 = scrapePageForLinks(doc2, url)
-                    if (scraped2 != null) {
-                        Log.d("OlaLinks", "S5 (scrape): $url -> $scraped2")
-                        dispatchResolved(scraped2, subtitleCallback, callback)
-                        return
-                    }
-                }
-            } catch (e: Exception) {
-                Log.d("OlaLinks", "S5 failed: ${e.message}")
-            }
-
-            // Strategy 6: Try resolving via the other shortener domain
-            // If we got links.ol-am.top, try links.olamovies.mov and vice versa
+            // ── S2: Try alternate domain (links.ol-am.top ↔ links.olamovies.mov) ─
             try {
                 val altUrl = when {
                     url.contains("links.ol-am.top", ignoreCase = true) ->
@@ -246,133 +152,368 @@ open class OlaLinks : ExtractorApi() {
                     else -> null
                 }
                 if (altUrl != null && altUrl != url) {
-                    Log.d("OlaLinks", "S6: trying alternate domain $altUrl")
-                    val altResponse = app.get(altUrl, headers = olaHeaders, timeout = 30_000L)
-                    if (altResponse.url != altUrl && isKnownHost(altResponse.url)) {
-                        Log.d("OlaLinks", "S6 (alt domain): $altUrl -> ${altResponse.url}")
-                        dispatchResolved(altResponse.url, subtitleCallback, callback)
+                    Log.d("OlaLinks", "S2: trying alternate domain $altUrl")
+                    val resolved = resolveChain(altUrl)
+                    if (resolved != null && isKnownHost(resolved)) {
+                        Log.d("OlaLinks", "S2 (alt chain): $altUrl -> $resolved")
+                        dispatchResolved(resolved, subtitleCallback, callback)
                         return
-                    }
-                    if (altResponse.code == 200) {
-                        val scraped = scrapePageForLinks(altResponse.document, altUrl)
-                        if (scraped != null && isKnownHost(scraped)) {
-                            Log.d("OlaLinks", "S6 (alt scrape): $scraped")
-                            dispatchResolved(scraped, subtitleCallback, callback)
-                            return
-                        }
                     }
                 }
             } catch (e: Exception) {
-                Log.d("OlaLinks", "S6 failed: ${e.message}")
+                Log.d("OlaLinks", "S2 failed: ${e.message}")
             }
 
-            // Strategy 7: Last resort — try loadExtractor which uses CloudStream's built-in CF bypass
+            // ── S3: loadExtractor() fallback — CloudStream's built-in CF bypass ──
             try {
-                Log.w("OlaLinks", "All strategies exhausted for $url, trying loadExtractor as last resort")
+                Log.w("OlaLinks", "Chain resolution exhausted for $url, trying loadExtractor fallback")
                 loadExtractor(url, "https://v2.olamovies.mov/", subtitleCallback, callback)
             } catch (e: Exception) {
-                Log.e("OlaLinks", "Every strategy failed for $url: ${e.message}")
+                Log.e("OlaLinks", "All strategies failed for $url: ${e.message}")
             }
         } catch (e: Exception) {
             Log.e("OlaLinks", "Fatal error for $url: ${e.message}")
         }
     }
 
-    /**
-     * Follow all HTTP redirects step by step, collecting the chain.
-     * Returns the final URL if it's a known host, or the last URL in chain.
-     */
-    private suspend fun followAllRedirects(startUrl: String): String? {
-        var currentUrl = startUrl
-        var loops = 0
-        val maxLoops = 10
-        val visited = mutableSetOf<String>()
+    // ─── Chain Resolver ────────────────────────────────────────────────────────
 
-        while (loops < maxLoops) {
-            if (currentUrl in visited) break
+    /**
+     * Follow the full shortener chain step by step:
+     *   1. GET the starting URL (CloudStream handles CF)
+     *   2. If we land on a known host → done
+     *   3. If we land on an Anylinks page → resolveAnylinksPage()
+     *   4. If we land on an OlaGenerate page → resolveOlaGeneratePage()
+     *   5. If page has redirect hints → follow them
+     *   6. Loop up to MAX_CHAIN_DEPTH times
+     */
+    private suspend fun resolveChain(startUrl: String): String? {
+        val visited = mutableSetOf<String>()
+        var currentUrl = startUrl
+
+        repeat(MAX_CHAIN_DEPTH) {
+            if (currentUrl in visited) {
+                Log.d("OlaLinks", "Chain loop detected at $currentUrl, stopping")
+                return null
+            }
             visited.add(currentUrl)
 
-            try {
-                val res = app.get(currentUrl, headers = olaHeaders, allowRedirects = false, timeout = 10_000L)
-                when {
-                    res.code in 300..399 -> {
-                        val location = res.headers["Location"] ?: res.headers["location"]
-                        if (location.isNullOrBlank()) break
-                        currentUrl = if (location.startsWith("http")) location
-                                     else getBaseUrl(currentUrl) + location
-                        if (isKnownHost(currentUrl)) return currentUrl
-                    }
-                    res.code == 200 -> {
-                        // Check page content for redirect
-                        val doc = res.document
-                        val scraped = scrapePageForLinks(doc, currentUrl)
-                        if (scraped != null) return scraped
-                        break // No more redirects, stuck at this page
-                    }
-                    res.code == 403 -> {
-                        // CF challenge — try to extract any useful URLs from the challenge page
-                        val pageText = res.text
-                        for (host in KNOWN_HOSTS) {
-                            val urlRegex = Regex("""https?://[^\s"'<>\\]*$host[^\s"'<>\\]*""")
-                            val found = urlRegex.find(pageText)?.value?.trimEnd('\\', ',', '"', '\'', ')')
-                            if (!found.isNullOrBlank()) return found
-                        }
-                        break
-                    }
-                    else -> break
-                }
+            // Already at a known host? Done!
+            if (isKnownHost(currentUrl)) return currentUrl
+
+            Log.d("OlaLinks", "Chain step ${it + 1}: fetching $currentUrl")
+
+            val response = try {
+                app.get(currentUrl, headers = olaHeaders, timeout = 30_000L)
             } catch (e: Exception) {
-                Log.d("OlaLinks", "followAllRedirects error at $currentUrl: ${e.message}")
-                break
+                Log.d("OlaLinks", "Chain fetch failed at $currentUrl: ${e.message}")
+                return null
             }
-            loops++
+
+            val finalUrl = response.url
+
+            // CloudStream followed through CF and we landed on a known host
+            if (finalUrl != currentUrl && isKnownHost(finalUrl)) {
+                Log.d("OlaLinks", "Chain: redirect to known host $finalUrl")
+                return finalUrl
+            }
+
+            // CloudStream followed through CF and we landed on an Anylinks page
+            if (isAnylinksPage(finalUrl)) {
+                Log.d("OlaLinks", "Chain: landed on Anylinks page $finalUrl")
+                val nextUrl = resolveAnylinksPage(response.document, finalUrl)
+                if (nextUrl != null) {
+                    currentUrl = nextUrl
+                    return@repeat // continue loop
+                }
+            }
+
+            // CloudStream followed through CF and we landed on an OlaGenerate page
+            if (isOlaGeneratePage(finalUrl)) {
+                Log.d("OlaLinks", "Chain: landed on OlaGenerate page $finalUrl")
+                val nextUrl = resolveOlaGeneratePage(response.document, finalUrl)
+                if (nextUrl != null) {
+                    currentUrl = nextUrl
+                    return@repeat // continue loop
+                }
+            }
+
+            // Got a real page — try scraping for links / redirects
+            if (response.code == 200) {
+                val doc = response.document
+
+                // Quick scrape: any known host links in the page?
+                val scraped = scrapePageForLinks(doc, currentUrl)
+                if (scraped != null && isKnownHost(scraped)) return scraped
+
+                // If the scraped link is another intermediate, follow it
+                if (scraped != null && isIntermediateHost(scraped)) {
+                    currentUrl = scraped
+                    return@repeat
+                }
+
+                // If we're on an Anylinks-style page (detected by btn6/tp98 elements)
+                if (doc.selectFirst("#btn6") != null || doc.selectFirst("#tp98") != null) {
+                    Log.d("OlaLinks", "Chain: detected Anylinks page elements at $currentUrl")
+                    val nextUrl = resolveAnylinksPage(doc, currentUrl)
+                    if (nextUrl != null) {
+                        currentUrl = nextUrl
+                        return@repeat
+                    }
+                }
+
+                // If we're on an OlaGenerate-style page (detected by inline-flex button)
+                if (doc.selectFirst("button.inline-flex") != null) {
+                    Log.d("OlaLinks", "Chain: detected OlaGenerate page elements at $currentUrl")
+                    val nextUrl = resolveOlaGeneratePage(doc, currentUrl)
+                    if (nextUrl != null) {
+                        currentUrl = nextUrl
+                        return@repeat
+                    }
+                }
+
+                // Try getRedirectLinks as generic JS deobfuscation
+                val jsResolved = getRedirectLinks(currentUrl)
+                if (jsResolved != null && jsResolved != currentUrl) {
+                    if (isKnownHost(jsResolved)) return jsResolved
+                    if (isIntermediateHost(jsResolved) || isAnylinksPage(jsResolved) || isOlaGeneratePage(jsResolved)) {
+                        currentUrl = jsResolved
+                        return@repeat
+                    }
+                }
+            }
+
+            // No progress possible from this URL
+            Log.d("OlaLinks", "Chain: stuck at $currentUrl (code=${response.code})")
+            return null
         }
-        return if (currentUrl != startUrl) currentUrl else null
+
+        // Exhausted chain depth — return whatever we have if it's a known host
+        return if (isKnownHost(currentUrl)) currentUrl else null
     }
 
+    // ─── Anylinks Page Resolver ────────────────────────────────────────────────
+
     /**
-     * Extract the real link from an intermediate shortener page.
-     * These pages typically have:
-     *   - A "btn6" or "get-link" button that leads to the next step
-     *   - JavaScript countdown timers
-     *   - Form submissions with tokens
+     * Resolve an Anylinks.in multi-step page (ukrupdate/mastkhabre/aryx/etc).
+     *
+     * These pages have a specific flow (from bypass-all-shortlinks-debloated):
+     *   1. Click #tp98 link (if present)
+     *   2. Click #btn6 button (12s delay for ukrupdate/mastkhabre, 1s for aryx)
+     *   3. Submit form[name='tp']
+     *
+     * Since we can't execute JS or click buttons server-side, we simulate the
+     * flow by parsing the page HTML for the target URLs that those clicks
+     * would navigate to.
      */
-    private suspend fun resolveIntermediatePage(
+    private suspend fun resolveAnylinksPage(
         doc: org.jsoup.nodes.Document,
-        pageUrl: String,
-        originalUrl: String
+        pageUrl: String
     ): String? {
         val html = doc.toString()
+        Log.d("OlaLinks", "Resolving Anylinks page: $pageUrl")
 
-        // Try finding known host URLs directly in the page
-        for (host in KNOWN_HOSTS) {
-            val urlRegex = Regex("""https?://[^\s"'<>\\]*$host[^\s"'<>\\]*""")
-            val found = urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';')
-            if (!found.isNullOrBlank() && found.startsWith("http")) return found
+        // Step 1: Check #tp98 link — it's often a stepping-stone link
+        val tp98Href = doc.selectFirst("#tp98")?.attr("href")
+        if (!tp98Href.isNullOrBlank()) {
+            val tp98Url = if (tp98Href.startsWith("http")) tp98Href
+                          else getBaseUrl(pageUrl) + tp98Href
+            Log.d("OlaLinks", "Anylinks: found #tp98 -> $tp98Url")
+            // #tp98 might be the intermediate step; follow it
+            if (isKnownHost(tp98Url)) return tp98Url
+            // If it leads to another intermediate or generate page, return it for chain to follow
+            if (isIntermediateHost(tp98Url) || isOlaGeneratePage(tp98Url) || isAnylinksPage(tp98Url)) {
+                return tp98Url
+            }
         }
 
-        // Look for btn6/get-link button href
-        val btnLink = doc.selectFirst("a.btn6, a#get-link, a[href*='get-link'], a[href*='go.php']")
-            ?.attr("href")
-        if (!btnLink.isNullOrBlank()) {
-            val fullLink = if (btnLink.startsWith("http")) btnLink
-                           else getBaseUrl(pageUrl) + btnLink
-            if (isKnownHost(fullLink)) return fullLink
-
-            // Follow the btn link to the next step
-            try {
-                val btnResponse = app.get(fullLink, headers = olaHeaders, timeout = 15_000L)
-                val btnDoc = btnResponse.document
-                val btnHtml = btnDoc.toString()
-                for (host in KNOWN_HOSTS) {
-                    val urlRegex = Regex("""https?://[^\s"'<>\\]*$host[^\s"'<>\\]*""")
-                    val found = urlRegex.find(btnHtml)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';')
-                    if (!found.isNullOrBlank() && found.startsWith("http")) return found
+        // Step 2: Check #btn6 — the main button that leads to the next step
+        // In the real browser, btn6.click() fires after a delay.
+        // The btn6 element could be:
+        //   - <a id="btn6" href="..."> (link)
+        //   - <button id="btn6" onclick="window.open('...')"> (JS redirect)
+        //   - <a id="btn6" data-href="..."> (data attribute)
+        val btn6 = doc.selectFirst("#btn6")
+        if (btn6 != null) {
+            // Try href first
+            var btn6Target = btn6.attr("href").ifBlank { null }
+            // Try data-href
+            if (btn6Target == null) btn6Target = btn6.attr("data-href").ifBlank { null }
+            // Try data-url
+            if (btn6Target == null) btn6Target = btn6.attr("data-url").ifBlank { null }
+            // Try onclick with window.open or location.href
+            if (btn6Target == null) {
+                val onclick = btn6.attr("onclick").ifBlank { null }
+                if (onclick != null) {
+                    btn6Target = Regex("""(?:window\.open|location\.href|location)\s*\(\s*['"]([^'"]+)['"]""")
+                        .find(onclick)?.groupValues?.get(1)
                 }
+            }
+
+            if (!btn6Target.isNullOrBlank()) {
+                val btn6Url = if (btn6Target.startsWith("http")) btn6Target
+                              else getBaseUrl(pageUrl) + btn6Target
+                Log.d("OlaLinks", "Anylinks: #btn6 target -> $btn6Url")
+
+                if (isKnownHost(btn6Url)) return btn6Url
+                // btn6 typically leads to the OlaGenerate page or another intermediate
+                if (isIntermediateHost(btn6Url) || isOlaGeneratePage(btn6Url) || isAnylinksPage(btn6Url)) {
+                    return btn6Url
+                }
+
+                // Follow the btn6 link and check where it goes
+                try {
+                    val btn6Response = app.get(btn6Url, headers = olaHeaders, timeout = 15_000L)
+                    val btn6Final = btn6Response.url
+                    if (btn6Final != btn6Url) {
+                        if (isKnownHost(btn6Final)) return btn6Final
+                        if (isIntermediateHost(btn6Final) || isOlaGeneratePage(btn6Final)) return btn6Final
+                    }
+                    if (btn6Response.code == 200) {
+                        val btn6Doc = btn6Response.document
+                        // Check if this is an OlaGenerate page
+                        if (isOlaGeneratePage(btn6Final) || btn6Doc.selectFirst("button.inline-flex") != null) {
+                            val genResult = resolveOlaGeneratePage(btn6Doc, btn6Final)
+                            if (genResult != null) return genResult
+                        }
+                        // Generic scrape
+                        val scraped = scrapePageForLinks(btn6Doc, btn6Url)
+                        if (scraped != null && isKnownHost(scraped)) return scraped
+                        if (scraped != null && (isIntermediateHost(scraped) || isOlaGeneratePage(scraped))) return scraped
+                    }
+                } catch (e: Exception) {
+                    Log.d("OlaLinks", "Anylinks: #btn6 follow failed: ${e.message}")
+                }
+            }
+        }
+
+        // Step 3: Check form[name='tp'] — the final form submission
+        val tpForm = doc.selectFirst("form[name='tp']")
+        if (tpForm != null) {
+            val formAction = tpForm.attr("action").ifBlank { null }
+            if (formAction != null) {
+                val formUrl = if (formAction.startsWith("http")) formAction
+                              else getBaseUrl(pageUrl) + formAction
+                Log.d("OlaLinks", "Anylinks: form[name='tp'] action -> $formUrl")
+                if (isKnownHost(formUrl)) return formUrl
+                if (isIntermediateHost(formUrl) || isOlaGeneratePage(formUrl)) return formUrl
+            }
+            // Also check hidden inputs in the tp form
+            for (input in tpForm.select("input[type=hidden]")) {
+                val value = input.attr("value")
+                if (value.isNotBlank() && value.startsWith("http")) {
+                    if (isKnownHost(value)) return value
+                    if (isIntermediateHost(value) || isOlaGeneratePage(value)) return value
+                }
+            }
+        }
+
+        // Step 4: Search page HTML for known host URLs (catch-all)
+        findKnownHostUrl(html)?.let { return it }
+
+        // Step 5: Search for base64 encoded URLs
+        val base64Pattern = Regex("""[A-Za-z0-9+/]{20,}={0,2}""")
+        base64Pattern.findAll(html).forEach { match ->
+            try {
+                val decoded = base64Decode(match.value)
+                if (decoded.startsWith("http") && isKnownHost(decoded)) return decoded
+                if (decoded.startsWith("http") && (isIntermediateHost(decoded) || isOlaGeneratePage(decoded))) return decoded
             } catch (_: Exception) {}
         }
 
-        // Look for base64 encoded URLs in script tags
+        // Step 6: Search for OlaGenerate URLs specifically
+        val generatePattern = Regex("""https?://(?:app2\.)?olamovies\.download/generate/\?id=[^\s"'<>\\]+""")
+        generatePattern.find(html)?.value?.let {
+            Log.d("OlaLinks", "Anylinks: found generate URL -> $it")
+            return it
+        }
+
+        Log.d("OlaLinks", "Anylinks: could not resolve $pageUrl")
+        return null
+    }
+
+    // ─── OlaGenerate Page Resolver ─────────────────────────────────────────────
+
+    /**
+     * Resolve an app2.olamovies.download/generate/?id=XXX page.
+     *
+     * From bypass-all-shortlinks-debloated:
+     *   clickIfExists('button.inline-flex')
+     *
+     * The page has a button.inline-flex that, when clicked, leads to the
+     * final host (HubCloud, GDFlix, etc.). We simulate this by finding
+     * the button's href or form target.
+     */
+    private suspend fun resolveOlaGeneratePage(
+        doc: org.jsoup.nodes.Document,
+        pageUrl: String
+    ): String? {
+        val html = doc.toString()
+        Log.d("OlaLinks", "Resolving OlaGenerate page: $pageUrl")
+
+        // Step 1: Find button.inline-flex and its target
+        val inlineBtn = doc.selectFirst("button.inline-flex")
+        if (inlineBtn != null) {
+            // Check for data attributes
+            var target = inlineBtn.attr("data-url").ifBlank { null }
+            if (target == null) target = inlineBtn.attr("data-href").ifBlank { null }
+            if (target == null) target = inlineBtn.attr("data-link").ifBlank { null }
+            // Check onclick
+            if (target == null) {
+                val onclick = inlineBtn.attr("onclick").ifBlank { null }
+                if (onclick != null) {
+                    target = Regex("""(?:window\.open|location\.href|location)\s*\(\s*['"]([^'"]+)['"]""")
+                        .find(onclick)?.groupValues?.get(1)
+                }
+            }
+            // Check parent <a> wrapper
+            if (target == null) {
+                val parentLink = inlineBtn.parent()?.takeIf { it.tagName() == "a" }
+                if (parentLink != null) {
+                    target = parentLink.attr("href").ifBlank { null }
+                }
+            }
+
+            if (!target.isNullOrBlank()) {
+                val targetUrl = if (target.startsWith("http")) target
+                                else getBaseUrl(pageUrl) + target
+                Log.d("OlaLinks", "OlaGenerate: button.inline-flex target -> $targetUrl")
+                if (isKnownHost(targetUrl)) return targetUrl
+                if (isIntermediateHost(targetUrl) || isOlaGeneratePage(targetUrl)) return targetUrl
+            }
+        }
+
+        // Step 2: Check for any <a> tags with known host hrefs
+        for (anchor in doc.select("a[href]")) {
+            val href = anchor.attr("href")
+            if (href.isNotBlank() && isKnownHost(href)) return href
+        }
+
+        // Step 3: Check for form submissions
+        val form = doc.selectFirst("form[action]")
+        if (form != null) {
+            val action = form.attr("action")
+            if (action.isNotBlank()) {
+                val actionUrl = if (action.startsWith("http")) action
+                                else getBaseUrl(pageUrl) + action
+                if (isKnownHost(actionUrl)) return actionUrl
+                if (isIntermediateHost(actionUrl) || isOlaGeneratePage(actionUrl)) return actionUrl
+            }
+            // Check hidden inputs for direct URLs
+            for (input in form.select("input[type=hidden]")) {
+                val value = input.attr("value")
+                if (value.isNotBlank() && value.startsWith("http") && isKnownHost(value)) return value
+            }
+        }
+
+        // Step 4: Search page for known host URLs
+        findKnownHostUrl(html)?.let { return it }
+
+        // Step 5: Try JS deobfuscation
+        val jsResolved = getRedirectLinks(pageUrl)
+        if (jsResolved != null && jsResolved != pageUrl && isKnownHost(jsResolved)) return jsResolved
+
+        // Step 6: Search for base64 encoded URLs
         val base64Pattern = Regex("""[A-Za-z0-9+/]{20,}={0,2}""")
         base64Pattern.findAll(html).forEach { match ->
             try {
@@ -381,72 +522,11 @@ open class OlaLinks : ExtractorApi() {
             } catch (_: Exception) {}
         }
 
+        Log.d("OlaLinks", "OlaGenerate: could not resolve $pageUrl")
         return null
     }
 
-    /**
-     * Resolve an intermediate shortener URL by fetching and parsing its page.
-     */
-    private suspend fun resolveIntermediateUrl(url: String): String? {
-        return try {
-            val response = app.get(url, headers = olaHeaders, timeout = 20_000L)
-            if (response.code == 200) {
-                resolveIntermediatePage(response.document, response.url, url)
-            } else null
-        } catch (_: Exception) { null }
-    }
-
-    /**
-     * Extract the target link from a shortener page.
-     * Handles common patterns like:
-     *   - Form with hidden input fields containing the real URL
-     *   - JavaScript that sets window.location after a delay
-     *   - Base64 encoded URLs in data attributes
-     */
-    private suspend fun extractShortenerLink(url: String): String? {
-        return try {
-            val response = app.get(url, headers = olaHeaders, timeout = 20_000L)
-            val doc = response.document
-            val html = doc.toString()
-
-            // Look for form action URLs with hidden inputs
-            val formAction = doc.selectFirst("form[action]")?.attr("action")
-            val hiddenInput = doc.selectFirst("input[type=hidden][name=url], input[type=hidden][name=link], input[type=hidden][name=go]")
-            if (!formAction.isNullOrBlank() && hiddenInput != null) {
-                val hiddenValue = hiddenInput.attr("value")
-                if (hiddenValue.isNotBlank() && hiddenValue.startsWith("http") && isKnownHost(hiddenValue)) {
-                    return hiddenValue
-                }
-            }
-
-            // Look for data attributes with URLs
-            for (element in doc.select("[data-url], [data-href], [data-link]")) {
-                val dataUrl = element.attr("data-url").ifBlank { element.attr("data-href") }.ifBlank { element.attr("data-link") }
-                if (dataUrl.isNotBlank()) {
-                    val decoded = if (dataUrl.startsWith("http")) dataUrl else try { base64Decode(dataUrl) } catch (_: Exception) { dataUrl }
-                    if (decoded.startsWith("http") && isKnownHost(decoded)) return decoded
-                }
-            }
-
-            // Look for URL in JavaScript variables
-            val jsUrlPatterns = listOf(
-                Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""var\s+link\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""var\s+redirect\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""window\.location\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""location\.href\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""href\s*=\s*['"](https?://[^'"]+)['"]""")
-            )
-            for (pattern in jsUrlPatterns) {
-                val found = pattern.find(html)?.groupValues?.get(1)?.trim()
-                if (!found.isNullOrBlank() && found.startsWith("http") && isKnownHost(found)) {
-                    return found
-                }
-            }
-
-            null
-        } catch (_: Exception) { null }
-    }
+    // ─── Generic Page Scraper ──────────────────────────────────────────────────
 
     /**
      * Scrape a page for redirect URLs:
@@ -454,7 +534,7 @@ open class OlaLinks : ExtractorApi() {
      *   - JavaScript window.location / location.href redirect
      *   - Known host links in the page content
      *   - #download anchor
-     *   - Any <a> link pointing to a known host
+     *   - Any <a> link pointing to a known host or intermediate
      */
     private fun scrapePageForLinks(doc: org.jsoup.nodes.Document, originalUrl: String): String? {
         // Meta refresh redirect
@@ -475,22 +555,35 @@ open class OlaLinks : ExtractorApi() {
             if (isKnownHost(resolved)) return resolved
         }
 
-        // Search all anchors for known host links
+        // Search all anchors for known host or intermediate links
         for (anchor in doc.select("a[href]")) {
             val href = anchor.attr("href")
-            if (href.isNotBlank() && isKnownHost(href)) return href
+            if (href.isNotBlank() && (isKnownHost(href) || isIntermediateHost(href))) return href
         }
 
         // Search page text for known host URLs (JS variables, etc.)
-        val pageText = doc.toString()
-        for (host in KNOWN_HOSTS) {
-            val urlRegex = Regex("""https?://[^\s"'<>\\]*$host[^\s"'<>\\]*""")
-            val found = urlRegex.find(pageText)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';')
-            if (!found.isNullOrBlank()) return found
-        }
+        findKnownHostUrl(doc.toString())?.let { return it }
 
         return null
     }
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Find a known host URL in raw HTML text */
+    private fun findKnownHostUrl(html: String): String? {
+        for (host in KNOWN_HOSTS) {
+            val urlRegex = Regex("""https?://[^\s"'<>\\]*$host[^\s"'<>\\]*""")
+            val found = urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';')
+            if (!found.isNullOrBlank() && found.startsWith("http")) return found
+        }
+        return null
+    }
+
+    companion object {
+        private const val MAX_CHAIN_DEPTH = 10
+    }
+
+    // ─── Dispatch Resolved URL ────────────────────────────────────────────────
 
     private suspend fun dispatchResolved(
         url: String,

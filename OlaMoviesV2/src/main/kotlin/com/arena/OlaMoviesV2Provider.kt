@@ -121,6 +121,11 @@ class OlaMoviesV2Provider : MainAPI() {
             """(?i)(""" +
                     // OlaMovies shortener
                     """links\.ol-am\.top|links\.olamovies\.mov|ol-am\.top|""" +
+                    // Anylinks intermediate shorteners
+                    """ukrupdate\.com|mastkhabre\.com|aryx\.xyz|""" +
+                    """superheromaniac\.com|spatsify\.com|""" +
+                    // OlaMovies generate page
+                    """olamovies\.download|app2\.olamovies\.download|""" +
                     // OlaMovies direct server
                     """olamovies\.dad|space\.olamovies|gdmirrorbot|""" +
                     // HubCloud family
@@ -797,8 +802,14 @@ class OlaMoviesV2Provider : MainAPI() {
             }
 
             when {
-                // OlaMovies link shortener (links.ol-am.top OR links.olamovies.mov)
-                OLA_LINK_REGEX.containsMatchIn(url) -> {
+                // OlaMovies link shortener chain (links.ol-am.top / links.olamovies.mov / Anylinks / olamovies.download)
+                OLA_LINK_REGEX.containsMatchIn(url) ||
+                url.contains("ukrupdate.com", ignoreCase = true) ||
+                url.contains("mastkhabre.com", ignoreCase = true) ||
+                url.contains("aryx.xyz", ignoreCase = true) ||
+                url.contains("superheromaniac.com", ignoreCase = true) ||
+                url.contains("spatsify.com", ignoreCase = true) ||
+                url.contains("olamovies.download", ignoreCase = true) -> {
                     OlaLinks().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
