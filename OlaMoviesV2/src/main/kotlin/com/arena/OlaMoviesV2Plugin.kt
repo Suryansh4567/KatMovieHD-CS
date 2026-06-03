@@ -34,7 +34,7 @@ class OlaMoviesV2Plugin : BasePlugin() {
         //   2. Page scraping for meta-refresh / known host links
         //   3. Manual HTTP redirect following
         //   4. HDHub4U-style JS deobfuscation
-        //   5. WebViewResolver as ultimate CF bypass
+        //   5. loadExtractor as last resort
         registerExtractorAPI(OlaLinks())
         registerExtractorAPI(OlaLinksMov())
 

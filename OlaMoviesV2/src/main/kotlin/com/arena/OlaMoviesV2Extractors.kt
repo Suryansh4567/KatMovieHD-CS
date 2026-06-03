@@ -54,7 +54,7 @@ private fun isKnownHost(url: String): Boolean =
  *   2. Parse response page for meta-refresh, JS redirects, known host links
  *   3. Manual HTTP redirect following (allowRedirects=false)
  *   4. HDHub4U-style JS deobfuscation (getRedirectLinks)
- *   5. WebViewResolver as ultimate CF bypass
+ *   5. Retry with different headers + text search for known hosts
  */
 class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -124,37 +124,39 @@ class OlaLinks : ExtractorApi() {
                 Log.d("OlaLinks", "Strategy3 failed: ${e.message}")
             }
 
-            // Strategy 4: WebView-based CF bypass using WebViewResolver
+            // Strategy 4: Second attempt with longer timeout and different headers
             try {
-                val interceptor = com.lagradost.cloudstream3.utils.WebViewResolver(
-                    interceptUrl = Regex("""(?i)(hubcloud|gdflix|gdtot|drive\.google|gofile|pixeldrain|olamovies\.dad|space\.olamovies|gdmirrorbot|gd-flix|vidstack|fuckingfast|driveseed|driveleech)"""),
-                    additionalUrls = listOf(Regex("""(?i)(hubcloud|gdflix|gdtot|drive\.google|gofile|pixeldrain)""")),
-                    useOkhttp = false,
-                    timeout = 30_000L
-                )
-                val response = app.get(url, interceptor = interceptor, headers = mapOf(
-                    "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
-                ), timeout = 30_000L)
+                val response2 = app.get(url, headers = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0",
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language" to "en-US,en;q=0.5",
+                    "Referer" to "https://v2.olamovies.mov/",
+                    "Connection" to "keep-alive"
+                ), timeout = 60_000L)
 
-                val webViewUrl = response.url
-                if (webViewUrl != url && isKnownHost(webViewUrl)) {
-                    Log.d("OlaLinks", "Strategy4 (WebView): $url -> $webViewUrl")
-                    dispatchResolved(webViewUrl, subtitleCallback, callback)
+                val finalUrl2 = response2.url
+                if (finalUrl2 != url && isKnownHost(finalUrl2)) {
+                    Log.d("OlaLinks", "Strategy4 (retry): $url -> $finalUrl2")
+                    dispatchResolved(finalUrl2, subtitleCallback, callback)
                     return
                 }
 
-                // Also try scraping the WebView page
+                // Try scraping the page again with different approach
                 try {
-                    val doc = response.document
-                    val scraped = scrapePageForLinks(doc, url)
-                    if (scraped != null) {
-                        Log.d("OlaLinks", "Strategy4 (WebView scrape): $url -> $scraped")
-                        dispatchResolved(scraped, subtitleCallback, callback)
-                        return
+                    val pageText = response2.text
+                    // Look for URL patterns in JavaScript/HTML content
+                    for (host in KNOWN_HOSTS) {
+                        val urlRegex = Regex("""https?://[^\s"'<>]*$host[^\s"'<>]*""")
+                        val found = urlRegex.find(pageText)?.value?.trimEnd('\\', ',', '"', '\'', ')')
+                        if (!found.isNullOrBlank() && found.startsWith("http")) {
+                            Log.d("OlaLinks", "Strategy4 (text search): found $found")
+                            dispatchResolved(found, subtitleCallback, callback)
+                            return
+                        }
                     }
                 } catch (_: Exception) {}
             } catch (e: Exception) {
-                Log.d("OlaLinks", "Strategy4 (WebView) failed: ${e.message}")
+                Log.d("OlaLinks", "Strategy4 failed: ${e.message}")
             }
 
             // Strategy 5: Last resort — try loadExtractor which uses built-in CF bypass
@@ -430,10 +432,26 @@ class OlaHubdrive : ExtractorApi() {
     }
 }
 
-// ─── Hubstream (VidStack variant) ────────────────────────────────────────────
+// ─── Hubstream (independent extractor, HubCloud-like handling) ────────────────
 
-class OlaHubstream : OlaVidStack() {
-    override var mainUrl = "https://hubstream.*"
+class OlaHubstream : ExtractorApi() {
+    override val name = "OlaHubstream"
+    override val mainUrl = "https://hubstream.*"
+    override val requiresReferer = false
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        // HubStream links typically redirect to HubCloud, so delegate
+        try {
+            OlaHubCloud().getUrl(url, referer, subtitleCallback, callback)
+        } catch (e: Exception) {
+            Log.e("OlaHubstream", "Failed: ${e.message}")
+        }
+    }
 }
 
 // ─── VidStack Extractor with AES Decryption ──────────────────────────────────
