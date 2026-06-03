@@ -205,30 +205,66 @@ class KmhdExtractor : ExtractorApi() {
 
             val isPlay = url.contains("/play", ignoreCase = true)
             val path = if (isPlay) "/play?id=$id" else "/file/$id"
-            val dataUrl = "$mainUrl$path/__data.json"
 
-            Log.d(TAG, "Fetching: $dataUrl")
+            // v4 CRITICAL FIX: the OLD code always used the hard-coded
+            // `mainUrl` ("https://links.kmhd.eu") and IGNORED the host of the
+            // URL it was actually given. KatMovie4K pages link to
+            // links.kmhd.NET (e.g. Daredevil S01 E06/E07), and links.kmhd.net
+            // is currently DEAD (connection refused). Worse, even when the host
+            // matched, building the data URL off mainUrl meant a host rotation
+            // on the site silently produced a 0-mirror parse → "No Links Found".
+            //
+            // We now build a candidate host list: the host that actually
+            // appears in the incoming URL FIRST, then the known-good
+            // links.kmhd.eu mirror as a fallback (verified live: it serves the
+            // SAME file IDs that the pages publish under links.kmhd.net). We
+            // try each until one returns a parseable payload.
+            val incomingHost = Regex("""^https?://[^/]+""").find(url)?.value
+            val candidateHosts = listOfNotNull(
+                incomingHost?.takeIf { it.contains("kmhd", ignoreCase = true) },
+                "https://links.kmhd.eu",
+                "https://links.kmhd.net"
+            ).distinct()
 
-            val dataText = try {
-                app.get(
-                    dataUrl,
-                    headers = mapOf(
-                        "User-Agent" to UA,
-                        "Cookie" to "unlocked=true",
-                        "Referer" to "$mainUrl$path",
-                        "Accept" to "application/json"
-                    ),
-                    timeout = 30
-                ).text
-            } catch (e: Exception) {
-                Log.e(TAG, "HTTP fetch failed: ${e.message}")
-                return
+            var dataText = ""
+            var usedHost = candidateHosts.first()
+            for (host in candidateHosts) {
+                val dataUrl = "$host$path/__data.json"
+                Log.d(TAG, "Fetching: $dataUrl")
+                val body = try {
+                    app.get(
+                        dataUrl,
+                        headers = mapOf(
+                            "User-Agent" to UA,
+                            "Cookie" to "unlocked=true",
+                            "Referer" to "$host$path",
+                            "Accept" to "application/json"
+                        ),
+                        timeout = 30
+                    ).text
+                } catch (e: Exception) {
+                    Log.w(TAG, "HTTP fetch failed for $host: ${e.message}")
+                    ""
+                }
+                // A good SvelteKit payload contains the "chunk" line with the
+                // dehydrated link map. A locked/parked/empty page won't.
+                if (body.isNotBlank() && body.contains("\"type\":\"chunk\"")) {
+                    dataText = body
+                    usedHost = host
+                    break
+                }
+                if (body.isNotBlank() && dataText.isBlank()) {
+                    // keep first non-blank as a last resort for the salvage regex
+                    dataText = body
+                    usedHost = host
+                }
             }
+            Log.d(TAG, "KMHD host resolved to $usedHost")
 
             Log.d(TAG, "Got dataText length: ${dataText.length}")
 
             if (dataText.isBlank()) {
-                Log.w(TAG, "Empty response from $dataUrl")
+                Log.w(TAG, "Empty response from all KMHD hosts ($candidateHosts)")
                 return
             }
 
