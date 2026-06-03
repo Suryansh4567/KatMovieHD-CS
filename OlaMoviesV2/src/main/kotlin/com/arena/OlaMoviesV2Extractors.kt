@@ -26,7 +26,7 @@ private val browserHeaders = mapOf(
     "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
     "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language" to "en-US,en;q=0.9",
-    "Referer" to "https://hubcloud.lol/"
+    "Referer" to "https://hubcloud.foo/"
 )
 
 /** Shortener/referer headers mimicking browser from OlaMovies */
@@ -63,11 +63,12 @@ private val KNOWN_HOSTS = listOf(
     "awscdn", "googleusercontent", "megadb", "shrdsk"
 )
 
-/** Intermediate shortener domains (Anylinks.in network) */
+/** Intermediate shortener domains (Anylinks.in network + v2links) */
 private val INTERMEDIATE_HOSTS = listOf(
     "ukrupdate.com", "mastkhabre.com", "aryx.xyz",
     "anylinks.in", "rocklinks.net", "dulink.net",
-    "ez4short.com", "olamovies.mov", "links.olamovies.mov",
+    "ez4short.com", "v2links.com", "v2links.me",
+    "olamovies.mov", "links.olamovies.mov",
     "links.ol-am.top", "ol-am.top"
 )
 
@@ -890,3 +891,17 @@ class OlaGDFlixRest : OlaGDFlix() { override val mainUrl = "https://gdflix.rest"
 class OlaGDFlixCfd5 : OlaGDFlix() { override val mainUrl = "https://new5.gdflix.cfd" }
 class OlaGDTotCfd : OlaGDFlix() { override val mainUrl = "https://new10.gdtot.cfd" }
 class OlaGDLinkDev : OlaGDFlix() { override val mainUrl = "https://gdlink.dev" }
+
+// ─── HubCloud domain variants (discovered via hacker experiments) ────────────
+// HubCloud migrated from hubcloud.lol → hubcloud.foo
+// hubcloud.dad is used in the OlaMovies shortener chain
+
+class OlaHubCloudFoo : OlaHubCloud() {
+    override val mainUrl = "https://hubcloud.foo"
+    override val name = "Hub-Cloud.foo"
+}
+
+class OlaHubCloudDad : OlaHubCloud() {
+    override val mainUrl = "https://hubcloud.dad"
+    override val name = "Hub-Cloud.dad"
+}
