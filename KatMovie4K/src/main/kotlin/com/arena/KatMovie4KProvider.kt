@@ -103,7 +103,7 @@ class KatMovie4KProvider : MainAPI() {
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
                     """bbupload|gofileserver|bbserver|gdtot|techkit|busycdn|""" +
                     // KatMovie* upload mirrors
-                    """katmovie\.|katdrive|kmhd""" +
+                    """katmovie|katdrive|kmhd""" +
                     """)"""
         )
 
@@ -116,7 +116,7 @@ class KatMovie4KProvider : MainAPI() {
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
                     """wp-content|wp-includes|wp-json|""" +
-                    """katmovie4k|katmoviehd|gstatic|googletagmanager|google-analytics|""" +
+                    """katmovie4k\.[a-z]+(/|$)|katmoviehd\.[a-z]+(/|$)|gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
@@ -679,10 +679,19 @@ class KatMovie4KProvider : MainAPI() {
             .filter { it.length > 8 }
             .distinct()
 
-        if (urls.isEmpty()) return false
+        if (urls.isEmpty()) {
+            Log.w(TAG, "loadLinks: no URLs extracted from data of length ${data.length}")
+            return false
+        }
+        Log.d(TAG, "loadLinks: dispatching ${urls.size} URL(s)")
 
+        var anyDispatched = false
         urls.amap { rawUrl ->
-            dispatchExtractor(rawUrl, subtitleCallback, callback)
+            val ok = dispatchExtractor(rawUrl, subtitleCallback, callback)
+            if (ok) anyDispatched = true
+        }
+        if (!anyDispatched) {
+            Log.w(TAG, "loadLinks: every URL failed to dispatch - check host coverage")
         }
         return true
     }
@@ -704,8 +713,28 @@ class KatMovie4KProvider : MainAPI() {
         if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
         return try {
             when {
-                Regex("""(?i)(links\.kmhd\.|kmhd\.eu/archives/|gd\.kmhd\.)""").containsMatchIn(url) -> {
+                Regex("""(?i)(links\.kmhd\.|kmhd\.(eu|net)/archives/|gd\.kmhd\.)""").containsMatchIn(url) -> {
                     KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                Regex("""(?i)(hubcloud\.|hubdrive|katdrive\.)""").containsMatchIn(url) -> {
+                    HubCloud().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                url.contains("katdrive", ignoreCase = true) -> {
+                    runCatching {
+                        val doc = app.get(url, headers = mapOf("User-Agent" to USER_AGENT), timeout = 30).document
+                        val hubUrl = doc.select("a[href]").mapNotNull { a ->
+                            a.absUrl("href").ifBlank { a.attr("href") }
+                                .takeIf { it.contains("hubcloud", ignoreCase = true) }
+                        }.firstOrNull()
+                        if (!hubUrl.isNullOrBlank()) HubCloud().getUrl(hubUrl, url, subtitleCallback, callback)
+                        else loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    }
+                    true
+                }
+                url.contains("gdlink.dev", ignoreCase = true) -> {
+                    GDLinkDev().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
                 url.contains("vifix.site", ignoreCase = true) -> {
