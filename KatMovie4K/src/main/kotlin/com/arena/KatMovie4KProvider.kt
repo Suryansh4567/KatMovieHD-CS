@@ -42,6 +42,7 @@ import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
+import okhttp3.MediaType.Companion.toMediaType
 
 /**
  * KatMovie4K provider — sister of KatMovieHDProvider.
@@ -764,7 +765,7 @@ class KatMovie4KProvider : MainAPI() {
             // Use OkHttp directly since NiceHttp's app.post() parameter
             // names are not stable across CloudStream3 versions.
             val requestBody = okhttp3.RequestBody.create(
-                okhttp3.MediaType.parse("text/plain"),
+                "text/plain".toMediaType(),
                 body
             )
             val request = okhttp3.Request.Builder()
@@ -780,7 +781,7 @@ class KatMovie4KProvider : MainAPI() {
                 .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
             val httpResponse = client.newCall(request).execute()
-            val response = httpResponse.body()?.string()?.trim().orEmpty()
+            val response = httpResponse.body?.string()?.trim().orEmpty()
 
             if (response.startsWith("http", ignoreCase = true)) {
                 Log.d(TAG, "resolveGdtotUrl: router returned redirect URL: $response")
