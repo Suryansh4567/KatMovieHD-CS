@@ -31,6 +31,7 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.fasterxml.jackson.annotation.JsonProperty
 import kotlinx.coroutines.async
@@ -844,6 +845,74 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
+    // Helper methods (same as KatMovieHD provider)
+    // ------------------------------------------------------------------
+
+    private fun fixUrl(url: String): String {
+        if (url.startsWith("http")) return url
+        if (url.startsWith("//")) return "https:$url"
+        return mainUrl + (if (url.startsWith("/")) url else "/$url")
+    }
+
+    /**
+     * Strip verbose tags from titles for cleaner display + better TMDB matching.
+     */
+    private fun cleanTitle(raw: String): String {
+        val withoutDecorators = raw
+            .replace(Regex("""(?i)\s*\|.*$"""), "")
+            .replace(Regex("""(?i)\s*\[.*?]"""), "")
+            .replace(Regex("""(?i)\s*\(DD\s*\d.*?\)"""), "")
+            .replace(Regex("""(?i)\s*\(ORG\)"""), "")
+            .replace(Regex("""(?i)\bHindi Dubbed.*$"""), "")
+            .replace(Regex("""(?i)\bDual Audio.*$"""), "")
+            .replace(Regex("""(?i)\bWEB[-\s]?DL.*$"""), "")
+            .replace(Regex("""(?i)\bBluRay.*$"""), "")
+            .replace(Regex("""(?i)\bFull Movie.*$"""), "")
+            .replace(Regex("""(?i)\bAll Episodes.*$"""), "")
+            .replace(Regex("""(?i)\bRemastered\b"""), "")
+            .replace(Regex("""(?i)\s*-\s*OlaMovies.*$"""), "")
+            .replace(Regex("""(?i)\s+AKA\s+"""), " AKA ")
+            .replace(Regex("""(?i)\((Season\s*\d+)\)"""), "")
+            .replace(Regex("""(?i)\s*Season\s*\d+"""), "")
+            .replace(Regex("""(?i)\bDS4K\b"""), "")
+            .replace(Regex("""(?i)\bREMUX\b"""), "")
+            .replace(Regex("""(?i)\bDV\b"""), "")
+            .replace(Regex("""(?i)\bHDR10\+?\b"""), "")
+            .replace(Regex("""(?i)\bESub\w*\b"""), "")
+            .replace(Regex("""(?i)\b10bit\b"""), "")
+            .replace(Regex("""\s{2,}"""), " ")
+            .trim()
+            .trim('-', '|', ':')
+            .trim()
+        return withoutDecorators.ifBlank { raw.trim() }
+    }
+
+    private fun guessTvType(title: String): TvType {
+        val t = title.lowercase()
+        return when {
+            t.contains("season") ||
+            t.contains("episode") ||
+            t.contains("series") ||
+            t.contains("tv series") ||
+            t.contains("tv show") ||
+            Regex("""\bs\d{1,2}\b""").containsMatchIn(t) ||
+            Regex("""\bs0\d\b""").containsMatchIn(t) -> TvType.TvSeries
+            else -> TvType.Movie
+        }
+    }
+
+    private fun detectSearchQuality(title: String): SearchQuality? {
+        val tokens = listOf("2160p", "4k", "1080p", "720p", "480p", "bluray", "web-dl",
+            "webrip", "hdcam", "hdts", "camrip", "cam", "hdtv", "dvdrip", "dvd",
+            "remux", "hdr", "dolby vision", "dv", "ds4k", "imax")
+        val lower = title.lowercase()
+        for (tok in tokens) {
+            if (lower.contains(tok)) return getQualityFromString(tok)
+        }
+        return null
+    }
+
+    // ------------------------------------------------------------------
     // TMDB + Cinemeta metadata enrichment (best-effort)
     // ------------------------------------------------------------------
 
@@ -949,8 +1018,7 @@ class OlaMoviesV2Provider : MainAPI() {
                 val name = c["name"] as? String ?: return@mapNotNull null
                 val profilePath = c["profile_path"] as? String
                 ActorData(
-                    Actor(name),
-                    posterUrl = profilePath?.let { "$TMDB_IMG$it" }
+                    Actor(name, profilePath?.let { "$TMDB_IMG$it" })
                 )
             }
             val videos = json["videos"] as? Map<String, Any>
