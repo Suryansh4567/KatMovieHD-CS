@@ -1,6 +1,6 @@
 // Bump this integer every time you push a fix.
 // Sister plugin to KatMovieHD â€” 4K UHD focused (Dolby Vision / HDR10+).
-version = 4
+version = 5
 
 cloudstream {
     authors = listOf("arena")
