@@ -246,10 +246,22 @@ class OlaMoviesV2Provider : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         mainUrl = OlaMoviesV2Plugin.getActiveMainUrl()
 
+        // OlaMovies uses WordPress /search/{query}/ URL pattern
+        // Fallback to ?s= pattern for some WordPress configs
+        val slug = query.trim().replace(" ", "-")
         val encoded = query.trim().replace(" ", "+")
-        val url = if (page <= 1) "$mainUrl/?s=$encoded"
-                  else "$mainUrl/page/$page/?s=$encoded"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+
+        // Try /search/ pattern first (primary for this site)
+        val url = if (page <= 1) "$mainUrl/search/$slug/"
+                  else "$mainUrl/search/$slug/page/$page/"
+        val doc = try {
+            app.get(url, headers = headers, timeout = 30).document
+        } catch (_: Exception) {
+            // Fallback to ?s= query parameter
+            val fallbackUrl = if (page <= 1) "$mainUrl/?s=$encoded"
+                              else "$mainUrl/page/$page/?s=$encoded"
+            app.get(fallbackUrl, headers = headers, timeout = 30).document
+        }
         val results = parseListing(doc)
         Log.d(TAG, "search('$query', p$page): ${results.size} results")
         return results.toNewSearchResponseList()
