@@ -1,6 +1,6 @@
 {
-    "name": "KatMovieHD CS Repo",
-    "description": "Hindi dubbed & dual-audio movies and TV series from KatMovieHD",
+    "name": "KatMovieHD & OlaMovies CS Repo",
+    "description": "Hindi dubbed & dual-audio movies/TV series from KatMovieHD + 4K UHD/HDR/DV releases from OlaMovies v2",
     "manifestVersion": 1,
     "pluginLists": [
         "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/plugins.json"
