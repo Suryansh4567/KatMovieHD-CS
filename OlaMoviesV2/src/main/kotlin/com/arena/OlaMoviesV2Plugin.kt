@@ -12,15 +12,11 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * Architecture mirrors KatMovieHDPlugin:
- *   - Dynamic domain via shared domains.json in this repo
- *   - 6-hour cache TTL so domain bumps propagate without app restart
- *   - Triple-fallback URL resolution
- *
- * The site uses a Cloudflare-protected link shortener (links.ol-am.top
- * which redirects to links.olamovies.mov) which resolves to HubCloud /
- * GDFlix / Google Drive URLs. We register extractors for all known mirror
- * hosts plus our custom OlaLinks resolver with multi-strategy CF bypass.
+ * v6: Simple rewrite based on LikDev's proven approach.
+ *   - bypassOlaRedirect: Follows ?key=&id= chain, scrapes #download > a
+ *   - bypassAdLinks: emilyx.in API + crazyblog cookie POST
+ *   - loadExtractor: CloudStream's built-in CF bypass (WebView)
+ *   - HubCloud/GDFlix/Hubdrive/Hubstream: Custom extractors with quality info
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -30,21 +26,17 @@ class OlaMoviesV2Plugin : BasePlugin() {
 
         // ─── Custom OlaMovies link shortener extractors ────────────────
         // links.ol-am.top redirects to links.olamovies.mov — both need
-        // to be handled. OlaLinks uses multi-strategy CF bypass:
-        //   1. Direct GET with CF bypass → check response.url
-        //   2. Page scraping for meta-refresh / known host links
-        //   3. Manual HTTP redirect following
-        //   4. HDHub4U-style JS deobfuscation
-        //   5. loadExtractor as last resort
+        // to be handled. OlaLinks uses 3-strategy approach:
+        //   S1: loadExtractor() — CloudStream's built-in CF bypass (WebView)
+        //   S2: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain
+        //   S3: Direct app.get() chain follow with page scraping
         registerExtractorAPI(OlaLinks())
         registerExtractorAPI(OlaLinksMov())
 
         // ─── HubCloud ecosystem ────────────────────────────────────────
-        // HubCloud migrated from hubcloud.lol → hubcloud.foo
-        // hubcloud.dad is another variant used by OlaMovies shortener chain
-        registerExtractorAPI(OlaHubCloud())       // hubcloud.lol (redirects to hubcloud.foo)
-        registerExtractorAPI(OlaHubCloudFoo())    // hubcloud.foo (current live domain)
-        registerExtractorAPI(OlaHubCloudDad())    // hubcloud.dad (shortener chain variant)
+        registerExtractorAPI(OlaHubCloud())       // hubcloud.lol
+        registerExtractorAPI(OlaHubCloudFoo())    // hubcloud.foo
+        registerExtractorAPI(OlaHubCloudDad())    // hubcloud.dad
         registerExtractorAPI(OlaHubdrive())
         registerExtractorAPI(OlaHubstream())
 
@@ -126,11 +118,6 @@ class OlaMoviesV2Plugin : BasePlugin() {
             }
         }
 
-        /**
-         * Shared with KatMovieHDPlugin — same JSON shape, three optional keys.
-         * Jackson's @JsonProperty default = null means a missing key
-         * doesn't crash deserialisation.
-         */
         data class Domains(
             @JsonProperty("katmoviehd") val katmoviehd: String? = null,
             @JsonProperty("katmovie4k") val katmovie4k: String? = null,

@@ -34,29 +34,29 @@ import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.loadExtractor
-import com.fasterxml.jackson.annotation.JsonProperty
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /**
- * OlaMovies v2 provider.
+ * OlaMovies v2 provider — SIMPLE rewrite based on LikDev's approach.
  *
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts
- * 4K UHD, HDR, Dolby Vision, and REMUX releases. The site uses
- * Cloudflare on its main domain and CF Turnstile on its link
- * shortener (links.ol-am.top).
+ * 4K UHD, HDR, Dolby Vision, and REMUX releases.
+ *
+ * Link chain:
+ *   1. Movie page has `links.ol-am.top/XXXXX` links in `div.wp-block-button a[target=_blank]`
+ *   2. links.ol-am.top/XXXXX → 301 → links.olamovies.mov/XXXXX (CF Turnstile protected)
+ *   3. After CF solved: page with ?key=&id= params → #download > a chain
+ *   4. bypassAdLinks resolves ad shorteners (dulink/ez4short/rocklinks/crazyblog)
+ *   5. Final host: HubCloud/GDFlix/etc. → loadExtractor() handles them
  *
  * Episode discovery handles three layouts:
  *   1. Accordion layout: w3-card-4 sections with Season/Episode buttons
  *   2. Flat layout: quality groups with release name headers
  *   3. Fallback: expose every link as a pseudo-episode
- *
- * All download links go through links.ol-am.top which resolves to
- * Google Drive / HubCloud / GDFlix etc.
  */
 class OlaMoviesV2Provider : MainAPI() {
 
@@ -106,41 +106,26 @@ class OlaMoviesV2Provider : MainAPI() {
             "ka", "ki", "ke", "se", "aur"
         )
 
-        /**
-         * OlaMovies link shortener — the primary URL pattern for
-         * download links on the site.
-         */
+        /** OlaMovies link shortener — the primary URL pattern for download links */
         private val OLA_LINK_REGEX = Regex(
             """(?i)(links\.ol-am\.top|links\.olamovies\.mov)"""
         )
 
-        /**
-         * Known mirror hosts that OlaMovies links resolve to.
-         */
+        /** Known mirror hosts that OlaMovies links resolve to */
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
-                    // OlaMovies shortener
                     """links\.ol-am\.top|links\.olamovies\.mov|ol-am\.top|""" +
-                    // Anylinks intermediate shorteners
                     """ukrupdate\.com|mastkhabre\.com|aryx\.xyz|""" +
                     """superheromaniac\.com|spatsify\.com|""" +
-                    // OlaMovies generate page
                     """olamovies\.download|app2\.olamovies\.download|""" +
-                    // OlaMovies direct server
                     """olamovies\.dad|space\.olamovies|gdmirrorbot|""" +
-                    // HubCloud family
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive|katdrive|""" +
-                    // GDFlix family
                     """gdflix\.[a-z]+|gd-flix|gdlink|gdtot\.[a-z]+|gdmirror|""" +
-                    // Google Drive
                     """drive\.google|""" +
-                    // Generic cloud/file-share hosts
                     """gofile\.io|mediafire|pixeldrain|pixeldra\.in|""" +
                     """1fichier|send\.cm|sendvid|krakenfiles|filesgram|""" +
-                    // Streaming hosts
                     """streamtape|streamlare|filemoon|filelions|doodstream|dood\.|""" +
                     """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|""" +
-                    // VidStack
                     """vidstack\.io""" +
                     """)"""
         )
@@ -163,58 +148,19 @@ class OlaMoviesV2Provider : MainAPI() {
                     """)"""
         )
 
-        /** Match "Episode 7" / "Episode-07" / "Episode: 12" etc. */
         private val EPISODE_HEADER_REGEX =
             Regex("""(?i)\bEpisode\s*[-–:#]?\s*(\d{1,3})\b""")
 
-        /** Match "Season 4" / "S04" / "S4" inside a header. */
         private val SEASON_HEADER_REGEX =
             Regex("""(?i)\bSeason\s*(\d{1,2})\b|\bS(\d{1,2})\b(?!\d)""")
 
-        /** Match "Specials" in accordion header */
         private val SPECIALS_REGEX = Regex("""(?i)\bSpecials?\b""")
 
-        /**
-         * Extract (season, episode) from a release filename.
-         */
-        private fun parseSeasonEpisode(filename: String): Pair<Int?, Int?> {
-            Regex("""(?i)S(\d{1,2})[\s._-]?E(\d{1,3})""").find(filename)?.let {
-                return it.groupValues[1].toIntOrNull() to it.groupValues[2].toIntOrNull()
-            }
-            Regex("""(?i)(?:^|[\s._-])E(\d{1,3})(?:[\s._-]|$)""").find(filename)?.let {
-                return null to it.groupValues[1].toIntOrNull()
-            }
-            Regex("""(?i)\bEp(?:isode)?[\s._-]?(\d{1,3})\b""").find(filename)?.let {
-                return null to it.groupValues[1].toIntOrNull()
-            }
-            return null to null
-        }
-
-        /** Header tags that can hold "Episode N" / "Season N" / quality labels. */
         private val LABEL_TAGS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b")
 
-        /** Negative phrases that should never be treated as episode markers. */
         private val EPISODE_NEGATIVE_PHRASES = listOf(
             "more episodes", "will be added", "episode list", "all episodes",
             "single episodes link", "knowledge desk", "changelog"
-        )
-
-        /**
-         * Quality + size regex for link text like:
-         *   "720p [831.79MB]"
-         *   "1080p x264 [15.34GB]"
-         *   "2160p 4K HDR10+ DV [18.63GB]"
-         *   "1080p DS4K [4.71GB]"
-         *   "1080p remux [22.77GB]"
-         *   "episode 01"
-         *   "720p zip [2.76GB]"
-         *   "extras [973.3MB]"
-         */
-        private val QUALITY_SIZE_REGEX = Regex(
-            """(?i)(2160p|4k|1080p\s*x264|1080p\s*hevc|1080p\s*ds4k|1080p\s*remux|1080p|720p|480p|""" +
-                    """hdr10\+?\s*dv|hdr10\+?|dv|dolby\s*vision|sdr|remux|ds4k|""" +
-                    """episode\s*\d+|extras?|zip|pack|""" +
-                    """\[[\d.]+\s*(?:MB|GB|TB)])"""
         )
     }
 
@@ -251,18 +197,14 @@ class OlaMoviesV2Provider : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         mainUrl = OlaMoviesV2Plugin.getActiveMainUrl()
 
-        // OlaMovies uses WordPress /search/{query}/ URL pattern
-        // Fallback to ?s= pattern for some WordPress configs
         val slug = query.trim().replace(" ", "-")
         val encoded = query.trim().replace(" ", "+")
 
-        // Try /search/ pattern first (primary for this site)
         val url = if (page <= 1) "$mainUrl/search/$slug/"
                   else "$mainUrl/search/$slug/page/$page/"
         val doc = try {
             app.get(url, headers = headers, timeout = 30).document
         } catch (_: Exception) {
-            // Fallback to ?s= query parameter
             val fallbackUrl = if (page <= 1) "$mainUrl/?s=$encoded"
                               else "$mainUrl/page/$page/?s=$encoded"
             app.get(fallbackUrl, headers = headers, timeout = 30).document
@@ -273,30 +215,16 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     private fun parseListing(doc: Document): List<SearchResponse> {
-        // Primary: Gridlove theme uses article.gridlove-post
         val items = doc.select("article.gridlove-post").mapNotNull { it.toSearchResult() }
         if (items.isNotEmpty()) return items.distinctBy { it.url }
 
-        // Fallback 1: generic article
         val direct = doc.select("article.post, article").mapNotNull { it.toSearchResult() }
         if (direct.isNotEmpty()) return direct.distinctBy { it.url }
 
-        // Fallback 2: any anchor wrapping an <img>
         return doc.select("a:has(img)").mapNotNull { it.toSearchResultFromAnchor() }
             .distinctBy { it.url }
     }
 
-    /**
-     * Parse one Gridlove article card:
-     *   <article class="gridlove-post ...">
-     *     <div class="entry-image">
-     *       <a href><img src=POSTER class="wp-post-image"></a>
-     *     </div>
-     *     <div class="box-inner-p">
-     *       <h2 class="entry-title h3"><a href>TITLE</a></h2>
-     *     </div>
-     *   </article>
-     */
     private fun Element.toSearchResult(): SearchResponse? {
         val titleAnchor = selectFirst("h2.entry-title a, h3.entry-title a, .entry-title a")
             ?: selectFirst("h2 a, h3 a, h1 a")
@@ -360,7 +288,6 @@ class OlaMoviesV2Provider : MainAPI() {
                 .firstOrNull { it.text().length > 80 }?.text()
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
-        // Detect type from article category classes
         val articleClasses = doc.selectFirst("article")?.className() ?: ""
         val isSeries = guessTvType(rawTitle) == TvType.TvSeries ||
                 articleClasses.contains("category-tv-series", ignoreCase = true) ||
@@ -509,22 +436,6 @@ class OlaMoviesV2Provider : MainAPI() {
         }
     }
 
-    /**
-     * OlaMovies uses W3.CSS accordion sections for multi-source/multi-season:
-     *
-     *   <div class="w3-margin w3-monospace w3-card-4">
-     *     <button onclick="myFunction('1')">Season 1 <span class="w3-badge">8</span></button>
-     *     <div id="1" class="w3-container ...">
-     *       <div class="wp-block-buttons">
-     *         <a class="wp-block-button__link" href="links.ol-am.top/...">720p [831MB]</a>
-     *         <a class="wp-block-button__link" href="links.ol-am.top/...">1080p [2.55GB]</a>
-     *       </div>
-     *     </div>
-     *   </div>
-     *
-     * We walk all accordion sections, track the season from the button text,
-     * and within each section look for "Episode N" headers + quality links.
-     */
     private fun parseAccordionLayout(
         container: Element,
         defaultSeason: Int
@@ -534,36 +445,30 @@ class OlaMoviesV2Provider : MainAPI() {
         if (accordions.isEmpty()) return map
 
         for (accordion in accordions) {
-            // Extract season from button text
             val buttonText = accordion.selectFirst("button.w3-button")?.text() ?: ""
             var currentSeason = SEASON_HEADER_REGEX.find(buttonText)?.let { m ->
                 (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
             } ?: defaultSeason
 
-            // Handle "Specials" → season 0
             if (SPECIALS_REGEX.containsMatchIn(buttonText)) {
                 currentSeason = 0
             }
 
-            // The content div (id matches the onclick target)
             val contentDiv = accordion.selectFirst("div.w3-container") ?: accordion
             var currentEpisode: Int? = null
             var episodeCounter = 0
 
             for (node in contentDiv.allElements) {
-                // Check for episode headers within the accordion
                 if (node.tagName() in LABEL_TAGS) {
                     val text = node.ownText().ifBlank { node.text() }.trim()
                     if (text.isNotEmpty() && text.length < 120 &&
                         EPISODE_NEGATIVE_PHRASES.none { it in text.lowercase() }) {
-
                         EPISODE_HEADER_REGEX.find(text)?.let { m ->
                             m.groupValues[1].toIntOrNull()?.let { currentEpisode = it }
                         }
                     }
                 }
 
-                // Collect links
                 if (node.tagName() == "a") {
                     val href = node.attr("href")
                     if (href.startsWith("http", ignoreCase = true) &&
@@ -571,15 +476,9 @@ class OlaMoviesV2Provider : MainAPI() {
 
                         val linkText = node.text().trim().lowercase()
                         val isZipOrPack = linkText.contains("zip") || linkText.contains("pack")
-
-                        // Try to extract episode number from link text like "episode 01"
                         val linkEp = EPISODE_HEADER_REGEX.find(linkText)?.groupValues?.get(1)?.toIntOrNull()
 
-                        val ep = currentEpisode ?: linkEp ?: if (isZipOrPack) {
-                            // zip/pack links are full-season bundles — assign episode 0
-                            0
-                        } else {
-                            // No episode context found, auto-increment
+                        val ep = currentEpisode ?: linkEp ?: if (isZipOrPack) 0 else {
                             episodeCounter++
                             episodeCounter
                         }
@@ -593,11 +492,6 @@ class OlaMoviesV2Provider : MainAPI() {
         return map
     }
 
-    /**
-     * Walk the article in document order, tracking the most recently seen
-     * "Season X" / "Episode N" labels, and bucket every link into a
-     * (season, episode) -> [links] map.
-     */
     private fun parseEpisodeHeaderLayout(
         container: Element,
         defaultSeason: Int
@@ -636,11 +530,6 @@ class OlaMoviesV2Provider : MainAPI() {
         return map
     }
 
-    /**
-     * Collect all download links with their quality labels from the page.
-     * Handles both wp-block-buttons and standalone anchors.
-     * Returns (label, url) pairs where label comes from the anchor text.
-     */
     private fun collectLinksWithLabels(container: Element): List<Pair<String?, String>> {
         val cleanUrls = LinkedHashSet(collectDownloadLinks(container))
         if (cleanUrls.isEmpty()) return emptyList()
@@ -653,13 +542,9 @@ class OlaMoviesV2Provider : MainAPI() {
             if (href !in cleanUrls || href in seen) continue
             seen.add(href)
 
-            // Label from anchor text (e.g. "720p [831.79MB]", "2160p 4K HDR10 DV [18.63GB]")
             val labelText = a.text().trim()
             val label = if (labelText.isNotBlank()) {
-                // Clean up the label for display
-                labelText
-                    .replace(Regex("""\s+"""), " ")
-                    .trim()
+                labelText.replace(Regex("""\s+"""), " ").trim()
             } else null
 
             out.add(label to href)
@@ -667,16 +552,10 @@ class OlaMoviesV2Provider : MainAPI() {
         return out
     }
 
-    /**
-     * Two-pass link collector for download URLs:
-     *   Pass 1 (strict): links.ol-am.top + known mirror hosts
-     *   Pass 2 (permissive): any external URL not on the blacklist
-     */
     private fun collectDownloadLinks(container: Element): List<String> {
         val all = container.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
             .distinct()
-            // Filter out navigation/landing page URLs
             .filter { url ->
                 !url.contains("google.com/search", ignoreCase = true) &&
                 !url.contains("/?remux=", ignoreCase = true) &&
@@ -687,7 +566,6 @@ class OlaMoviesV2Provider : MainAPI() {
         val strict = all.filter { OLA_LINK_REGEX.containsMatchIn(it) || LINK_HOST_REGEX.containsMatchIn(it) }
         if (strict.isNotEmpty()) return strict
 
-        // Pass 2: permissive — anything not obviously junk
         val permissive = all.filter { url ->
             !IGNORE_HOST_REGEX.containsMatchIn(url) &&
                     !url.contains(mainUrl, ignoreCase = true)
@@ -734,7 +612,7 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // loadLinks - resolve a single (movie or episode) to streams
+    // loadLinks - SIMPLE: just dispatch to OlaLinks or loadExtractor
     // ------------------------------------------------------------------
 
     override suspend fun loadLinks(
@@ -780,27 +658,21 @@ class OlaMoviesV2Provider : MainAPI() {
         return u
     }
 
+    /**
+     * SIMPLE dispatch — just route to the right extractor:
+     *   1. OlaMovies shortener chain → OlaLinks (handles CF + chain + bypass)
+     *   2. Known final hosts (HubCloud/GDFlix/etc.) → their custom extractors
+     *   3. Everything else → loadExtractor() (CloudStream's built-in)
+     */
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        var url = rawUrl.trim()
+        val url = rawUrl.trim()
         if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
 
         return try {
-            // Resolve obfuscated redirects BEFORE dispatching
-            if (url.contains("?id=") || url.contains("?go=") || url.contains("?link=") ||
-                url.contains("?url=") || url.contains("/goto/") || url.contains("/link/") ||
-                url.contains("/go/") || url.contains("/download/") || url.contains("?r=") ||
-                url.contains("?k=") || url.contains("?d=")) {
-                val resolved = getRedirectLinks(url)
-                if (resolved != null && resolved != url) {
-                    Log.d(TAG, "dispatchExtractor: resolved redirect: $url -> $resolved")
-                    url = resolved
-                }
-            }
-
             when {
                 // OlaMovies link shortener chain (links.ol-am.top / links.olamovies.mov / Anylinks / olamovies.download)
                 OLA_LINK_REGEX.containsMatchIn(url) ||
@@ -813,14 +685,16 @@ class OlaMoviesV2Provider : MainAPI() {
                     OlaLinks().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
-                // GDMirrorBot
-                url.contains("gdmirrorbot", ignoreCase = true) -> {
-                    loadExtractor(url, mainUrl, subtitleCallback, callback)
-                    true
-                }
                 // HubCloud
-                Regex("""(?i)(hubcloud\.)""").containsMatchIn(url) -> {
-                    OlaHubCloud().getUrl(url, mainUrl, subtitleCallback, callback)
+                url.contains("hubcloud", ignoreCase = true) -> {
+                    when {
+                        url.contains("hubcloud.foo", ignoreCase = true) ->
+                            OlaHubCloudFoo().getUrl(url, mainUrl, subtitleCallback, callback)
+                        url.contains("hubcloud.dad", ignoreCase = true) ->
+                            OlaHubCloudDad().getUrl(url, mainUrl, subtitleCallback, callback)
+                        else ->
+                            OlaHubCloud().getUrl(url, mainUrl, subtitleCallback, callback)
+                    }
                     true
                 }
                 // Hubdrive
@@ -848,20 +722,23 @@ class OlaMoviesV2Provider : MainAPI() {
                     OlaVidStack().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }
+                // GDMirrorBot / Gofile → loadExtractor
+                url.contains("gdmirrorbot", ignoreCase = true) ||
+                url.contains("gofile", ignoreCase = true) -> {
+                    loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
                 // OlaMovies direct
                 url.contains("olamovies.dad", ignoreCase = true) ||
                 url.contains("space.olamovies", ignoreCase = true) -> {
                     callback.invoke(
                         com.lagradost.cloudstream3.utils.newExtractorLink(
-                            "OlaMovies",
-                            "OlaMovies Direct",
-                            url,
-                            ExtractorLinkType.VIDEO
+                            "OlaMovies", "OlaMovies Direct", url, ExtractorLinkType.VIDEO
                         )
                     )
                     true
                 }
-                // Generic fallback
+                // Generic fallback — let CloudStream handle it
                 else -> {
                     loadExtractor(url, mainUrl, subtitleCallback, callback)
                     true
@@ -874,7 +751,7 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // Helper methods (same as KatMovieHD provider)
+    // Helper methods
     // ------------------------------------------------------------------
 
     private fun fixUrl(url: String): String {
@@ -883,9 +760,6 @@ class OlaMoviesV2Provider : MainAPI() {
         return mainUrl + (if (url.startsWith("/")) url else "/$url")
     }
 
-    /**
-     * Strip verbose tags from titles for cleaner display + better TMDB matching.
-     */
     private fun cleanTitle(raw: String): String {
         val withoutDecorators = raw
             .replace(Regex("""(?i)\s*\|.*$"""), "")
@@ -942,7 +816,7 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // TMDB + Cinemeta metadata enrichment (best-effort)
+    // TMDB + Cinemeta metadata enrichment
     // ------------------------------------------------------------------
 
     private data class TmdbMeta(
@@ -1012,7 +886,6 @@ class OlaMoviesV2Provider : MainAPI() {
             }
         }
 
-        // Fallback: text search
         runCatching {
             val type = if (isSeries) "tv" else "movie"
             val query = title.split(Regex("""\s+"""))
