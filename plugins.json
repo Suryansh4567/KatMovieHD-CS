@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
         "status": 1,
-        "version": 14,
+        "version": 17,
         "name": "OlaMoviesV2",
         "internalName": "OlaMoviesV2",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v14 SAB FIX: ab sare movie chale \u2014 generator page scraping, 17-pattern aggressive scrape, S1-S9 ad bypass, ULTIMATE ALL-MOVIES fallback.",
-        "fileSize": 134770,
+        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v17: External CF bypass APIs (bypass.city/emilyx) as primary strategy, 3-tier resolution (API \u2192 redirect \u2192 OkHttp), parallel loadExtractor for hosts.",
+        "fileSize": 154108,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-204deeb430e84f1d7d29a05f151202274bd7b4cfb00d7789d9e78998e60bdd29"
+        "fileHash": "sha256-02de657ef8ffe2513083450e6aa6b9b2cc3f67fabb73fbaab17e5aa425bd69de"
     }
 ]
