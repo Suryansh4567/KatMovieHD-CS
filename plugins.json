@@ -32,7 +32,7 @@
             "arena"
         ],
         "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. Accordion + flat layout, multi-season TV series, TMDB + Cinemeta metadata, dynamic domain via shared domains.json.",
-        "fileSize": 102774,
+        "fileSize": 105430,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-344bb34a01ed4140a8e8ebf79cac2d6949e0af71426e0875cf2e7a70f9cbb0e7"
+        "fileHash": "sha256-ca3c3bf682f231fb5499799cd238a91055d1949389b307273165dd4796b3d2aa"
     }
 ]
