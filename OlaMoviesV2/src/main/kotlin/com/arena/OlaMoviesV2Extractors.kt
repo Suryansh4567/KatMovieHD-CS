@@ -175,7 +175,7 @@ open class OlaLinks : ExtractorApi() {
      * Tier 1: Extract URL from base64/encoded patterns in the URL itself.
      * No HTTP call needed — pure string manipulation.
      */
-    private fun tier1ExtractFromUrl(url: String): String? {
+    protected fun tier1ExtractFromUrl(url: String): String? {
         // Try base64 in URL path segments
         val pathSegments = url.substringAfter("://").substringAfter("/").split("/")
         for (segment in pathSegments) {
@@ -207,7 +207,7 @@ open class OlaLinks : ExtractorApi() {
      * Works for non-CF URLs and for URLs where CloudStream's interceptor handles CF.
      * Returns true if at least one playable link was dispatched.
      */
-    private suspend fun tier2FollowChain(
+    protected suspend fun tier2FollowChain(
         startUrl: String,
         referer: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -307,7 +307,7 @@ open class OlaLinks : ExtractorApi() {
     }
 
     /** Check if URL is an intermediate site (not shortener, not known host) */
-    private fun isIntermediateSite(url: String): Boolean {
+    protected fun isIntermediateSite(url: String): Boolean {
         val intermediates = listOf(
             "ukrupdate.com", "mastkhabre.com", "aryx.xyz",
             "superheromaniac.com", "spatsify.com", "anylinks.in",
@@ -318,7 +318,7 @@ open class OlaLinks : ExtractorApi() {
     }
 
     /** Extract next link from a page using common OlaMovies patterns */
-    private fun extractNextLinkFromPage(doc: org.jsoup.nodes.Document, baseUrl: String): String? {
+    protected fun extractNextLinkFromPage(doc: org.jsoup.nodes.Document, baseUrl: String): String? {
         // #download > a (primary OlaMovies pattern)
         doc.selectFirst("#download > a")?.attr("href")?.trim()?.let {
             if (it.startsWith("http")) return it
@@ -392,7 +392,7 @@ open class OlaLinks : ExtractorApi() {
      * For known hosts (HubCloud, GDFlix, etc.), use custom extractors.
      * Fallback to loadExtractor() for everything else.
      */
-    private suspend fun dispatchFinalHost(
+    protected suspend fun dispatchFinalHost(
         url: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
