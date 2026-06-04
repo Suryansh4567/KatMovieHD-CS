@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 16
+version = 17
 
 cloudstream {
     authors = listOf("arena")
@@ -12,9 +12,8 @@ cloudstream {
 
     description = "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from " +
             "OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. " +
-            "v16: CF fix (loadExtractor for short URLs), intermediate site two-step bypass " +
-            "(form[name='tp'] + #btn6 with delays based on Greasy Fork patterns), " +
-            "bypassIntermediateSite() for ukrupdate/mastkhabre/superheromaniac/spatsify."
+            "v17: External CF bypass APIs (bypass.city/emilyx) as primary strategy, " +
+            "3-tier resolution (API → redirect → OkHttp), parallel loadExtractor for hosts."
     language    = "en"
 
     tvTypes = listOf("Movie", "TvSeries", "Anime", "AsianDrama", "Documentary")

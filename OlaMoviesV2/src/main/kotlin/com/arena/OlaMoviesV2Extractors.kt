@@ -88,10 +88,11 @@ private fun isAdShortener(url: String): Boolean {
 // ─── OlaLinks — Shortener chain resolver (v15 — NO RECURSION) ────────────────────
 
 /**
- * OlaMovies shortener chain resolver — v15.
+ * OlaMovies shortener chain resolver — v17.
  *
- * IMPORTANT: This is NOT registered as ExtractorApi (was causing infinite recursion).
- * It's called DIRECTLY by Provider.dispatchExtractor() instead.
+ * v17 KEY CHANGE: Strategy 0 uses external CF bypass APIs (bypass.city, emilyx)
+ * to resolve Cloudflare-protected short URLs. This is the PRIMARY strategy because
+ * external APIs run real browsers that can solve Turnstile challenges.
  *
  * The link chain:
  *   1. Movie page has `links.ol-am.top/XXXXX` links
@@ -101,10 +102,11 @@ private fun isAdShortener(url: String): Boolean {
  *   5. Ad shorteners (dulink/ez4short/rocklinks/crazyblog) → final host
  *   6. Final host: HubCloud/GDFlix/etc. → dispatchFinalHost()
  *
- * v15 fixes:
- *   - NO loadExtractor() on the original OlaMovies short URL (was causing INFINITE RECURSION)
- *   - loadExtractor() only on FINAL host URLs (HubCloud, GDFlix, etc.)
- *   - Returns Boolean indicating whether actual playable links were found
+ * Strategies (v17):
+ *   S0: External CF bypass API (bypass.city / emilyx) → returns resolved URL
+ *   S1: bypassOlaRedirect + bypassAdLinks chain (OkHttp-based, for non-CF URLs)
+ *   S2: Aggressive HTML scraping (for pages that return content)
+ *   S3: Direct app.get with ad shortener bypass
  */
 open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -134,11 +136,86 @@ open class OlaLinks : ExtractorApi() {
         val ref = referer ?: "https://v2.olamovies.mov/"
 
         try {
-            Log.d(TAG, "═══ RESOLVE START: $url ═══")
+            Log.d(TAG, "═══ RESOLVE START v17: $url ═══")
+
+            // ── Strategy 0 (v17): External CF bypass API ──
+            // This is now the PRIMARY strategy because it can handle CF Turnstile.
+            // External services run real browsers that solve JS challenges.
+            try {
+                Log.d(TAG, "→ [S0] External CF bypass API")
+                val cfResult = resolveCfShortUrl(url, ref)
+                if (cfResult != null) {
+                    Log.d(TAG, "  [S0] CF bypass resolved -> $cfResult")
+                    // The resolved URL might be:
+                    // a) A known host (HubCloud/GDFlix) → dispatch directly
+                    // b) An intermediate site → bypass further
+                    // c) An ad shortener → bypassAdLinks
+                    // d) Another keyed link → try bypassOlaRedirect on it
+                    when {
+                        isKnownHost(cfResult) -> {
+                            Log.d(TAG, "  [S0] ✓ known host -> $cfResult")
+                            dispatchFinalHost(cfResult, subtitleCallback, callback)
+                            anySuccess = true
+                        }
+                        isIntermediateHost(cfResult) -> {
+                            Log.d(TAG, "  [S0] intermediate, trying bypassIntermediateSite")
+                            val intResult = bypassIntermediateSite(cfResult)
+                            if (intResult != null) {
+                                val finalUrl = if (isAdShortener(intResult)) bypassAdLinks(intResult) ?: intResult else intResult
+                                if (isKnownHost(finalUrl)) {
+                                    dispatchFinalHost(finalUrl, subtitleCallback, callback)
+                                    anySuccess = true
+                                } else if (finalUrl.startsWith("http")) {
+                                    loadExtractor(finalUrl, ref, subtitleCallback, callback)
+                                    anySuccess = true
+                                }
+                            }
+                        }
+                        isAdShortener(cfResult) -> {
+                            Log.d(TAG, "  [S0] ad shortener, bypassing...")
+                            val bypassed = bypassAdLinks(cfResult)
+                            if (bypassed != null && isKnownHost(bypassed)) {
+                                dispatchFinalHost(bypassed, subtitleCallback, callback)
+                                anySuccess = true
+                            } else if (bypassed != null) {
+                                loadExtractor(bypassed, ref, subtitleCallback, callback)
+                                anySuccess = true
+                            }
+                        }
+                        cfResult.contains("?key=", ignoreCase = true) -> {
+                            // Got a keyed link from the redirect — try bypassOlaRedirect on it
+                            Log.d(TAG, "  [S0] keyed link, trying bypassOlaRedirect")
+                            val chainLinks = bypassOlaRedirect(cfResult, ref)
+                            for (link in chainLinks) {
+                                if (isKnownHost(link)) {
+                                    dispatchFinalHost(link, subtitleCallback, callback)
+                                    anySuccess = true
+                                } else if (isAdShortener(link)) {
+                                    val bp = bypassAdLinks(link)
+                                    if (bp != null && isKnownHost(bp)) {
+                                        dispatchFinalHost(bp, subtitleCallback, callback)
+                                        anySuccess = true
+                                    }
+                                }
+                            }
+                        }
+                        cfResult.startsWith("http") -> {
+                            // Unknown URL — try loadExtractor on it
+                            Log.d(TAG, "  [S0] unknown resolved URL, trying loadExtractor")
+                            try {
+                                loadExtractor(cfResult, ref, subtitleCallback, callback)
+                                anySuccess = true
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "✗ [S0] CF bypass failed: ${e.message}")
+            }
 
             // ── Strategy 1: bypassOlaRedirect + bypassAdLinks chain ──
-            // This is the PRIMARY strategy — follows the redirect chain
-            try {
+            // OkHttp-based strategy — works for non-CF parts of the chain
+            if (!anySuccess) try {
                 Log.d(TAG, "→ [S1] bypassOlaRedirect + bypassAdLinks chain")
                 val resolvedLinks = bypassOlaRedirect(url, ref)
                 Log.d(TAG, "  [S1] bypassOlaRedirect returned ${resolvedLinks.size} link(s)")

@@ -25,7 +25,7 @@ buildscript {
         // Same versions Phisher uses in production — proven to build on
         // ubuntu-latest with JDK 17.
         classpath("com.android.tools.build:gradle:9.1.1")
-        classpath("com.github.recloudstream:gradle:master-SNAPSHOT")
+        classpath("com.github.recloudstream:gradle:81b1d424d2")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
     }
 }
@@ -53,11 +53,6 @@ fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) =
 
 fun Project.android(configuration: LibraryExtension.() -> Unit) {
     extensions.getByName<LibraryExtension>("android").apply {
-        project.extensions.findByType(JavaPluginExtension::class.java)?.apply {
-            toolchain {
-                languageVersion.set(JavaLanguageVersion.of(17))
-            }
-        }
         configuration()
     }
 }

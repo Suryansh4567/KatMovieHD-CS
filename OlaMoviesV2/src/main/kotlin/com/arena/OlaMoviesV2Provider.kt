@@ -41,10 +41,16 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /**
- * OlaMovies v14 provider — SIMPLE rewrite based on LikDev's approach.
+ * OlaMovies v17 provider — 3-TIER CF bypass rewrite.
  *
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts
  * 4K UHD, HDR, Dolby Vision, and REMUX releases.
+ *
+ * v17 key changes:
+ *   - dispatchExtractor uses resolveCfShortUrl() via OlaLinks S0 strategy
+ *   - External APIs (bypass.city/emilyx) bypass CF Turnstile
+ *   - Bot User-Agent trick as additional CF bypass method
+ *   - Simplified dispatch: short URL → OlaLinks (S0-S3) → final host
  *
  * Link chain:
  *   1. Movie page has `links.ol-am.top/XXXXX` links in `div.wp-block-button a[target=_blank]`

@@ -12,11 +12,12 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v16 — CF + INTERMEDIATE FIX. Key changes:
+ * v17 — CF + 3-TIER FIX. Key changes:
+ *   - S0: External CF bypass APIs (bypass.city/emilyx) as PRIMARY strategy
+ *   - resolveCfShortUrl() in Utils tries 4 different methods to bypass CF
+ *   - Bot User-Agent trick for CF pages that serve bots differently
  *   - Re-registered OlaLinks as ExtractorApi so loadExtractor() handles CF
- *   - dispatchExtractor() now uses loadExtractor() for OlaMovies short URLs
  *   - Anti-recursion: OlaLinks.getUrl() NEVER calls loadExtractor() on own URLs
- *   - Fixed intermediate site bypass (form[name='tp'] + #btn6 with delays)
  *   - Based on Greasy Fork "Bypass All Shortlinks" patterns
  */
 @CloudstreamPlugin
