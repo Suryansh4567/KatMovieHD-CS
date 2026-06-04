@@ -94,10 +94,355 @@ suspend fun loadSourceNameExtractor(
     }
 }
 
-// ─── LikDev's bypassOlaRedirect (IMPROVED v14 for v2.olamovies.mov) ──────────
+// ─── v16: Intermediate site bypass (based on Greasy Fork patterns) ──────────
 
 /**
- * Bypass the OlaMovies redirect chain — IMPROVED v14.
+ * Bypass intermediate shortener sites — v16 TWO-STEP process.
+ *
+ * Based on Greasy Fork "Bypass All Shortlinks" patterns:
+ *   (superheromaniac|spatsify|mastkhabre|ukrupdate).com →
+ *     Step 1: Submit form[name='tp'] / click #tp98 (starts server-side timer)
+ *     Step 2: After 5-10s delay, fetch page again → find #btn6 href
+ *   (bestloansoffers|worldzc).com|earningtime.in →
+ *     Submit form#rtg / form#rtg-form, then find .rtg-blue.rtg-btn / #rtg-snp21 > button
+ *
+ * The KEY insight from the Greasy Fork script: these sites require TIME DELAYS.
+ * The server starts a countdown when you submit the form, and only makes #btn6
+ * available after the countdown expires. We simulate this by:
+ *   1. Fetching the page (gets cookies)
+ *   2. Submitting the form (starts the timer server-side)
+ *   3. Waiting 5-10 seconds (simulating the timer)
+ *   4. Fetching the page again (now #btn6 should be available)
+ *   5. Finding #btn6's href
+ */
+suspend fun bypassIntermediateSite(link: String): String? {
+    Log.d(TAG, "bypassIntermediateSite v16: resolving $link")
+
+    try {
+        // ── Step 1: Fetch the page (establish session + get cookies) ──
+        val pageResponse = app.get(link, headers = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Referer" to "https://v2.olamovies.mov/"
+        ), timeout = 15_000L)
+
+        val pageDoc = pageResponse.document
+        val pageHtml = pageDoc.toString()
+        val cookies = pageResponse.cookies
+        val baseUrl = getBaseUrl(link)
+
+        // Quick check: is #btn6 already available? (timer might have expired)
+        val btn6Quick = pageDoc.selectFirst("#btn6")
+        if (btn6Quick != null) {
+            val href = btn6Quick.attr("href")?.trim()
+            if (!href.isNullOrBlank() && href.startsWith("http")) {
+                Log.d(TAG, "bypassIntermediateSite: #btn6 already available -> $href")
+                return href
+            }
+            // Check data-* attributes
+            for (attr in listOf("data-url", "data-href", "data-link", "data-go")) {
+                val attrVal = btn6Quick.attr(attr)?.trim()
+                if (!attrVal.isNullOrBlank() && attrVal.startsWith("http")) {
+                    Log.d(TAG, "bypassIntermediateSite: #btn6 $attr -> $attrVal")
+                    return attrVal
+                }
+            }
+        }
+
+        // Quick check: is there a direct link to a known host or shortener?
+        for (selector in listOf("a.get-link", "a.btn-success", "a[href*='hubcloud']", "a[href*='gdflix']", "a[href*='dulink']", "a[href*='ez4short']", "a[href*='rocklinks']", "a[href*='anylinks']")) {
+            val el = pageDoc.selectFirst(selector)
+            if (el != null) {
+                val href = el.attr("href").trim()
+                if (href.startsWith("http")) {
+                    Log.d(TAG, "bypassIntermediateSite: direct link found [$selector] -> $href")
+                    return href
+                }
+            }
+        }
+
+        // ── Step 2: Submit form[name='tp'] or form[name='rtg'] ──
+        // This starts the server-side timer
+        val formNames = listOf("tp", "rtg", "dsb", "rtg-form")
+        var formSubmitted = false
+
+        for (formName in formNames) {
+            val form = pageDoc.selectFirst("form[name='$formName']")
+                ?: pageDoc.selectFirst("form#$formName")
+                ?: continue
+
+            val action = form.attr("action").trim()
+            val formData = form.select("input").mapNotNull {
+                it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
+            }.toMap()
+
+            if (action.isBlank() && formData.isEmpty()) continue
+
+            val formUrl = when {
+                action.startsWith("http") -> action
+                action.startsWith("/") -> baseUrl + action
+                action.isNotBlank() -> baseUrl + "/" + action
+                else -> link  // Submit to same page
+            }
+
+            Log.d(TAG, "bypassIntermediateSite: submitting form[$formName] -> $formUrl (data=${formData.keys})")
+
+            try {
+                val formHeaders = mapOf(
+                    "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8",
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "Accept" to "application/json, text/javascript, */*; q=0.01",
+                    "Origin" to baseUrl,
+                    "Referer" to link
+                )
+
+                val formResponse = app.post(
+                    formUrl,
+                    data = formData,
+                    headers = formHeaders,
+                    cookies = cookies,
+                    referer = link,
+                    timeout = 15_000L
+                )
+
+                val formText = formResponse.text
+
+                // Check JSON response
+                try {
+                    val formJson = JSONObject(formText)
+                    val resultUrl = formJson.optString("url", formJson.optString("link", ""))
+                    if (resultUrl.startsWith("http")) {
+                        Log.d(TAG, "bypassIntermediateSite: form[$formName] JSON -> $resultUrl")
+                        return resultUrl
+                    }
+                } catch (_: Exception) {}
+
+                // Check HTML response for direct links
+                val formDoc = formResponse.document
+                val formBtn6 = formDoc.selectFirst("#btn6")
+                if (formBtn6 != null) {
+                    val href = formBtn6.attr("href")?.trim()
+                    if (!href.isNullOrBlank() && href.startsWith("http")) {
+                        Log.d(TAG, "bypassIntermediateSite: form[$formName] #btn6 -> $href")
+                        return href
+                    }
+                }
+
+                formDoc.select("a[href]").forEach { anchor ->
+                    val href = anchor.attr("href").trim()
+                    if (href.startsWith("http") && (isKnownHostUrl(href) || isAdShortenerLink(href))) {
+                        Log.d(TAG, "bypassIntermediateSite: form[$formName] anchor -> $href")
+                        return href
+                    }
+                }
+
+                formSubmitted = true
+            } catch (e: Exception) {
+                Log.d(TAG, "bypassIntermediateSite: form[$formName] failed: ${e.message}")
+            }
+            break  // Only try the first matching form
+        }
+
+        // Also try #tp98 button click simulation
+        val tp98Btn = pageDoc.selectFirst("#tp98")
+        if (tp98Btn != null && !formSubmitted) {
+            // #tp98 might be inside a form or might have an onclick
+            val parentForm = tp98Btn.parents().firstOrNull { it.tagName() == "form" }
+            if (parentForm != null) {
+                val action = parentForm.attr("action").trim()
+                val formData = parentForm.select("input").mapNotNull {
+                    it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
+                }.toMap()
+
+                if (action.isNotBlank() || formData.isNotEmpty()) {
+                    val formUrl = if (action.startsWith("http")) action
+                                  else if (action.startsWith("/")) baseUrl + action
+                                  else baseUrl + "/" + action
+
+                    Log.d(TAG, "bypassIntermediateSite: #tp98 parent form -> $formUrl")
+
+                    try {
+                        val formResponse = app.post(
+                            formUrl,
+                            data = formData,
+                            headers = mapOf(
+                                "X-Requested-With" to "XMLHttpRequest",
+                                "Accept" to "application/json, text/javascript, */*; q=0.01",
+                                "Referer" to link
+                            ),
+                            cookies = cookies,
+                            referer = link,
+                            timeout = 15_000L
+                        )
+                        try {
+                            val formJson = JSONObject(formResponse.text)
+                            val resultUrl = formJson.optString("url", "")
+                            if (resultUrl.startsWith("http")) {
+                                Log.d(TAG, "bypassIntermediateSite: #tp98 form JSON -> $resultUrl")
+                                return resultUrl
+                            }
+                        } catch (_: Exception) {}
+                        formSubmitted = true
+                    } catch (e: Exception) {
+                        Log.d(TAG, "bypassIntermediateSite: #tp98 form failed: ${e.message}")
+                    }
+                }
+            }
+
+            // Check onclick handler
+            val onclick = tp98Btn.attr("onclick")?.trim()
+            if (!onclick.isNullOrBlank()) {
+                val onclickUrl = Regex("""(https?://[^\s'"]+)""").find(onclick)?.groupValues?.get(1)
+                if (onclickUrl != null) {
+                    Log.d(TAG, "bypassIntermediateSite: #tp98 onclick -> $onclickUrl")
+                    return onclickUrl
+                }
+            }
+        }
+
+        // ── Step 3: Wait for timer (simulate countdown) ──
+        // Greasy Fork uses 2-12 second delays for these sites
+        if (formSubmitted) {
+            Log.d(TAG, "bypassIntermediateSite: form submitted, waiting 7s for timer...")
+            delay(7000L)
+        } else {
+            // No form found, try a shorter delay anyway
+            Log.d(TAG, "bypassIntermediateSite: no form found, waiting 5s...")
+            delay(5000L)
+        }
+
+        // ── Step 4: Fetch the page again (timer should have expired) ──
+        try {
+            val pageResponse2 = app.get(link, headers = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer" to "https://v2.olamovies.mov/"
+            ), cookies = cookies, timeout = 15_000L)
+
+            val pageDoc2 = pageResponse2.document
+            val pageHtml2 = pageDoc2.toString()
+
+            // Now look for #btn6
+            val btn6 = pageDoc2.selectFirst("#btn6")
+            if (btn6 != null) {
+                val href = btn6.attr("href")?.trim()
+                if (!href.isNullOrBlank() && href.startsWith("http")) {
+                    Log.d(TAG, "bypassIntermediateSite: #btn6 found after delay -> $href")
+                    return href
+                }
+                // Check data-* attributes
+                for (attr in listOf("data-url", "data-href", "data-link", "data-go")) {
+                    val attrVal = btn6.attr(attr)?.trim()
+                    if (!attrVal.isNullOrBlank() && attrVal.startsWith("http")) {
+                        Log.d(TAG, "bypassIntermediateSite: #btn6 $attr after delay -> $attrVal")
+                        return attrVal
+                    }
+                }
+                // Check onclick
+                val onclick = btn6.attr("onclick")?.trim()
+                if (!onclick.isNullOrBlank()) {
+                    val onclickUrl = Regex("""(https?://[^\s'"]+)""").find(onclick)?.groupValues?.get(1)
+                    if (onclickUrl != null) {
+                        Log.d(TAG, "bypassIntermediateSite: #btn6 onclick after delay -> $onclickUrl")
+                        return onclickUrl
+                    }
+                }
+            }
+
+            // Look for .rtg-blue.rtg-btn (bestloansoffers pattern)
+            val rtgBtn = pageDoc2.selectFirst(".rtg-blue.rtg-btn, #rtg-snp21 > button, .btn-success")
+            if (rtgBtn != null) {
+                val href = rtgBtn.attr("href")?.trim()
+                if (!href.isNullOrBlank() && href.startsWith("http")) {
+                    Log.d(TAG, "bypassIntermediateSite: rtg button after delay -> $href")
+                    return href
+                }
+                // Check parent <a>
+                val parentA = rtgBtn.parent()?.takeIf { it.tagName() == "a" }
+                if (parentA != null) {
+                    val parentHref = parentA.attr("href").trim()
+                    if (parentHref.startsWith("http")) {
+                        Log.d(TAG, "bypassIntermediateSite: rtg button parent <a> after delay -> $parentHref")
+                        return parentHref
+                    }
+                }
+            }
+
+            // Broad scan for any link to known hosts or shorteners
+            for (anchor in pageDoc2.select("a[href]")) {
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") && (isKnownHostUrl(href) || isAdShortenerLink(href))) {
+                    Log.d(TAG, "bypassIntermediateSite: broad anchor after delay -> $href")
+                    return href
+                }
+            }
+
+            // Raw HTML scan for URLs
+            for (match in Regex("""(https?://[^\s"'<>\)]+)""").findAll(pageHtml2)) {
+                val candidate = match.groupValues[1].trimEnd(',', ';', ')')
+                if ((isKnownHostUrl(candidate) || isAdShortenerLink(candidate)) && candidate != link) {
+                    Log.d(TAG, "bypassIntermediateSite: raw scan after delay -> $candidate")
+                    return candidate
+                }
+            }
+
+            // Check for var currentLink = '...' pattern (used by some sites)
+            val currentLinkMatch = Regex("""var\s+currentLink\s*=\s*["']([^"']+)["']""").find(pageHtml2)
+            if (currentLinkMatch != null) {
+                val currentLink = currentLinkMatch.groupValues[1]
+                if (currentLink.startsWith("http")) {
+                    Log.d(TAG, "bypassIntermediateSite: currentLink JS var after delay -> $currentLink")
+                    return currentLink
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.d(TAG, "bypassIntermediateSite: second fetch failed: ${e.message}")
+        }
+
+        // ── Step 5: Try one more time with longer delay ──
+        Log.d(TAG, "bypassIntermediateSite: trying with longer delay (12s)...")
+        delay(5000L)  // Additional 5s (total ~12s from first delay)
+
+        try {
+            val pageResponse3 = app.get(link, headers = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                "Referer" to "https://v2.olamovies.mov/"
+            ), cookies = cookies, timeout = 15_000L)
+
+            val pageDoc3 = pageResponse3.document
+
+            val btn6Final = pageDoc3.selectFirst("#btn6")
+            if (btn6Final != null) {
+                val href = btn6Final.attr("href")?.trim()
+                if (!href.isNullOrBlank() && href.startsWith("http")) {
+                    Log.d(TAG, "bypassIntermediateSite: #btn6 found on 3rd try -> $href")
+                    return href
+                }
+            }
+
+            // Final broad scan
+            for (anchor in pageDoc3.select("a[href]")) {
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") && (isKnownHostUrl(href) || isAdShortenerLink(href))) {
+                    Log.d(TAG, "bypassIntermediateSite: final broad anchor -> $href")
+                    return href
+                }
+            }
+        } catch (_: Exception) {}
+
+    } catch (e: Exception) {
+        Log.d(TAG, "bypassIntermediateSite: failed: ${e.message}")
+    }
+
+    Log.d(TAG, "bypassIntermediateSite: all attempts failed for $link")
+    return null
+}
+
+// ─── LikDev's bypassOlaRedirect (IMPROVED v16 for v2.olamovies.mov) ──────────
+
+/**
+ * Bypass the OlaMovies redirect chain — IMPROVED v16.
  *
  * Handles TWO types of initial links:
  *   1. PLAIN links: links.ol-am.top/XXXXX (no ?key= or &id=)
@@ -456,180 +801,50 @@ suspend fun bypassAdLinks(link: String): String? {
 
     Log.d(TAG, "bypassAdLinks v15: resolving $link (type=$type)")
 
-    // ── Strategy 0 (v15): Anylinks intermediate sites — form[name='tp'] / #btn6 / #tp98 ──
-    // These sites (ukrupdate/mastkhabre/aryx/superheromaniac/spatsify) use the Anylinks.in
-    // shortener system. The page has a timed form that needs to be submitted.
-    // Pattern from bypass-all-shortlinks-debloated:
+    // ── Strategy 0 (v16): Intermediate sites — TWO-STEP bypass ──
+    // Based on Greasy Fork "Bypass All Shortlinks" patterns:
     //   (superheromaniac|spatsify|mastkhabre|ukrupdate).com →
-    //     DoIfExists('#tp98', 10); DoIfExists('#btn6', 12); DoIfExists("form[name='tp']", 'submit', 11);
+    //     Step 1: Click #tp98 / submit form[name='tp'] (starts timer)
+    //     Step 2: After delay, #btn6 appears with the actual link
+    //   (bestloansoffers|worldzc).com|earningtime.in →
+    //     Submit form#rtg / form#rtg-form, then click .rtg-blue.rtg-btn
     if (link.contains("ukrupdate", ignoreCase = true) ||
         link.contains("mastkhabre", ignoreCase = true) ||
         link.contains("aryx", ignoreCase = true) ||
         link.contains("superheromaniac", ignoreCase = true) ||
         link.contains("spatsify", ignoreCase = true) ||
-        link.contains("anylinks", ignoreCase = true)) {
+        link.contains("anylinks", ignoreCase = true) ||
+        link.contains("bestloansoffers", ignoreCase = true) ||
+        link.contains("worldzc", ignoreCase = true) ||
+        link.contains("earningtime", ignoreCase = true) ||
+        link.contains("bgmiupdatehub", ignoreCase = true) ||
+        link.contains("novelquote", ignoreCase = true) ||
+        link.contains("sikhehindime", ignoreCase = true) ||
+        link.contains("careersides", ignoreCase = true)) {
         try {
-            Log.d(TAG, "bypassAdLinks: [S0] Anylinks intermediate site, trying form submit")
-            val pageResponse = app.get(link, timeout = 15_000L)
-            val pageDoc = pageResponse.document
-            val pageHtml = pageDoc.toString()
-
-            // Try 1: Find form[name='tp'] or form[name='rtg'] and submit it
-            // These are the typical Anylinks forms
-            val formNames = listOf("tp", "rtg", "dsb")
-            for (formName in formNames) {
-                val form = pageDoc.selectFirst("form[name='$formName']")
-                if (form != null) {
-                    val action = form.attr("action").trim()
-                    val method = form.attr("method").lowercase().ifBlank { "post" }
-                    val formData = form.select("input").mapNotNull {
-                        it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
-                    }.toMap()
-
-                    if (action.isNotBlank() || formData.isNotEmpty()) {
-                        val formUrl = if (action.startsWith("http")) action
-                                      else if (action.startsWith("/")) getBaseUrl(link) + action
-                                      else getBaseUrl(link) + "/" + action
-
-                        Log.d(TAG, "bypassAdLinks: [S0] found form[$formName] action=$formUrl data=${formData.keys}")
-
-                        // Get cookies first (some sites need session cookie)
-                        val cookies = pageResponse.cookies
-                        val formHeaders = mapOf(
-                            "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8",
-                            "X-Requested-With" to "XMLHttpRequest",
-                            "Accept" to "application/json, text/javascript, */*; q=0.01",
-                            "Referer" to link
-                        )
-
-                        val formResponse = app.post(
-                            formUrl,
-                            data = formData,
-                            headers = formHeaders,
-                            cookies = cookies,
-                            referer = link,
-                            timeout = 15_000L
-                        )
-
-                        val formText = formResponse.text
-                        // Try to parse as JSON (most Anylinks APIs return JSON with "url" field)
-                        try {
-                            val formJson = JSONObject(formText)
-                            val resultUrl = formJson.optString("url", "")
-                            if (resultUrl.startsWith("http")) {
-                                Log.d(TAG, "bypassAdLinks: [S0] form[$formName] JSON resolved -> $resultUrl")
-                                return resultUrl
-                            }
-                        } catch (_: Exception) {}
-
-                        // Try to find URL in the HTML response
-                        val formDoc = formResponse.document
-                        formDoc.select("a[href]").forEach { anchor ->
-                            val href = anchor.attr("href").trim()
-                            if (href.startsWith("http")) {
-                                val isHost = isKnownHostUrl(href)
-                                val isShort = href.contains("dulink", ignoreCase = true) ||
-                                              href.contains("ez4short", ignoreCase = true) ||
-                                              href.contains("rocklinks", ignoreCase = true) ||
-                                              href.contains("v2links", ignoreCase = true) ||
-                                              href.contains("anylinks", ignoreCase = true)
-                                if (isHost || isShort) {
-                                    Log.d(TAG, "bypassAdLinks: [S0] form[$formName] HTML resolved -> $href")
-                                    return href
-                                }
-                            }
-                        }
-
-                        // Raw URL scan in the response
-                        val urlMatch = Regex("""(https?://[^\s"'<>\)]+)""").findAll(formText)
-                        for (match in urlMatch) {
-                            val candidate = match.groupValues[1].trimEnd(',', ';', ')')
-                            if (isKnownHostUrl(candidate) && candidate != link) {
-                                Log.d(TAG, "bypassAdLinks: [S0] form[$formName] raw scan -> $candidate")
-                                return candidate
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Try 2: Find #btn6 / #tp98 / #go-link buttons — check their href or parent form
-            val buttonIds = listOf("#btn6", "#tp98", "#go-link", ".btn-success", "a.get-link")
-            for (selector in buttonIds) {
-                val btn = pageDoc.selectFirst(selector)
-                if (btn != null) {
-                    // Check href directly
-                    val href = btn.attr("href")?.trim()
-                    if (!href.isNullOrBlank() && href.startsWith("http")) {
-                        Log.d(TAG, "bypassAdLinks: [S0] button[$selector] href -> $href")
-                        return href
-                    }
-
-                    // Check if button is inside a form
-                    val parentForm = btn.parents().firstOrNull { it.tagName() == "form" }
-                    if (parentForm != null) {
-                        val action = parentForm.attr("action").trim()
-                        val formData = parentForm.select("input").mapNotNull {
-                            it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
-                        }.toMap()
-
-                        if (action.isNotBlank()) {
-                            val formUrl = if (action.startsWith("http")) action
-                                          else getBaseUrl(link) + action
-                            val cookies = pageResponse.cookies
-                            val formResponse = app.post(
-                                formUrl,
-                                data = formData,
-                                headers = mapOf(
-                                    "X-Requested-With" to "XMLHttpRequest",
-                                    "Accept" to "application/json, text/javascript, */*; q=0.01",
-                                    "Referer" to link
-                                ),
-                                cookies = cookies,
-                                referer = link,
-                                timeout = 15_000L
-                            )
-                            try {
-                                val formJson = JSONObject(formResponse.text)
-                                val resultUrl = formJson.optString("url", "")
-                                if (resultUrl.startsWith("http")) {
-                                    Log.d(TAG, "bypassAdLinks: [S0] button[$selector] form JSON -> $resultUrl")
-                                    return resultUrl
-                                }
-                            } catch (_: Exception) {}
-                        }
-                    }
-
-                    // Check data-* attributes
-                    for (attr in listOf("data-url", "data-href", "data-link", "data-go")) {
-                        val attrVal = btn.attr(attr)?.trim()
-                        if (!attrVal.isNullOrBlank() && attrVal.startsWith("http")) {
-                            Log.d(TAG, "bypassAdLinks: [S0] button[$selector] $attr -> $attrVal")
-                            return attrVal
-                        }
-                    }
-                }
-            }
-
-            // Try 3: Just find any link to known hosts or ad shorteners in the page
-            pageDoc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") && (isKnownHostUrl(href) || isAdShortenerLink(href))) {
-                    Log.d(TAG, "bypassAdLinks: [S0] broad anchor scan -> $href")
-                    return href
-                }
-            }
-
-            // Try 4: Raw HTML scan for known host URLs or ad shortener URLs
-            for (match in Regex("""(https?://[^\s"'<>\)]+)""").findAll(pageHtml)) {
-                val candidate = match.groupValues[1].trimEnd(',', ';', ')')
-                if ((isKnownHostUrl(candidate) || isAdShortenerLink(candidate)) && candidate != link) {
-                    Log.d(TAG, "bypassAdLinks: [S0] raw HTML scan -> $candidate")
-                    return candidate
-                }
+            Log.d(TAG, "bypassAdLinks: [S0] Intermediate site (v16 two-step), trying bypass")
+            val result = bypassIntermediateSite(link)
+            if (result != null) {
+                Log.d(TAG, "bypassAdLinks: [S0] Intermediate site resolved -> $result")
+                return result
             }
         } catch (e: Exception) {
-            Log.d(TAG, "bypassAdLinks: [S0] Anylinks bypass failed: ${e.message}")
+            Log.d(TAG, "bypassAdLinks: [S0] Intermediate site failed: ${e.message}")
+        }
+    }
+
+    // ── Strategy 0b (v16): Anylinks.in direct — #btn6 with delay ──
+    if (link.contains("anylinks.in", ignoreCase = true) ||
+        link.contains("anylinks.site", ignoreCase = true)) {
+        try {
+            Log.d(TAG, "bypassAdLinks: [S0b] Anylinks direct, trying #btn6 with delay")
+            val result = bypassIntermediateSite(link)
+            if (result != null) {
+                Log.d(TAG, "bypassAdLinks: [S0b] Anylinks resolved -> $result")
+                return result
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "bypassAdLinks: [S0b] Anylinks failed: ${e.message}")
         }
     }
 

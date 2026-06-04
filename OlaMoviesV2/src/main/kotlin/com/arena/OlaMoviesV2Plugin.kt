@@ -12,11 +12,12 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v15 — SIMPLE & WORKING. Key fixes:
- *   - Removed OlaLinks/OlaLinksMov as ExtractorApi (was causing INFINITE RECURSION)
- *   - OlaLinks is called DIRECTLY by Provider.dispatchExtractor() instead
- *   - Provider tracks whether actual playable links were found
- *   - No more loadExtractor() on OlaMovies short URLs (prevents recursion)
+ * v16 — CF + INTERMEDIATE FIX. Key changes:
+ *   - Re-registered OlaLinks as ExtractorApi so loadExtractor() handles CF
+ *   - dispatchExtractor() now uses loadExtractor() for OlaMovies short URLs
+ *   - Anti-recursion: OlaLinks.getUrl() NEVER calls loadExtractor() on own URLs
+ *   - Fixed intermediate site bypass (form[name='tp'] + #btn6 with delays)
+ *   - Based on Greasy Fork "Bypass All Shortlinks" patterns
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -25,10 +26,11 @@ class OlaMoviesV2Plugin : BasePlugin() {
         registerMainAPI(OlaMoviesV2Provider())
 
         // ─── OlaMovies shortener chain ─────────────────────────────────
-        // IMPORTANT: OlaLinks is NOT registered as ExtractorApi anymore!
-        // It was causing INFINITE RECURSION (loadExtractor -> OlaLinks -> loadExtractor -> ...)
-        // Now it's called DIRECTLY by Provider.dispatchExtractor() instead.
-        // OlaLinksMov is merged into OlaLinks (both handled by bypassOlaRedirect).
+        // v16: OlaLinks IS registered as ExtractorApi again!
+        // This allows loadExtractor() to handle CF-protected short URLs.
+        // Anti-recursion: OlaLinks.getUrl() NEVER calls loadExtractor() on
+        // URLs matching ol-am.top / olamovies.mov / olamovies.download.
+        registerExtractorAPI(OlaLinks())
 
         // ─── HubCloud ecosystem ────────────────────────────────────────
         registerExtractorAPI(OlaHubCloud())       // hubcloud.lol

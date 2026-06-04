@@ -154,6 +154,35 @@ open class OlaLinks : ExtractorApi() {
                         continue
                     }
 
+                    // v16: If it's an intermediate site, use bypassIntermediateSite()
+                    if (isIntermediateHost(shortLink)) {
+                        Log.d(TAG, "  [S1] intermediate site, using bypassIntermediateSite()")
+                        val intermediateResult = bypassIntermediateSite(shortLink)
+                        if (intermediateResult != null) {
+                            Log.d(TAG, "  [S1] ✓ intermediate resolved -> $intermediateResult")
+                            if (isKnownHost(intermediateResult)) {
+                                dispatchFinalHost(intermediateResult, subtitleCallback, callback)
+                                anySuccess = true
+                                continue
+                            } else if (isAdShortener(intermediateResult)) {
+                                val bypassed = bypassAdLinks(intermediateResult)
+                                if (bypassed != null && isKnownHost(bypassed)) {
+                                    dispatchFinalHost(bypassed, subtitleCallback, callback)
+                                    anySuccess = true
+                                    continue
+                                }
+                            }
+                            // Try loadExtractor only if NOT an OlaMovies URL
+                            if (!isOlaShortUrl(intermediateResult)) {
+                                try {
+                                    loadExtractor(intermediateResult, ref, subtitleCallback, callback)
+                                    anySuccess = true
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        continue
+                    }
+
                     // If it's an ad shortener, try to bypass it
                     val finalUrl = if (isAdShortener(shortLink)) {
                         Log.d(TAG, "  [S1] ad shortener detected, bypassing...")
@@ -166,21 +195,36 @@ open class OlaLinks : ExtractorApi() {
                         Log.d(TAG, "  [S1] ✓ resolved to known host -> $finalUrl")
                         dispatchFinalHost(finalUrl, subtitleCallback, callback)
                         anySuccess = true
-                    } else if (finalUrl.startsWith("http")) {
+                    } else if (finalUrl.startsWith("http") && !isOlaShortUrl(finalUrl)) {
                         // Intermediate link — follow the chain deeper
-                        Log.d(TAG, "  [S1] intermediate link, following chain...")
-                        val chainResult = followChain(finalUrl, ref, maxDepth = 8)
-                        if (chainResult != null && isKnownHost(chainResult)) {
-                            Log.d(TAG, "  [S1] ✓ chain resolved -> $chainResult")
-                            dispatchFinalHost(chainResult, subtitleCallback, callback)
-                            anySuccess = true
-                        } else if (chainResult != null) {
-                            // Not a known host but got something — try loadExtractor
-                            // (safe here because chainResult is NOT an OlaMovies short URL)
-                            try {
-                                loadExtractor(chainResult, ref, subtitleCallback, callback)
+                        // v16: Check if it's an intermediate site first
+                        if (isIntermediateHost(finalUrl)) {
+                            Log.d(TAG, "  [S1] chain intermediate, using bypassIntermediateSite()")
+                            val chainIntermediateResult = bypassIntermediateSite(finalUrl)
+                            if (chainIntermediateResult != null && isKnownHost(chainIntermediateResult)) {
+                                dispatchFinalHost(chainIntermediateResult, subtitleCallback, callback)
                                 anySuccess = true
-                            } catch (_: Exception) {}
+                            } else if (chainIntermediateResult != null && !isOlaShortUrl(chainIntermediateResult)) {
+                                try {
+                                    loadExtractor(chainIntermediateResult, ref, subtitleCallback, callback)
+                                    anySuccess = true
+                                } catch (_: Exception) {}
+                            }
+                        } else {
+                            Log.d(TAG, "  [S1] intermediate link, following chain...")
+                            val chainResult = followChain(finalUrl, ref, maxDepth = 8)
+                            if (chainResult != null && isKnownHost(chainResult)) {
+                                Log.d(TAG, "  [S1] ✓ chain resolved -> $chainResult")
+                                dispatchFinalHost(chainResult, subtitleCallback, callback)
+                                anySuccess = true
+                            } else if (chainResult != null && !isOlaShortUrl(chainResult)) {
+                                // Not a known host but got something — try loadExtractor
+                                // (safe here because chainResult is NOT an OlaMovies short URL)
+                                try {
+                                    loadExtractor(chainResult, ref, subtitleCallback, callback)
+                                    anySuccess = true
+                                } catch (_: Exception) {}
+                            }
                         }
                     }
                 }
@@ -867,11 +911,10 @@ open class OlaLinks : ExtractorApi() {
     }
 }
 
-// ─── OlaLinksMov — Extractor for links.olamovies.mov ────────────────────────
-
-class OlaLinksMov : OlaLinks() {
-    override val mainUrl = "https://links.olamovies.mov"
-}
+// ─── OlaLinksMov removed in v16 ──
+// Previously this was a separate ExtractorApi for links.olamovies.mov
+// but it caused recursion. Now OlaLinks handles BOTH ol-am.top and
+// olamovies.mov URLs internally, without needing a separate class.
 
 // ─── HubCloud Extractor ─────────────────────────────────────────────────────
 
