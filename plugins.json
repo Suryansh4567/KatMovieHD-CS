@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
         "status": 1,
-        "version": 5,
+        "version": 9,
         "name": "OlaMoviesV2",
         "internalName": "OlaMoviesV2",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. Accordion + flat layout, multi-season TV series, TMDB + Cinemeta metadata, dynamic domain via shared domains.json.",
-        "fileSize": 105430,
+        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v9: Phase 2.3 MAXED (15 scraping patterns), Phase 2.4 MULTI-API bypass (7 strategies), Phase 2.5 LAST RESORT (mass loadExtractor fallback).",
+        "fileSize": 124443,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-ca3c3bf682f231fb5499799cd238a91055d1949389b307273165dd4796b3d2aa"
+        "fileHash": "sha256-9ea03634864503570a3b9c502a78a0ba2e34a6a61dd992b3a7a2e5f23e747375"
     }
 ]
