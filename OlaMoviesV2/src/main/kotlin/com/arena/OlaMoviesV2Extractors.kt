@@ -85,29 +85,26 @@ private fun isAdShortener(url: String): Boolean {
     return adHosts.any { url.contains(it, ignoreCase = true) }
 }
 
-// ─── OlaLinks — Multi-Strategy Aggressive Extractor (v14 SAB FIX) ────────────────────
+// ─── OlaLinks — Shortener chain resolver (v15 — NO RECURSION) ────────────────────
 
 /**
- * Extractor for links.ol-am.top / links.olamovies.mov — OlaMovies'
- * Cloudflare-protected link shortener.
+ * OlaMovies shortener chain resolver — v15.
  *
- * MULTI-STRATEGY AGGRESSIVE APPROACH — v14 SAB FIX (ab sare movie chale):
+ * IMPORTANT: This is NOT registered as ExtractorApi (was causing infinite recursion).
+ * It's called DIRECTLY by Provider.dispatchExtractor() instead.
  *
  * The link chain:
  *   1. Movie page has `links.ol-am.top/XXXXX` links
  *   2. links.ol-am.top/XXXXX → 301 → links.olamovies.mov/XXXXX (CF Turnstile)
- *   3. After CF solved: "Login to Continue" generator page (JS-heavy)
- *   4. bypassOlaRedirect follows #download > a / generator button chain
- *   5. bypassAdLinks resolves dulink/ez4short/rocklinks/crazyblog (S1-S9)
- *   6. Final host: HubCloud/GDFlix/etc. → use loadExtractor()
+ *   3. After CF solved: page with links to intermediate sites
+ *   4. Intermediate sites (ukrupdate/mastkhabre/aryx) → Anylinks.in → #btn6/#tp98 click
+ *   5. Ad shorteners (dulink/ez4short/rocklinks/crazyblog) → final host
+ *   6. Final host: HubCloud/GDFlix/etc. → dispatchFinalHost()
  *
- * 5 Resolution strategies (AGGRESSIVE — never give up easily):
- *   A: loadExtractor() — CloudStream's built-in CF bypass (WebView solves Turnstile)
- *   B: bypassOlaRedirect() + bypassAdLinks() — LikDev's proven chain
- *   C: Aggressive Scraping — full HTML scan for all known patterns (17 patterns)
- *   D: Ad Shortener Special — bypassAdLinks() with retries + loadExtractor() fallback
- *   E: Last Resort — try everything on original page links
- *   + NUCLEAR: mass loadExtractor with multiple referer variations
+ * v15 fixes:
+ *   - NO loadExtractor() on the original OlaMovies short URL (was causing INFINITE RECURSION)
+ *   - loadExtractor() only on FINAL host URLs (HubCloud, GDFlix, etc.)
+ *   - Returns Boolean indicating whether actual playable links were found
  */
 open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -120,122 +117,134 @@ open class OlaLinks : ExtractorApi() {
         private const val RETRY_DELAY_MS = 800L
     }
 
-    override suspend fun getUrl(
+    /**
+     * Resolve the OlaMovies shortener chain.
+     * Returns true if at least one playable link was found.
+     *
+     * CRITICAL: Do NOT call loadExtractor() on the input URL — it would
+     * route back to this class and cause infinite recursion!
+     */
+    suspend fun resolve(
         url: String,
         referer: String?,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
+        var anySuccess = false
+        val ref = referer ?: "https://v2.olamovies.mov/"
+
         try {
-            Log.d(TAG, "╔══════════════════════════════════════════════════╗")
-            Log.d(TAG, "║ AGGRESSIVE RESOLVE: $url")
-            Log.d(TAG, "╚══════════════════════════════════════════════════╝")
-            val ref = referer ?: "https://v2.olamovies.mov/"
-            var anySuccess = false
+            Log.d(TAG, "═══ RESOLVE START: $url ═══")
 
-            // ── Strategy A: loadExtractor() — CF bypass via WebView (BEST for CF) ──
+            // ── Strategy 1: bypassOlaRedirect + bypassAdLinks chain ──
+            // This is the PRIMARY strategy — follows the redirect chain
             try {
-                Log.d(TAG, "→ [Strategy A] loadExtractor (CF WebView bypass)")
-                loadExtractor(url, ref, subtitleCallback, callback)
-                anySuccess = true
-                Log.d(TAG, "✓ [Strategy A] loadExtractor dispatched (check app for results)")
-            } catch (e: Exception) {
-                Log.d(TAG, "✗ [Strategy A] failed: ${e.message}")
-            }
-
-            // ── Strategy B: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain ──
-            try {
-                Log.d(TAG, "→ [Strategy B] bypassOlaRedirect + bypassAdLinks chain")
+                Log.d(TAG, "→ [S1] bypassOlaRedirect + bypassAdLinks chain")
                 val resolvedLinks = bypassOlaRedirect(url, ref)
-                Log.d(TAG, "  [B] bypassOlaRedirect returned ${resolvedLinks.size} link(s)")
+                Log.d(TAG, "  [S1] bypassOlaRedirect returned ${resolvedLinks.size} link(s)")
 
                 for (shortLink in resolvedLinks) {
-                    Log.d(TAG, "  [B] processing: $shortLink")
+                    Log.d(TAG, "  [S1] processing: $shortLink")
 
-                    // If it's an ad shortener, try to bypass
+                    // If it's a known final host, dispatch directly
+                    if (isKnownHost(shortLink)) {
+                        Log.d(TAG, "  [S1] ✓ known host -> $shortLink")
+                        dispatchFinalHost(shortLink, subtitleCallback, callback)
+                        anySuccess = true
+                        continue
+                    }
+
+                    // If it's an ad shortener, try to bypass it
                     val finalUrl = if (isAdShortener(shortLink)) {
-                        Log.d(TAG, "  [B] ad shortener detected, bypassing...")
+                        Log.d(TAG, "  [S1] ad shortener detected, bypassing...")
                         bypassAdLinks(shortLink) ?: shortLink
                     } else {
                         shortLink
                     }
 
                     if (isKnownHost(finalUrl)) {
-                        Log.d(TAG, "  [B] ✓ resolved to known host -> $finalUrl")
+                        Log.d(TAG, "  [S1] ✓ resolved to known host -> $finalUrl")
                         dispatchFinalHost(finalUrl, subtitleCallback, callback)
                         anySuccess = true
                     } else if (finalUrl.startsWith("http")) {
-                        // Try as intermediate — follow chain
-                        Log.d(TAG, "  [B] intermediate link, following chain...")
-                        val chainResult = followChain(finalUrl, ref, maxDepth = 6)
-                        if (chainResult != null) {
+                        // Intermediate link — follow the chain deeper
+                        Log.d(TAG, "  [S1] intermediate link, following chain...")
+                        val chainResult = followChain(finalUrl, ref, maxDepth = 8)
+                        if (chainResult != null && isKnownHost(chainResult)) {
+                            Log.d(TAG, "  [S1] ✓ chain resolved -> $chainResult")
                             dispatchFinalHost(chainResult, subtitleCallback, callback)
                             anySuccess = true
-                        } else {
-                            // Last attempt: loadExtractor on this URL
+                        } else if (chainResult != null) {
+                            // Not a known host but got something — try loadExtractor
+                            // (safe here because chainResult is NOT an OlaMovies short URL)
                             try {
-                                loadExtractor(finalUrl, ref, subtitleCallback, callback)
+                                loadExtractor(chainResult, ref, subtitleCallback, callback)
                                 anySuccess = true
                             } catch (_: Exception) {}
                         }
                     }
                 }
             } catch (e: Exception) {
-                Log.d(TAG, "✗ [Strategy B] failed: ${e.message}")
+                Log.d(TAG, "✗ [S1] failed: ${e.message}")
             }
 
-            // ── Strategy C: Aggressive Scraping — full HTML scan ──
-            try {
-                Log.d(TAG, "→ [Strategy C] Aggressive HTML scraping")
-                val scrapedLinks = aggressiveScrape(url, ref)
-                Log.d(TAG, "  [C] scraped ${scrapedLinks.size} link(s)")
-                for (link in scrapedLinks) {
-                    Log.d(TAG, "  [C] found: $link")
-                    if (isKnownHost(link)) {
-                        dispatchFinalHost(link, subtitleCallback, callback)
-                        anySuccess = true
-                    } else if (isAdShortener(link)) {
-                        // Strategy D inline
-                        val bypassed = bypassAdLinks(link)
-                        if (bypassed != null && isKnownHost(bypassed)) {
-                            dispatchFinalHost(bypassed, subtitleCallback, callback)
-                            anySuccess = true
-                        } else {
-                            try { loadExtractor(link, ref, subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
-                        }
-                    } else if (link.startsWith("http")) {
-                        try { loadExtractor(link, ref, subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
-                    }
-                }
-            } catch (e: Exception) {
-                Log.d(TAG, "✗ [Strategy C] failed: ${e.message}")
-            }
-
-            // ── Strategy D: Ad Shortener Special (with retries + loadExtractor fallback) ──
-            // Already handled inline in B and C, but let's do one more pass with retries
+            // ── Strategy 2: Aggressive HTML scraping ──
             if (!anySuccess) {
                 try {
-                    Log.d(TAG, "→ [Strategy D] Ad shortener special with retries")
-                    // Try getting the page with retries
+                    Log.d(TAG, "→ [S2] Aggressive HTML scraping")
+                    val scrapedLinks = aggressiveScrape(url, ref)
+                    Log.d(TAG, "  [S2] scraped ${scrapedLinks.size} link(s)")
+
+                    for (link in scrapedLinks) {
+                        if (isKnownHost(link)) {
+                            dispatchFinalHost(link, subtitleCallback, callback)
+                            anySuccess = true
+                        } else if (isAdShortener(link)) {
+                            val bypassed = bypassAdLinks(link)
+                            if (bypassed != null && isKnownHost(bypassed)) {
+                                dispatchFinalHost(bypassed, subtitleCallback, callback)
+                                anySuccess = true
+                            }
+                        } else if (link.startsWith("http") && !isOlaShortUrl(link)) {
+                            // Only try loadExtractor on NON-OlaMovies URLs (prevent recursion)
+                            try {
+                                loadExtractor(link, ref, subtitleCallback, callback)
+                                anySuccess = true
+                            } catch (_: Exception) {}
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "✗ [S2] failed: ${e.message}")
+                }
+            }
+
+            // ── Strategy 3: Direct app.get with ad shortener bypass ──
+            if (!anySuccess) {
+                try {
+                    Log.d(TAG, "→ [S3] Direct fetch + ad bypass")
                     repeat(MAX_RETRIES) { attempt ->
                         try {
                             val response = app.get(url, headers = olaHeaders, referer = ref, timeout = 30_000L)
                             val doc = response.document
-                            val allLinks = doc.select("a[href]").mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
-                            val adLinks = allLinks.filter { isAdShortener(it) }
-                            for (adLink in adLinks) {
-                                val bypassed = bypassAdLinks(adLink)
-                                if (bypassed != null) {
-                                    if (isKnownHost(bypassed)) {
-                                        dispatchFinalHost(bypassed, subtitleCallback, callback)
-                                        anySuccess = true
-                                    } else {
-                                        try { loadExtractor(bypassed, ref, subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
-                                    }
-                                }
-                                // Also try loadExtractor directly on the ad link
-                                try { loadExtractor(adLink, ref, subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
+                            val allLinks = doc.select("a[href]").mapNotNull {
+                                it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) }
                             }
+
+                            // Find ad shortener links and bypass them
+                            for (adLink in allLinks.filter { isAdShortener(it) }) {
+                                val bypassed = bypassAdLinks(adLink)
+                                if (bypassed != null && isKnownHost(bypassed)) {
+                                    dispatchFinalHost(bypassed, subtitleCallback, callback)
+                                    anySuccess = true
+                                }
+                            }
+
+                            // Find known host links directly
+                            for (hostLink in allLinks.filter { isKnownHost(it) }) {
+                                dispatchFinalHost(hostLink, subtitleCallback, callback)
+                                anySuccess = true
+                            }
+
                             if (anySuccess) return@repeat
                             delay(RETRY_DELAY_MS)
                         } catch (_: Exception) {
@@ -243,49 +252,37 @@ open class OlaLinks : ExtractorApi() {
                         }
                     }
                 } catch (e: Exception) {
-                    Log.d(TAG, "✗ [Strategy D] failed: ${e.message}")
-                }
-            }
-
-            // ── Strategy E: Last Resort — aggressive chain follow ──
-            if (!anySuccess) {
-                try {
-                    Log.d(TAG, "→ [Strategy E] Last resort — aggressive chain follow")
-                    val chainResult = followChain(url, ref, maxDepth = 8)
-                    if (chainResult != null) {
-                        Log.d(TAG, "  [E] ✓ chain resolved -> $chainResult")
-                        dispatchFinalHost(chainResult, subtitleCallback, callback)
-                        anySuccess = true
-                    }
-                } catch (e: Exception) {
-                    Log.d(TAG, "✗ [Strategy E] failed: ${e.message}")
-                }
-            }
-
-            // ── NUCLEAR FALLBACK: Final mass loadExtractor on the URL ──
-            // If everything else failed, try loadExtractor one more time with different referer
-            if (!anySuccess) {
-                try {
-                    Log.d(TAG, "→ [NUCLEAR] Final mass loadExtractor attempt")
-                    // Try with empty referer
-                    try { loadExtractor(url, "", subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
-                    // Try with the site as referer
-                    try { loadExtractor(url, "https://v2.olamovies.mov/", subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
-                    // Try with links.olamovies.mov as referer
-                    try { loadExtractor(url, "https://links.olamovies.mov/", subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
-                } catch (e: Exception) {
-                    Log.d(TAG, "✗ [NUCLEAR] failed: ${e.message}")
+                    Log.d(TAG, "✗ [S3] failed: ${e.message}")
                 }
             }
 
             if (!anySuccess) {
                 Log.w(TAG, "═══ ALL STRATEGIES FAILED for $url ═══")
             } else {
-                Log.d(TAG, "═══ AT LEAST ONE STRATEGY SUCCEEDED for $url ═══")
+                Log.d(TAG, "═══ RESOLVE SUCCESS for $url ═══")
             }
         } catch (e: Exception) {
             Log.e(TAG, "FATAL error for $url: ${e.message}")
         }
+
+        return anySuccess
+    }
+
+    /** Check if a URL is an OlaMovies short URL (to prevent recursion) */
+    private fun isOlaShortUrl(url: String): Boolean {
+        return url.contains("ol-am.top", ignoreCase = true) ||
+               url.contains("links.olamovies.mov", ignoreCase = true) ||
+               url.contains("olamovies.download", ignoreCase = true)
+    }
+
+    // Keep getUrl() for backward compatibility but it just calls resolve()
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        resolve(url, referer, subtitleCallback, callback)
     }
 
     /**
@@ -787,7 +784,7 @@ open class OlaLinks : ExtractorApi() {
         val html = doc.toString()
         for (host in KNOWN_HOSTS) {
             val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
-            urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')?.let { found ->
+            urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', ''', ')', ';', ']', '}')?.let { found ->
                 if (found.startsWith("http")) return found
             }
         }

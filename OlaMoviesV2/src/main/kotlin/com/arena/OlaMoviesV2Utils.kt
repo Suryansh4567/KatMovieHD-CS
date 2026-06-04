@@ -454,7 +454,184 @@ suspend fun bypassAdLinks(link: String): String? {
         else -> ""
     }
 
-    Log.d(TAG, "bypassAdLinks v14: resolving $link (type=$type)")
+    Log.d(TAG, "bypassAdLinks v15: resolving $link (type=$type)")
+
+    // ── Strategy 0 (v15): Anylinks intermediate sites — form[name='tp'] / #btn6 / #tp98 ──
+    // These sites (ukrupdate/mastkhabre/aryx/superheromaniac/spatsify) use the Anylinks.in
+    // shortener system. The page has a timed form that needs to be submitted.
+    // Pattern from bypass-all-shortlinks-debloated:
+    //   (superheromaniac|spatsify|mastkhabre|ukrupdate).com →
+    //     DoIfExists('#tp98', 10); DoIfExists('#btn6', 12); DoIfExists("form[name='tp']", 'submit', 11);
+    if (link.contains("ukrupdate", ignoreCase = true) ||
+        link.contains("mastkhabre", ignoreCase = true) ||
+        link.contains("aryx", ignoreCase = true) ||
+        link.contains("superheromaniac", ignoreCase = true) ||
+        link.contains("spatsify", ignoreCase = true) ||
+        link.contains("anylinks", ignoreCase = true)) {
+        try {
+            Log.d(TAG, "bypassAdLinks: [S0] Anylinks intermediate site, trying form submit")
+            val pageResponse = app.get(link, timeout = 15_000L)
+            val pageDoc = pageResponse.document
+            val pageHtml = pageDoc.toString()
+
+            // Try 1: Find form[name='tp'] or form[name='rtg'] and submit it
+            // These are the typical Anylinks forms
+            val formNames = listOf("tp", "rtg", "dsb")
+            for (formName in formNames) {
+                val form = pageDoc.selectFirst("form[name='$formName']")
+                if (form != null) {
+                    val action = form.attr("action").trim()
+                    val method = form.attr("method").lowercase().ifBlank { "post" }
+                    val formData = form.select("input").mapNotNull {
+                        it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
+                    }.toMap()
+
+                    if (action.isNotBlank() || formData.isNotEmpty()) {
+                        val formUrl = if (action.startsWith("http")) action
+                                      else if (action.startsWith("/")) getBaseUrl(link) + action
+                                      else getBaseUrl(link) + "/" + action
+
+                        Log.d(TAG, "bypassAdLinks: [S0] found form[$formName] action=$formUrl data=${formData.keys}")
+
+                        // Get cookies first (some sites need session cookie)
+                        val cookies = pageResponse.cookies
+                        val formHeaders = mapOf(
+                            "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8",
+                            "X-Requested-With" to "XMLHttpRequest",
+                            "Accept" to "application/json, text/javascript, */*; q=0.01",
+                            "Referer" to link
+                        )
+
+                        val formResponse = app.post(
+                            formUrl,
+                            data = formData,
+                            headers = formHeaders,
+                            cookies = cookies,
+                            referer = link,
+                            timeout = 15_000L
+                        )
+
+                        val formText = formResponse.text
+                        // Try to parse as JSON (most Anylinks APIs return JSON with "url" field)
+                        try {
+                            val formJson = JSONObject(formText)
+                            val resultUrl = formJson.optString("url", "")
+                            if (resultUrl.startsWith("http")) {
+                                Log.d(TAG, "bypassAdLinks: [S0] form[$formName] JSON resolved -> $resultUrl")
+                                return resultUrl
+                            }
+                        } catch (_: Exception) {}
+
+                        // Try to find URL in the HTML response
+                        val formDoc = formResponse.document
+                        formDoc.select("a[href]").forEach { anchor ->
+                            val href = anchor.attr("href").trim()
+                            if (href.startsWith("http")) {
+                                val isHost = isKnownHostUrl(href)
+                                val isShort = href.contains("dulink", ignoreCase = true) ||
+                                              href.contains("ez4short", ignoreCase = true) ||
+                                              href.contains("rocklinks", ignoreCase = true) ||
+                                              href.contains("v2links", ignoreCase = true) ||
+                                              href.contains("anylinks", ignoreCase = true)
+                                if (isHost || isShort) {
+                                    Log.d(TAG, "bypassAdLinks: [S0] form[$formName] HTML resolved -> $href")
+                                    return href
+                                }
+                            }
+                        }
+
+                        // Raw URL scan in the response
+                        val urlMatch = Regex("""(https?://[^\s"'<>\)]+)""").findAll(formText)
+                        for (match in urlMatch) {
+                            val candidate = match.groupValues[1].trimEnd(',', ';', ')')
+                            if (isKnownHostUrl(candidate) && candidate != link) {
+                                Log.d(TAG, "bypassAdLinks: [S0] form[$formName] raw scan -> $candidate")
+                                return candidate
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Try 2: Find #btn6 / #tp98 / #go-link buttons — check their href or parent form
+            val buttonIds = listOf("#btn6", "#tp98", "#go-link", ".btn-success", "a.get-link")
+            for (selector in buttonIds) {
+                val btn = pageDoc.selectFirst(selector)
+                if (btn != null) {
+                    // Check href directly
+                    val href = btn.attr("href")?.trim()
+                    if (!href.isNullOrBlank() && href.startsWith("http")) {
+                        Log.d(TAG, "bypassAdLinks: [S0] button[$selector] href -> $href")
+                        return href
+                    }
+
+                    // Check if button is inside a form
+                    val parentForm = btn.parents().firstOrNull { it.tagName() == "form" }
+                    if (parentForm != null) {
+                        val action = parentForm.attr("action").trim()
+                        val formData = parentForm.select("input").mapNotNull {
+                            it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
+                        }.toMap()
+
+                        if (action.isNotBlank()) {
+                            val formUrl = if (action.startsWith("http")) action
+                                          else getBaseUrl(link) + action
+                            val cookies = pageResponse.cookies
+                            val formResponse = app.post(
+                                formUrl,
+                                data = formData,
+                                headers = mapOf(
+                                    "X-Requested-With" to "XMLHttpRequest",
+                                    "Accept" to "application/json, text/javascript, */*; q=0.01",
+                                    "Referer" to link
+                                ),
+                                cookies = cookies,
+                                referer = link,
+                                timeout = 15_000L
+                            )
+                            try {
+                                val formJson = JSONObject(formResponse.text)
+                                val resultUrl = formJson.optString("url", "")
+                                if (resultUrl.startsWith("http")) {
+                                    Log.d(TAG, "bypassAdLinks: [S0] button[$selector] form JSON -> $resultUrl")
+                                    return resultUrl
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+
+                    // Check data-* attributes
+                    for (attr in listOf("data-url", "data-href", "data-link", "data-go")) {
+                        val attrVal = btn.attr(attr)?.trim()
+                        if (!attrVal.isNullOrBlank() && attrVal.startsWith("http")) {
+                            Log.d(TAG, "bypassAdLinks: [S0] button[$selector] $attr -> $attrVal")
+                            return attrVal
+                        }
+                    }
+                }
+            }
+
+            // Try 3: Just find any link to known hosts or ad shorteners in the page
+            pageDoc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") && (isKnownHostUrl(href) || isAdShortenerLink(href))) {
+                    Log.d(TAG, "bypassAdLinks: [S0] broad anchor scan -> $href")
+                    return href
+                }
+            }
+
+            // Try 4: Raw HTML scan for known host URLs or ad shortener URLs
+            for (match in Regex("""(https?://[^\s"'<>\)]+)""").findAll(pageHtml)) {
+                val candidate = match.groupValues[1].trimEnd(',', ';', ')')
+                if ((isKnownHostUrl(candidate) || isAdShortenerLink(candidate)) && candidate != link) {
+                    Log.d(TAG, "bypassAdLinks: [S0] raw HTML scan -> $candidate")
+                    return candidate
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "bypassAdLinks: [S0] Anylinks bypass failed: ${e.message}")
+        }
+    }
 
     // ── Strategy 1: Use emilyx API for supported shorteners ──
     if (emilyxApiSupportedLinks.any { link.contains(it, ignoreCase = true) } ||
@@ -810,6 +987,19 @@ private fun isKnownHostUrl(url: String): Boolean {
         "gdbot", "drivebot", "drivehub"
     )
     return knownHosts.any { url.contains(it, ignoreCase = true) }
+}
+
+/** Check if a URL is an ad shortener link (intermediate or final) */
+private fun isAdShortenerLink(url: String): Boolean {
+    val adHosts = listOf(
+        "dulink", "ez4short", "rocklinks", "crazyblog", "v2links",
+        "bestloansoffers", "worldzc", "earningtime", "anylinks",
+        "ukrupdate", "mastkhabre", "aryx", "superheromaniac", "spatsify",
+        "exeo", "exego", "falpus", "tii.la", "oei.la", "oii.la",
+        "tpi.li", "shrinke.me", "clk.wiki", "owllink", "try2link",
+        "linkjust", "atglinks", "linx.cc", "birdurls"
+    )
+    return adHosts.any { url.contains(it, ignoreCase = true) }
 }
 
 // ─── Multi-layer redirect/obfuscation resolver ──────────────────────────────

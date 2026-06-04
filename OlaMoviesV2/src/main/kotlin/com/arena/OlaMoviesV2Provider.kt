@@ -625,8 +625,19 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // loadLinks - v14: dispatch to OlaLinks or loadExtractor + generator referers
+    // loadLinks - v15: dispatch to OlaLinks or loadExtractor
     // ------------------------------------------------------------------
+
+    /** Check if a URL is an OlaMovies short link that needs the shortener chain */
+    private fun isOlaShortUrl(url: String): Boolean {
+        return OLA_SHORT_REGEX.containsMatchIn(url) ||
+               url.contains("ukrupdate.com", ignoreCase = true) ||
+               url.contains("mastkhabre.com", ignoreCase = true) ||
+               url.contains("aryx.xyz", ignoreCase = true) ||
+               url.contains("superheromaniac.com", ignoreCase = true) ||
+               url.contains("spatsify.com", ignoreCase = true) ||
+               url.contains("olamovies.download", ignoreCase = true)
+    }
 
     override suspend fun loadLinks(
         data: String,
@@ -659,51 +670,23 @@ class OlaMoviesV2Provider : MainAPI() {
         }
 
         // ── Phase 2.5: LAST RESORT FALLBACK ──
-        // If every URL failed via dispatchExtractor, try loadExtractor() on EVERY URL
-        // This is the "nuclear option" — movie page ke saare links pe mass loadExtractor try karo
+        // If every URL failed via dispatchExtractor, try loadExtractor() on NON-short URLs only
+        // CRITICAL: Do NOT call loadExtractor() on OlaMovies short URLs — no extractor matches!
         if (!anyDispatched) {
-            Log.w(TAG, "loadLinks: Phase 2.5 LAST RESORT — mass loadExtractor on all ${urls.size} URLs")
-            urls.amap { rawUrl ->
+            Log.w(TAG, "loadLinks: Phase 2.5 LAST RESORT — loadExtractor on non-short URLs")
+            urls.filter { !isOlaShortUrl(it) }.amap { rawUrl ->
                 try {
-                    val url = rawUrl.trim()
-                    if (url.isNotBlank() && url.startsWith("http", ignoreCase = true)) {
-                        Log.d(TAG, "loadLinks: LAST RESORT loadExtractor -> $url")
-                        loadExtractor(url, mainUrl, subtitleCallback, callback)
-                        anyDispatched = true
-                    }
+                    Log.d(TAG, "loadLinks: LAST RESORT loadExtractor -> $rawUrl")
+                    loadExtractor(rawUrl, mainUrl, subtitleCallback, callback)
+                    anyDispatched = true
                 } catch (e: Exception) {
                     Log.d(TAG, "loadLinks: LAST RESORT failed for $rawUrl: ${e.message}")
                 }
             }
         }
 
-        // ── v14 ULTIMATE ALL-MOVIES — extra mass loadExtractor with generator referers ──
-        // If still nothing worked, try loadExtractor on every short link with multiple referer variations
-        // Generator pages need specific referers to work
         if (!anyDispatched) {
-            Log.w(TAG, "loadLinks: v14 ULTIMATE ALL-MOVIES — mass loadExtractor with generator referers on ${urls.size} URLs")
-            val generatorReferers = listOf(
-                "https://links.olamovies.mov/",
-                "https://v2.olamovies.mov/",
-                "",
-                "https://links.ol-am.top/"
-            )
-            urls.amap { rawUrl ->
-                val url = rawUrl.trim()
-                if (url.isNotBlank() && url.startsWith("http", ignoreCase = true)) {
-                    for (genRef in generatorReferers) {
-                        try {
-                            Log.d(TAG, "loadLinks: ULTIMATE loadExtractor($url, ref=$genRef)")
-                            loadExtractor(url, genRef, subtitleCallback, callback)
-                            anyDispatched = true
-                        } catch (_: Exception) {}
-                    }
-                }
-            }
-        }
-
-        if (!anyDispatched) {
-            Log.w(TAG, "loadLinks: every URL failed to dispatch (even after last resort)")
+            Log.w(TAG, "loadLinks: every URL failed to dispatch")
         }
         return true
     }
@@ -717,10 +700,12 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     /**
-     * v14 dispatch — just route to the right extractor:
-     *   1. OlaMovies shortener chain → OlaLinks (handles CF + chain + bypass)
+     * v15 dispatch — route to the right handler:
+     *   1. OlaMovies shortener chain → OlaLinks.resolve() (returns actual success/failure)
      *   2. Known final hosts (HubCloud/GDFlix/etc.) → their custom extractors
      *   3. Everything else → loadExtractor() (CloudStream's built-in)
+     *
+     * Returns TRUE only if actual playable links were found.
      */
     private suspend fun dispatchExtractor(
         rawUrl: String,
@@ -732,16 +717,12 @@ class OlaMoviesV2Provider : MainAPI() {
 
         return try {
             when {
-                // v14: OlaMovies link shortener chain (links.ol-am.top / links.olamovies.mov / ol-am.top short links / Anylinks / olamovies.download)
-                OLA_SHORT_REGEX.containsMatchIn(url) ||
-                url.contains("ukrupdate.com", ignoreCase = true) ||
-                url.contains("mastkhabre.com", ignoreCase = true) ||
-                url.contains("aryx.xyz", ignoreCase = true) ||
-                url.contains("superheromaniac.com", ignoreCase = true) ||
-                url.contains("spatsify.com", ignoreCase = true) ||
-                url.contains("olamovies.download", ignoreCase = true) -> {
-                    OlaLinks().getUrl(url, mainUrl, subtitleCallback, callback)
-                    true
+                // OlaMovies shortener chain → OlaLinks.resolve()
+                // CRITICAL: OlaLinks is NOT registered as ExtractorApi anymore,
+                // so loadExtractor() won't match it and cause recursion.
+                // We call OlaLinks.resolve() DIRECTLY which returns whether links were found.
+                isOlaShortUrl(url) -> {
+                    OlaLinks().resolve(url, mainUrl, subtitleCallback, callback)
                 }
                 // HubCloud
                 url.contains("hubcloud", ignoreCase = true) -> {

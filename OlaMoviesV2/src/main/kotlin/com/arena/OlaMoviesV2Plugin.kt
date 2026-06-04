@@ -12,15 +12,11 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v14 SAB FIX — ab sare movie chale! Enhanced generator page scraping,
- * broader JS patterns, S8+S9 ad bypass, ULTIMATE ALL-MOVIES fallback:
- *   A: loadExtractor() — CF bypass via WebView (BEST for CF Turnstile)
- *   B: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain (IMPROVED v14)
- *   C: Aggressive Scraping — full HTML scan (17 patterns incl generator pages)
- *   D: Ad Shortener Special — bypassAdLinks() S1-S9 with loadExtractor() fallback
- *   E: Last Resort — try everything on original page links (maxDepth=8)
- *   + NUCLEAR: mass loadExtractor with generator referer variations
- *   + ULTIMATE ALL-MOVIES: extra mass loadExtractor in Provider (v14)
+ * v15 — SIMPLE & WORKING. Key fixes:
+ *   - Removed OlaLinks/OlaLinksMov as ExtractorApi (was causing INFINITE RECURSION)
+ *   - OlaLinks is called DIRECTLY by Provider.dispatchExtractor() instead
+ *   - Provider tracks whether actual playable links were found
+ *   - No more loadExtractor() on OlaMovies short URLs (prevents recursion)
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -28,17 +24,11 @@ class OlaMoviesV2Plugin : BasePlugin() {
     override fun load() {
         registerMainAPI(OlaMoviesV2Provider())
 
-        // ─── Custom OlaMovies link shortener extractors ────────────────
-        // links.ol-am.top redirects to links.olamovies.mov — both need
-        // to be handled. OlaLinks uses v14 SAB FIX aggressive approach:
-        //   A: loadExtractor() — CF WebView bypass
-        //   B: bypassOlaRedirect + bypassAdLinks — LikDev's chain (v14 enhanced)
-        //   C: Aggressive HTML scraping — 17 patterns incl generator pages
-        //   D: Ad shortener special — S1-S9 bypass + fallback
-        //   E: Last resort — aggressive chain follow (maxDepth=8)
-        //   + NUCLEAR: mass loadExtractor with multiple referers
-        registerExtractorAPI(OlaLinks())
-        registerExtractorAPI(OlaLinksMov())
+        // ─── OlaMovies shortener chain ─────────────────────────────────
+        // IMPORTANT: OlaLinks is NOT registered as ExtractorApi anymore!
+        // It was causing INFINITE RECURSION (loadExtractor -> OlaLinks -> loadExtractor -> ...)
+        // Now it's called DIRECTLY by Provider.dispatchExtractor() instead.
+        // OlaLinksMov is merged into OlaLinks (both handled by bypassOlaRedirect).
 
         // ─── HubCloud ecosystem ────────────────────────────────────────
         registerExtractorAPI(OlaHubCloud())       // hubcloud.lol
