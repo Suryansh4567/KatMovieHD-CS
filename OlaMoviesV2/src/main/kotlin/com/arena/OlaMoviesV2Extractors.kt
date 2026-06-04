@@ -323,10 +323,10 @@ open class OlaLinks : ExtractorApi() {
         }
 
         // Try to fetch the page with retries
-        val response = retryFetch(startUrl, referer) ?: return found
-        val doc = response.document
+        val fetchResult = retryFetch(startUrl, referer) ?: return found
+        val doc = fetchResult.first
         val html = doc.toString()
-        val baseUrl = getBaseUrl(response.url)
+        val baseUrl = getBaseUrl(fetchResult.second)
 
         // 1. #download > a (LikDev's primary pattern)
         doc.select("#download > a, #download a, div#download a").forEach { addLink(it.attr("href").trim()) }
@@ -507,17 +507,20 @@ open class OlaLinks : ExtractorApi() {
     }
 
     /**
-     * Retry fetch — tries up to MAX_RETRIES times with delay
+     * Retry fetch — tries up to MAX_RETRIES times with delay.
+     * Returns Pair(document, finalUrl) on success, null on failure.
      */
     private suspend fun retryFetch(
         url: String,
         referer: String,
         retries: Int = MAX_RETRIES
-    ): com.lagradost.cloudstream3.app.Response? {
+    ): Pair<org.jsoup.nodes.Document, String>? {
         repeat(retries) { attempt ->
             try {
                 val response = app.get(url, headers = olaHeaders, referer = referer, timeout = 30_000L)
-                if (response.code == 200 || response.code in 300..399) return response
+                if (response.code == 200 || response.code in 300..399) {
+                    return Pair(response.document, response.url)
+                }
                 Log.d(TAG, "retryFetch attempt ${attempt + 1}: got HTTP ${response.code}")
             } catch (e: Exception) {
                 Log.d(TAG, "retryFetch attempt ${attempt + 1} failed: ${e.message}")

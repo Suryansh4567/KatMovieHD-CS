@@ -666,11 +666,13 @@ fun androidBase64Encode(value: String): String {
 // ─── OkHttp helpers for bypassAdLinks ───────────────────────────────────────
 
 /** Create a MediaType from a string (for OkHttp requestBody) */
+@Suppress("DEPRECATION_ERROR")
 private fun String.toMediaTypeOrNull(): okhttp3.MediaType? {
-    return try { okhttp3.MediaType.Companion.toMediaTypeOrNull(this) } catch (_: Exception) { null }
+    return try { okhttp3.MediaType.parse(this) } catch (_: Exception) { null }
 }
 
 /** Create a RequestBody from a String with a MediaType */
+@Suppress("DEPRECATION")
 private fun String.toRequestBody(contentType: okhttp3.MediaType?): okhttp3.RequestBody {
     return okhttp3.RequestBody.create(contentType, this)
 }
