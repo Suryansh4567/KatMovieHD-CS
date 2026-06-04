@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
         "status": 1,
-        "version": 17,
+        "version": 18,
         "name": "OlaMoviesV2",
         "internalName": "OlaMoviesV2",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v17: External CF bypass APIs (bypass.city/emilyx) as primary strategy, 3-tier resolution (API \u2192 redirect \u2192 OkHttp), parallel loadExtractor for hosts.",
-        "fileSize": 154108,
+        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v18: Simplified CF bypass \u2014 use app.get() with CloudStream CloudflareInterceptor, removed broken external APIs, 3-tier fallback (simple chain \u2192 keyed redirect \u2192 aggressive scrape).",
+        "fileSize": 141696,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-02de657ef8ffe2513083450e6aa6b9b2cc3f67fabb73fbaab17e5aa425bd69de"
+        "fileHash": "sha256-c88d1bded6a5a2cf74cec35831aac53199e9c8e0cec462de218c80e4db05e60b"
     }
 ]
