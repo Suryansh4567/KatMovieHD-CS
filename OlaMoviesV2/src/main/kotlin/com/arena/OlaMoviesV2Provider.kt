@@ -644,8 +644,28 @@ class OlaMoviesV2Provider : MainAPI() {
             val ok = dispatchExtractor(rawUrl, subtitleCallback, callback)
             if (ok) anyDispatched = true
         }
+
+        // ── Phase 2.5: LAST RESORT FALLBACK ──
+        // If every URL failed via dispatchExtractor, try loadExtractor() on EVERY URL
+        // This is the "nuclear option" — movie page ke saare links pe mass loadExtractor try karo
         if (!anyDispatched) {
-            Log.w(TAG, "loadLinks: every URL failed to dispatch")
+            Log.w(TAG, "loadLinks: Phase 2.5 LAST RESORT — mass loadExtractor on all ${urls.size} URLs")
+            urls.amap { rawUrl ->
+                try {
+                    val url = rawUrl.trim()
+                    if (url.isNotBlank() && url.startsWith("http", ignoreCase = true)) {
+                        Log.d(TAG, "loadLinks: LAST RESORT loadExtractor -> $url")
+                        loadExtractor(url, mainUrl, subtitleCallback, callback)
+                        anyDispatched = true
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "loadLinks: LAST RESORT failed for $rawUrl: ${e.message}")
+                }
+            }
+        }
+
+        if (!anyDispatched) {
+            Log.w(TAG, "loadLinks: every URL failed to dispatch (even after last resort)")
         }
         return true
     }

@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 8
+version = 9
 
 cloudstream {
     authors = listOf("arena")
@@ -12,8 +12,8 @@ cloudstream {
 
     description = "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from " +
             "OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. " +
-            "v8: Multi-Strategy Aggressive — 5 strategies (A-E) with retries, " +
-            "aggressive scraping, improved bypassOlaRedirect + bypassAdLinks."
+            "v9: Phase 2.3 MAXED (15 scraping patterns), Phase 2.4 MULTI-API bypass " +
+            "(7 strategies), Phase 2.5 LAST RESORT (mass loadExtractor fallback)."
     language    = "en"
 
     tvTypes = listOf("Movie", "TvSeries", "Anime", "AsianDrama", "Documentary")

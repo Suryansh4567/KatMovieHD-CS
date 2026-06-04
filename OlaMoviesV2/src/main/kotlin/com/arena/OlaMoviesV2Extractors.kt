@@ -115,7 +115,7 @@ open class OlaLinks : ExtractorApi() {
 
     companion object {
         private const val TAG = "OlaLinks"
-        private const val MAX_RETRIES = 2
+        private const val MAX_RETRIES = 3
         private const val RETRY_DELAY_MS = 1500L
     }
 
@@ -246,11 +246,11 @@ open class OlaLinks : ExtractorApi() {
                 }
             }
 
-            // ── Strategy E: Last Resort — try followChain with max depth ──
+            // ── Strategy E: Last Resort — aggressive chain follow ──
             if (!anySuccess) {
                 try {
                     Log.d(TAG, "→ [Strategy E] Last resort — aggressive chain follow")
-                    val chainResult = followChain(url, ref, maxDepth = 12)
+                    val chainResult = followChain(url, ref, maxDepth = 15)
                     if (chainResult != null) {
                         Log.d(TAG, "  [E] ✓ chain resolved -> $chainResult")
                         dispatchFinalHost(chainResult, subtitleCallback, callback)
@@ -258,6 +258,22 @@ open class OlaLinks : ExtractorApi() {
                     }
                 } catch (e: Exception) {
                     Log.d(TAG, "✗ [Strategy E] failed: ${e.message}")
+                }
+            }
+
+            // ── NUCLEAR FALLBACK: Final mass loadExtractor on the URL ──
+            // If everything else failed, try loadExtractor one more time with different referer
+            if (!anySuccess) {
+                try {
+                    Log.d(TAG, "→ [NUCLEAR] Final mass loadExtractor attempt")
+                    // Try with empty referer
+                    try { loadExtractor(url, "", subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
+                    // Try with the site as referer
+                    try { loadExtractor(url, "https://v2.olamovies.mov/", subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
+                    // Try with links.olamovies.mov as referer
+                    try { loadExtractor(url, "https://links.olamovies.mov/", subtitleCallback, callback); anySuccess = true } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.d(TAG, "✗ [NUCLEAR] failed: ${e.message}")
                 }
             }
 
@@ -272,74 +288,116 @@ open class OlaLinks : ExtractorApi() {
     }
 
     /**
-     * AGGRESSIVE SCRAPER — scans the entire page HTML for known host URLs.
-     * Tries multiple patterns:
-     *   - #download > a, #btn6, #tp98, button.inline-flex
-     *   - ?key= wale links, data-url, data-href, data-link, onclick
-     *   - JS variables (var url=, currentLink=, base64 links)
-     *   - Meta refresh, window.location, forms
-     *   - All <a> tags containing known host URLs
-     *   - Raw HTML regex scan for known host URLs
+     * ULTRA AGGRESSIVE SCRAPER — scans the ENTIRE page HTML for ALL possible links.
+     * This is Phase 2.3 MAXED OUT — catches EVERY possible URL pattern:
+     *
+     * 15 scraping patterns:
+     *   1. #download > a (LikDev's primary pattern)
+     *   2. ?key= links (OlaMovies redirect chain)
+     *   3. Anylinks-specific: #btn6, #tp98, #go-link
+     *   4. button.inline-flex + ALL data-* attributes on ALL elements
+     *   5. onclick / onsubmit handlers (window.open, location.href)
+     *   6. Forms — action URLs + hidden input values
+     *   7. JS variables (var url=, currentLink=, link=, redirect=, pxl=, base64)
+     *   8. JS fetch/XMLHttpRequest URLs
+     *   9. Meta refresh
+     *   10. window.location / location.replace
+     *   11. All <a> tags with http hrefs (known/intermediate/ad)
+     *   12. All <iframe> src (some pages embed the final URL in an iframe)
+     *   13. All <script> src (CDN-hosted redirect scripts)
+     *   14. Raw HTML regex scan for ALL known host URLs
+     *   15. Follow intermediate links one more level + scrape there too
      */
     private suspend fun aggressiveScrape(startUrl: String, referer: String): List<String> {
         val found = mutableListOf<String>()
         val seen = mutableSetOf<String>()
 
+        fun addLink(url: String) {
+            if (url.startsWith("http") && url !in seen) { seen.add(url); found.add(url) }
+        }
+
+        fun addMaybeRelative(url: String, base: String) {
+            if (url.isBlank()) return
+            val full = if (url.startsWith("http")) url else getBaseUrl(base) + url
+            addLink(full)
+        }
+
         // Try to fetch the page with retries
         val response = retryFetch(startUrl, referer) ?: return found
         val doc = response.document
         val html = doc.toString()
+        val baseUrl = getBaseUrl(response.url)
 
         // 1. #download > a (LikDev's primary pattern)
-        doc.select("#download > a").forEach {
-            val href = it.attr("href").trim()
-            if (href.startsWith("http") && href !in seen) { seen.add(href); found.add(href) }
-        }
+        doc.select("#download > a, #download a, div#download a").forEach { addLink(it.attr("href").trim()) }
 
         // 2. ?key= links (OlaMovies redirect chain pages)
-        doc.select("a[href*='?key=']").forEach {
-            val href = it.attr("href").trim()
-            if (href.isNotBlank()) {
-                val full = if (href.startsWith("http")) href else getBaseUrl(startUrl) + href
-                if (full !in seen) { seen.add(full); found.add(full) }
+        doc.select("a[href*='?key=']").forEach { addMaybeRelative(it.attr("href").trim(), baseUrl) }
+        // Also find ?key= in raw HTML (sometimes hidden in JS)
+        Regex("""[?&]key=([^&"'\s<>]+)""").findAll(html).forEach { match ->
+            val keyVal = match.groupValues[1]
+            if (keyVal.isNotBlank()) {
+                // Try to construct the full keyed URL
+                Regex("""(https?://[^\s"'<>]+[?&]key=${Regex.escape(keyVal)}[^\s"'<>]*)""")
+                    .find(html)?.groupValues?.get(1)?.let { addLink(it.trim()) }
             }
         }
 
-        // 3. Anylinks-specific: #btn6, #tp98
-        doc.select("#btn6, #tp98").forEach {
-            val href = it.attr("href").trim()
-            if (href.startsWith("http") && href !in seen) { seen.add(href); found.add(href) }
+        // 3. Anylinks-specific: #btn6, #tp98, #go-link, .btn-download
+        doc.select("#btn6, #tp98, #go-link, .btn-download, .download-btn, a.go-link").forEach {
+            addLink(it.attr("href").trim())
         }
 
-        // 4. button.inline-flex (OlaGenerate pattern) + data attributes
-        doc.select("button.inline-flex, button[data-url], button[data-href], button[data-link]").forEach { btn ->
-            for (attr in listOf("data-url", "data-href", "data-link", "data-go", "data-target")) {
-                val val_ = btn.attr(attr).trim()
-                if (val_.startsWith("http") && val_ !in seen) { seen.add(val_); found.add(val_) }
+        // 4. ALL data-* attributes on ALL elements (not just buttons!)
+        // This catches data-url, data-href, data-link, data-go, data-target, data-redirect, etc.
+        doc.select("[data-url], [data-href], [data-link], [data-go], [data-target], [data-redirect], [data-url-download]").forEach { el ->
+            for (attr in listOf("data-url", "data-href", "data-link", "data-go", "data-target", "data-redirect", "data-url-download")) {
+                el.attr(attr)?.trim()?.let { addMaybeRelative(it, baseUrl) }
             }
-            val onclick = btn.attr("onclick").trim()
-            if (onclick.isNotBlank()) {
-                Regex("""(?:window\.open|location\.href|location)\s*\(\s*['"]([^'"]+)['"]""")
-                    .find(onclick)?.groupValues?.get(1)?.let { target ->
-                        if (target.startsWith("http") && target !in seen) { seen.add(target); found.add(target) }
+        }
+
+        // 5. onclick / onsubmit handlers
+        doc.select("[onclick], [onsubmit]").forEach { el ->
+            val handler = (el.attr("onclick").ifBlank { el.attr("onsubmit") }).trim()
+            if (handler.isNotBlank()) {
+                // window.open('...'), location.href='...', location='...'
+                val onclickPatterns = listOf(
+                    Regex("""(?:window\.open|location\.href|location\.replace|location)\s*\(\s*['"]([^'"]+)['"]"""),
+                    Regex("""['"]([^'"]*(?:hubcloud|gdflix|pixeldrain|drive\.google|gofile|gdtot|hubdrive|hubstream)[^'"]*)['"]""")
+                )
+                for (pattern in onclickPatterns) {
+                    pattern.findAll(handler).forEach { match ->
+                        val val_ = match.groupValues[1].trim()
+                        if (val_.startsWith("http")) addLink(val_)
                     }
+                }
             }
         }
 
-        // 5. Forms — action URLs
-        doc.select("form[action]").forEach {
-            val action = it.attr("action").trim()
-            if (action.startsWith("http") && action !in seen) { seen.add(action); found.add(action) }
+        // 6. Forms — action URLs + hidden input values
+        doc.select("form[action]").forEach { form ->
+            addMaybeRelative(form.attr("action").trim(), baseUrl)
+            // Hidden inputs sometimes contain redirect URLs
+            form.select("input[type=hidden]").forEach { input ->
+                val val_ = input.attr("value").trim()
+                if (val_.startsWith("http")) addLink(val_)
+            }
         }
 
-        // 6. JS variables (var url=, currentLink=, base64 encoded)
+        // 7. JS variables — expanded list
         val jsPatterns = listOf(
             Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+currentLink\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+link\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+redirect\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+pxl\s*=\s*['"]([^'"]+)['"]"""),
-            Regex("""(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]""")
+            Regex("""var\s+finalUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+downloadUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+target\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+dest\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+next\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""location\.replace\s*\(\s*['"]([^'"]+)['"]""")
         )
         for (pattern in jsPatterns) {
             pattern.findAll(html).forEach { match ->
@@ -348,46 +406,97 @@ open class OlaLinks : ExtractorApi() {
                     // Try base64 decode
                     val decoded = try { base64Decode(val_) } catch (_: Exception) { val_ }
                     for (candidate in listOf(val_, decoded)) {
-                        if (candidate.startsWith("http") && candidate !in seen) { seen.add(candidate); found.add(candidate) }
+                        if (candidate.startsWith("http")) addLink(candidate)
+                        // Also try as relative URL
+                        else addMaybeRelative(candidate, baseUrl)
                     }
                 }
             }
         }
 
-        // 7. Meta refresh
+        // 8. JS fetch/XMLHttpRequest URLs
+        Regex("""fetch\s*\(\s*['"]([^'"]+)['"]""").findAll(html).forEach { match ->
+            addMaybeRelative(match.groupValues[1].trim(), baseUrl)
+        }
+        Regex("""XMLHttpRequest[^}]*open\s*\(\s*['"]GET['"]\s*,\s*['"]([^'"]+)['"]""").findAll(html).forEach { match ->
+            addMaybeRelative(match.groupValues[1].trim(), baseUrl)
+        }
+
+        // 9. Meta refresh
         Regex("""(?i)<meta[^>]*http-equiv=["']?refresh["']?[^>]*content=["']?\d+;\s*url=([^"'>\s]+)""")
             .find(html)?.groupValues?.get(1)?.trim()?.let { metaUrl ->
-                val full = if (metaUrl.startsWith("http")) metaUrl else getBaseUrl(startUrl) + metaUrl
-                if (full !in seen) { seen.add(full); found.add(full) }
+                addMaybeRelative(metaUrl, baseUrl)
             }
 
-        // 8. All <a> tags — filter for known hosts or intermediates
+        // 10. window.location / location.replace in <script> blocks
+        Regex("""location\s*=\s*['"]([^'"]+)['"]""").findAll(html).forEach { match ->
+            addMaybeRelative(match.groupValues[1].trim(), baseUrl)
+        }
+
+        // 11. All <a> tags with http hrefs (broader filter — ANY external link)
         doc.select("a[href]").forEach { anchor ->
             val href = anchor.attr("href").trim()
-            if (href.startsWith("http") && (isKnownHost(href) || isIntermediateHost(href) || isAdShortener(href))) {
-                if (href !in seen) { seen.add(href); found.add(href) }
+            if (href.startsWith("http") &&
+                (isKnownHost(href) || isIntermediateHost(href) || isAdShortener(href) ||
+                 !href.contains("olamovies.mov", ignoreCase = true))) {
+                // Include: known hosts, intermediates, ad shorteners, AND any non-olamovies external link
+                if (href !in seen && !href.contains("/feed", ignoreCase = true) &&
+                    !href.contains("/wp-", ignoreCase = true) &&
+                    !href.contains("#respond", ignoreCase = true)) {
+                    seen.add(href); found.add(href)
+                }
             }
         }
 
-        // 9. Raw HTML regex scan for known host URLs
+        // 12. All <iframe> src — some pages embed final URL in iframes
+        doc.select("iframe[src]").forEach { iframe ->
+            val src = iframe.attr("src").trim()
+            if (src.isNotBlank()) addMaybeRelative(src, baseUrl)
+        }
+
+        // 13. All <script> src — sometimes redirect scripts are loaded from CDN
+        // (Less likely to have direct URLs, but worth checking for "src" containing known hosts)
+        doc.select("script[src]").forEach { script ->
+            val src = script.attr("src").trim()
+            if (src.startsWith("http") && isKnownHost(src)) addLink(src)
+        }
+
+        // 14. Raw HTML regex scan for ALL known host URLs
         for (host in KNOWN_HOSTS) {
             val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
             urlRegex.findAll(html).forEach { match ->
                 val cleaned = match.value.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')
-                if (cleaned.startsWith("http") && cleaned !in seen) { seen.add(cleaned); found.add(cleaned) }
+                addLink(cleaned)
             }
         }
 
-        // 10. Follow any found intermediate links one more level
-        val intermediates = found.filter { isIntermediateHost(it) && !isKnownHost(it) }
+        // Also scan for intermediate host URLs in raw HTML
+        for (host in INTERMEDIATE_HOSTS) {
+            val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
+            urlRegex.findAll(html).forEach { match ->
+                val cleaned = match.value.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')
+                addLink(cleaned)
+            }
+        }
+
+        // 15. Follow any found intermediate links one more level + scrape there too
+        val intermediates = found.filter { isIntermediateHost(it) && !isKnownHost(it) }.take(5) // Limit to 5 to avoid too many requests
         for (intermediate in intermediates) {
             try {
                 val iResponse = app.get(intermediate, headers = olaHeaders, referer = referer, timeout = 15_000L)
                 val iDoc = iResponse.document
-                iDoc.select("#download > a, a[href]").forEach { anchor ->
-                    val href = anchor.attr("href").trim()
-                    if (href.startsWith("http") && isKnownHost(href) && href !in seen) {
-                        seen.add(href); found.add(href)
+                val iHtml = iDoc.toString()
+                // Scrape the intermediate page for known host links
+                iDoc.select("#download > a, #btn6, #tp98, a[href], iframe[src]").forEach { el ->
+                    val href = (el.attr("href").ifBlank { el.attr("src") }).trim()
+                    if (href.startsWith("http") && (isKnownHost(href) || isAdShortener(href))) addLink(href)
+                }
+                // Also scan raw HTML of intermediate page
+                for (host in KNOWN_HOSTS) {
+                    val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
+                    urlRegex.findAll(iHtml).forEach { match ->
+                        val cleaned = match.value.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')
+                        addLink(cleaned)
                     }
                 }
             } catch (_: Exception) {}

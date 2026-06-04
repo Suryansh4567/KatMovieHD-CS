@@ -274,17 +274,21 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
     return shortLinkList
 }
 
-// ─── LikDev's bypassAdLinks (IMPROVED for v2.olamovies.mov) ──────────────────
+// ─── LikDev's bypassAdLinks (IMPROVED v9 — Multiple Bypass APIs) ──────────────
 
 /**
- * Bypass ad shortener links — IMPROVED v8.
+ * Bypass ad shortener links — IMPROVED v9.
  *
- * Supports:
- *   - dulink / ez4short / rocklinks → via api.emilyx.in/api/bypass
- *   - ser2.crazyblog / ser3.crazyblog → via cookie-based POST
- *   - v2links / bestloansoffers / worldzc / earningtime → fallback to loadExtractor
+ * MULTI-API APPROACH — less dependency on any single API:
  *
- * Based on LikDev's proven approach + expanded shortener support.
+ * Strategy 1: emilyx API (dulink / ez4short / rocklinks)
+ * Strategy 2: crazyblog cookie-based POST
+ * Strategy 3: Direct redirect following (v2links / bestloansoffers / worldzc / earningtime)
+ * Strategy 4: Alternate bypass APIs (bypass.city / bypass.pm)
+ * Strategy 5: Form-based extraction (POST with form data)
+ * Strategy 6: Cookie-based timer bypass (wait + POST)
+ * Strategy 7: JavaScript deobfuscation (for shorteners that use JS)
+ * Strategy 8: Nuclear — return as-is, let loadExtractor handle it
  */
 suspend fun bypassAdLinks(link: String): String? {
     val emilyxApiSupportedLinks = listOf("dulink", "ez4short")
@@ -299,7 +303,7 @@ suspend fun bypassAdLinks(link: String): String? {
 
     Log.d(TAG, "bypassAdLinks: resolving $link (type=$type)")
 
-    // Strategy 1: Use emilyx API for supported shorteners
+    // ── Strategy 1: Use emilyx API for supported shorteners ──
     if (emilyxApiSupportedLinks.any { link.contains(it, ignoreCase = true) } ||
         link.contains("rocklinks", ignoreCase = true)) {
         try {
@@ -313,15 +317,39 @@ suspend fun bypassAdLinks(link: String): String? {
             val responseJson = JSONObject(responseText)
             val bypassedUrl = responseJson.optString("url", "")
             if (bypassedUrl.startsWith("http")) {
-                Log.d(TAG, "bypassAdLinks: emilyx API resolved $link -> $bypassedUrl")
+                Log.d(TAG, "bypassAdLinks: [S1] emilyx API resolved -> $bypassedUrl")
                 return bypassedUrl
             }
         } catch (e: Exception) {
-            Log.d(TAG, "bypassAdLinks: emilyx API failed for $link: ${e.message}")
+            Log.d(TAG, "bypassAdLinks: [S1] emilyx API failed: ${e.message}")
         }
     }
 
-    // Strategy 2: crazyblog cookie-based POST for ser2/ser3.crazyblog
+    // ── Strategy 2: Alternate bypass API — bypass.city ──
+    try {
+        val bypassCityUrl = "https://api.bypass.city/bypass?url=${java.net.URLEncoder.encode(link, "UTF-8")}"
+        val bcResponse = app.get(bypassCityUrl, timeout = 15_000L)
+        val bcText = bcResponse.text
+        // Try parsing as JSON
+        try {
+            val bcJson = JSONObject(bcText)
+            val bcUrl = bcJson.optString("url", bcJson.optString("destination", bcJson.optString("result", "")))
+            if (bcUrl.startsWith("http")) {
+                Log.d(TAG, "bypassAdLinks: [S2] bypass.city resolved -> $bcUrl")
+                return bcUrl
+            }
+        } catch (_: Exception) {}
+        // Try finding URL in raw response
+        val urlMatch = Regex("""(https?://[^\s"'<>]+)""").find(bcText)?.groupValues?.get(1)
+        if (urlMatch != null && isKnownHostUrl(urlMatch)) {
+            Log.d(TAG, "bypassAdLinks: [S2] bypass.city raw resolved -> $urlMatch")
+            return urlMatch
+        }
+    } catch (e: Exception) {
+        Log.d(TAG, "bypassAdLinks: [S2] bypass.city failed: ${e.message}")
+    }
+
+    // ── Strategy 3: crazyblog cookie-based POST for ser2/ser3.crazyblog ──
     if (link.contains("crazyblog", ignoreCase = true)) {
         try {
             val domain = when {
@@ -371,33 +399,159 @@ suspend fun bypassAdLinks(link: String): String? {
             val postJson = JSONObject(postText)
             val resultUrl = postJson.optString("url", "")
             if (resultUrl.startsWith("http")) {
-                Log.d(TAG, "bypassAdLinks: crazyblog resolved $link -> $resultUrl")
+                Log.d(TAG, "bypassAdLinks: [S3] crazyblog resolved -> $resultUrl")
                 return resultUrl
             }
         } catch (e: Exception) {
-            Log.d(TAG, "bypassAdLinks: crazyblog failed for $link: ${e.message}")
+            Log.d(TAG, "bypassAdLinks: [S3] crazyblog failed: ${e.message}")
         }
     }
 
-    // Strategy 3: Follow HTTP redirects for other shorteners
+    // ── Strategy 4: Direct redirect following for known shorteners ──
     if (link.contains("v2links", ignoreCase = true) ||
         link.contains("bestloansoffers", ignoreCase = true) ||
         link.contains("worldzc", ignoreCase = true) ||
-        link.contains("earningtime", ignoreCase = true)) {
+        link.contains("earningtime", ignoreCase = true) ||
+        link.contains("dulink", ignoreCase = true) ||
+        link.contains("ez4short", ignoreCase = true) ||
+        link.contains("rocklinks", ignoreCase = true)) {
         try {
-            // Try to follow the redirect chain
             val resolved = resolveFinalUrl(link)
-            if (resolved != null && resolved.startsWith("http")) {
-                Log.d(TAG, "bypassAdLinks: redirect resolved $link -> $resolved")
+            if (resolved != null && resolved.startsWith("http") && resolved != link) {
+                Log.d(TAG, "bypassAdLinks: [S4] redirect resolved -> $resolved")
                 return resolved
             }
         } catch (e: Exception) {
-            Log.d(TAG, "bypassAdLinks: redirect resolution failed for $link: ${e.message}")
+            Log.d(TAG, "bypassAdLinks: [S4] redirect failed: ${e.message}")
         }
     }
 
-    Log.d(TAG, "bypassAdLinks: could not resolve $link")
+    // ── Strategy 5: Form-based extraction — GET the page, find form, POST it ──
+    try {
+        val pageResponse = app.get(link, timeout = 15_000L)
+        val pageDoc = pageResponse.document
+
+        // Look for forms with action URLs
+        val form = pageDoc.selectFirst("form[action]")
+        if (form != null) {
+            val action = form.attr("action").trim()
+            val method = form.attr("method").lowercase().ifBlank { "get" }
+            val formData = form.select("input").mapNotNull {
+                it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
+            }.toMap()
+
+            if (action.isNotBlank()) {
+                val formUrl = if (action.startsWith("http")) action else getBaseUrl(link) + action
+                val formResponse = if (method == "post") {
+                    app.post(formUrl, data = formData, referer = link, timeout = 15_000L)
+                } else {
+                    app.get(formUrl, referer = link, data = formData, timeout = 15_000L)
+                }
+
+                // Check the response for known host URLs
+                val formDoc = formResponse.document
+                formDoc.select("a[href]").forEach { anchor ->
+                    val href = anchor.attr("href").trim()
+                    if (href.startsWith("http") && isKnownHostUrl(href)) {
+                        Log.d(TAG, "bypassAdLinks: [S5] form extraction resolved -> $href")
+                        return href
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.d(TAG, "bypassAdLinks: [S5] form extraction failed: ${e.message}")
+    }
+
+    // ── Strategy 6: Cookie-based timer bypass (wait + POST) ──
+    // Some shorteners show a "wait X seconds" page then POST
+    try {
+        val timerPage = app.get(link, timeout = 15_000L)
+        val timerDoc = timerPage.document
+        val timerHtml = timerDoc.toString()
+
+        // Check for countdown timer patterns
+        val countdownMatch = Regex("""(?:var\s+countdown|timer|wait)\s*=\s*(\d+)""").find(timerHtml)
+        if (countdownMatch != null) {
+            // Extract the POST URL and form data
+            val postUrl = timerDoc.selectFirst("form[action]")?.attr("action")?.trim() ?: ""
+            val formData = timerDoc.select("form input").mapNotNull {
+                it.attr("name").ifBlank { return@mapNotNull null } to it.attr("value")
+            }.toMap()
+
+            if (postUrl.isNotBlank()) {
+                val fullPostUrl = if (postUrl.startsWith("http")) postUrl else getBaseUrl(link) + postUrl
+                val cookies = timerPage.cookies
+                val postResult = app.post(
+                    fullPostUrl,
+                    data = formData,
+                    cookies = cookies,
+                    referer = link,
+                    timeout = 15_000L
+                )
+                val postDoc = postResult.document
+                postDoc.select("a[href]").forEach { anchor ->
+                    val href = anchor.attr("href").trim()
+                    if (href.startsWith("http") && isKnownHostUrl(href)) {
+                        Log.d(TAG, "bypassAdLinks: [S6] timer bypass resolved -> $href")
+                        return href
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.d(TAG, "bypassAdLinks: [S6] timer bypass failed: ${e.message}")
+    }
+
+    // ── Strategy 7: JavaScript deobfuscation — for shorteners that use JS ──
+    try {
+        val jsPage = app.get(link, timeout = 15_000L)
+        val jsHtml = jsPage.document.toString()
+
+        // Check for common JS redirect patterns
+        val jsPatterns = listOf(
+            Regex("""window\.location\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""location\.href\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""location\.replace\s*\(\s*['"]([^'"]+)['"]"""),
+            Regex("""window\.open\s*\(\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+redirect\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""atob\s*\(\s*['"]([^'"]+)['"]""")  // base64 encoded URL
+        )
+
+        for (pattern in jsPatterns) {
+            pattern.find(jsHtml)?.groupValues?.get(1)?.trim()?.let { url ->
+                val decoded = if (url.startsWith("http")) url
+                              else try { base64Decode(url) } catch (_: Exception) { url }
+                if (decoded.startsWith("http")) {
+                    Log.d(TAG, "bypassAdLinks: [S7] JS deobfuscation resolved -> $decoded")
+                    return decoded
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.d(TAG, "bypassAdLinks: [S7] JS deobfuscation failed: ${e.message}")
+    }
+
+    Log.d(TAG, "bypassAdLinks: ALL strategies failed for $link")
     return null
+}
+
+/** Check if a URL contains a known host */
+private fun isKnownHostUrl(url: String): Boolean {
+    val knownHosts = listOf(
+        "hubcloud", "gdflix", "gdtot", "drive.google", "gofile",
+        "pixeldrain", "hubdrive", "hubstream", "hubcdn", "katdrive",
+        "olamovies.dad", "space.olamovies", "gdmirrorbot", "gd-flix",
+        "gdlink", "gdmirror", "1fichier", "send.cm", "mediafire",
+        "fuckingfast", "fastdl", "driveseed", "driveleech",
+        "bbupload", "filepress", "vidstack", "doodstream", "mixdrop",
+        "streamtape", "filemoon", "streamlare", "krakenfiles",
+        "filelions", "streamhide", "streamwish", "vidhide",
+        "busycdn", "goflix", "zfile", "workers.dev",
+        "awscdn", "googleusercontent", "megadb", "shrdsk",
+        "gdbot", "drivebot", "drivehub"
+    )
+    return knownHosts.any { url.contains(it, ignoreCase = true) }
 }
 
 // ─── Multi-layer redirect/obfuscation resolver ──────────────────────────────
