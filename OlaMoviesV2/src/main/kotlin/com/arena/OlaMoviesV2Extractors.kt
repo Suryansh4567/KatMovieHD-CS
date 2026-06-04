@@ -85,28 +85,29 @@ private fun isAdShortener(url: String): Boolean {
     return adHosts.any { url.contains(it, ignoreCase = true) }
 }
 
-// ─── OlaLinks — Multi-Strategy Aggressive Extractor (v8) ────────────────────
+// ─── OlaLinks — Multi-Strategy Aggressive Extractor (v14 SAB FIX) ────────────────────
 
 /**
  * Extractor for links.ol-am.top / links.olamovies.mov — OlaMovies'
  * Cloudflare-protected link shortener.
  *
- * MULTI-STRATEGY AGGRESSIVE APPROACH:
+ * MULTI-STRATEGY AGGRESSIVE APPROACH — v14 SAB FIX (ab sare movie chale):
  *
  * The link chain:
  *   1. Movie page has `links.ol-am.top/XXXXX` links
  *   2. links.ol-am.top/XXXXX → 301 → links.olamovies.mov/XXXXX (CF Turnstile)
- *   3. After CF solved: lands on Anylinks page with ?key=&id= params
- *   4. bypassOlaRedirect follows #download > a chain
- *   5. bypassAdLinks resolves dulink/ez4short/rocklinks/crazyblog
+ *   3. After CF solved: "Login to Continue" generator page (JS-heavy)
+ *   4. bypassOlaRedirect follows #download > a / generator button chain
+ *   5. bypassAdLinks resolves dulink/ez4short/rocklinks/crazyblog (S1-S9)
  *   6. Final host: HubCloud/GDFlix/etc. → use loadExtractor()
  *
  * 5 Resolution strategies (AGGRESSIVE — never give up easily):
  *   A: loadExtractor() — CloudStream's built-in CF bypass (WebView solves Turnstile)
  *   B: bypassOlaRedirect() + bypassAdLinks() — LikDev's proven chain
- *   C: Aggressive Scraping — full HTML scan for all known patterns
- *   D: Ad Shortener Special — bypassAdLinks() with loadExtractor() fallback
+ *   C: Aggressive Scraping — full HTML scan for all known patterns (17 patterns)
+ *   D: Ad Shortener Special — bypassAdLinks() with retries + loadExtractor() fallback
  *   E: Last Resort — try everything on original page links
+ *   + NUCLEAR: mass loadExtractor with multiple referer variations
  */
 open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -115,8 +116,8 @@ open class OlaLinks : ExtractorApi() {
 
     companion object {
         private const val TAG = "OlaLinks"
-        private const val MAX_RETRIES = 3
-        private const val RETRY_DELAY_MS = 1500L
+        private const val MAX_RETRIES = 2
+        private const val RETRY_DELAY_MS = 800L
     }
 
     override suspend fun getUrl(
@@ -250,7 +251,7 @@ open class OlaLinks : ExtractorApi() {
             if (!anySuccess) {
                 try {
                     Log.d(TAG, "→ [Strategy E] Last resort — aggressive chain follow")
-                    val chainResult = followChain(url, ref, maxDepth = 15)
+                    val chainResult = followChain(url, ref, maxDepth = 8)
                     if (chainResult != null) {
                         Log.d(TAG, "  [E] ✓ chain resolved -> $chainResult")
                         dispatchFinalHost(chainResult, subtitleCallback, callback)
@@ -291,7 +292,7 @@ open class OlaLinks : ExtractorApi() {
      * ULTRA AGGRESSIVE SCRAPER — scans the ENTIRE page HTML for ALL possible links.
      * This is Phase 2.3 MAXED OUT — catches EVERY possible URL pattern:
      *
-     * 15 scraping patterns:
+     * 17 scraping patterns (v14 SAB FIX — includes generator page scraping):
      *   1. #download > a (LikDev's primary pattern)
      *   2. ?key= links (OlaMovies redirect chain)
      *   3. Anylinks-specific: #btn6, #tp98, #go-link
@@ -363,7 +364,9 @@ open class OlaLinks : ExtractorApi() {
                 // window.open('...'), location.href='...', location='...'
                 val onclickPatterns = listOf(
                     Regex("""(?:window\.open|location\.href|location\.replace|location)\s*\(\s*['"]([^'"]+)['"]"""),
-                    Regex("""['"]([^'"]*(?:hubcloud|gdflix|pixeldrain|drive\.google|gofile|gdtot|hubdrive|hubstream)[^'"]*)['"]""")
+                    Regex("""['"]([^'"]*(?:hubcloud|gdflix|pixeldrain|drive\.google|gofile|gdtot|hubdrive|hubstream)[^'"]*)['"]"""),
+                    // v14: broad ANY-http URL in onclick
+                    Regex("""['"]?(https?://[^'"\s]+)['"]?""")
                 )
                 for (pattern in onclickPatterns) {
                     pattern.findAll(handler).forEach { match ->
@@ -384,7 +387,7 @@ open class OlaLinks : ExtractorApi() {
             }
         }
 
-        // 7. JS variables — expanded list
+        // 7. JS variables — v14 expanded list (generator URLs + login/continue vars)
         val jsPatterns = listOf(
             Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+currentLink\s*=\s*['"]([^'"]+)['"]"""),
@@ -396,6 +399,15 @@ open class OlaLinks : ExtractorApi() {
             Regex("""var\s+target\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+dest\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""var\s+next\s*=\s*['"]([^'"]+)['"]"""),
+            // v14: generator page JS vars
+            Regex("""var\s+loginUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+continueUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+generateUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+nextPage\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+shortUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+goToUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+gotoUrl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+goUrl\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]"""),
             Regex("""location\.replace\s*\(\s*['"]([^'"]+)['"]""")
         )
@@ -502,7 +514,40 @@ open class OlaLinks : ExtractorApi() {
             } catch (_: Exception) {}
         }
 
-        Log.d(TAG, "aggressiveScrape found ${found.size} total links")
+        // 16. v14: Generator button/text scraping — "Login to Continue", "Please wait" pages
+        val generatorTexts = listOf("Continue", "Login", "Generate", "Get Link", "Download", "Proceed", "Go", "Unlock", "Verify")
+        try {
+            doc.select("button, a, [class*='continue'], [class*='login'], [class*='generate'], [class*='download']").forEach { el ->
+                val elText = el.text().trim().lowercase()
+                if (generatorTexts.any { elText.contains(it.lowercase()) }) {
+                    el.attr("href")?.trim()?.let { href ->
+                        if (href.startsWith("http")) addLink(href)
+                        else if (href.isNotBlank()) addMaybeRelative(href, baseUrl)
+                    }
+                    for (attr in listOf("data-url", "data-href", "data-link", "data-go", "data-target", "data-redirect", "data-action")) {
+                        el.attr(attr)?.trim()?.let { v ->
+                            if (v.startsWith("http")) addLink(v)
+                            else if (v.isNotBlank()) addMaybeRelative(v, baseUrl)
+                        }
+                    }
+                    el.attr("onclick")?.trim()?.let { handler ->
+                        Regex("""['"]?(https?://[^'"\s]+)['"]?""").findAll(handler).forEach { m ->
+                            addLink(m.groupValues[1].trim())
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 17. v14: Broad raw regex on full HTML for JS strings containing URLs
+        Regex("""['"](https?://[^'"\s<>]{8,})['"]""").findAll(html).forEach { match ->
+            addLink(match.groupValues[1].trim())
+        }
+        Regex("""['"](/(?:generate|go|download|redirect|continue|unlock)/[^'"\s<>]+)['"]""").findAll(html).forEach { match ->
+            addMaybeRelative(match.groupValues[1].trim(), baseUrl)
+        }
+
+        Log.d(TAG, "aggressiveScrape found ${found.size} total links (v14 17-pattern scan)")
         return found
     }
 
@@ -535,7 +580,7 @@ open class OlaLinks : ExtractorApi() {
      * check if we land on a known host or a page with links.
      * Max depth 12 by default to avoid infinite loops.
      */
-    private suspend fun followChain(startUrl: String, referer: String, maxDepth: Int = 12): String? {
+    private suspend fun followChain(startUrl: String, referer: String, maxDepth: Int = 8): String? {
         val visited = mutableSetOf<String>()
         var currentUrl = startUrl
 
@@ -652,11 +697,44 @@ open class OlaLinks : ExtractorApi() {
         return if (isKnownHost(currentUrl)) currentUrl else null
     }
 
-    /** Resolve an OlaGenerate page (app2.olamovies.download/generate/?id=XXX) */
+    /** v14: Resolve an OlaGenerate page — enhanced for "Login to Continue" generator pages */
     private fun resolveOlaGeneratePage(
         doc: org.jsoup.nodes.Document,
         pageUrl: String
     ): String? {
+        // v14: Generator button text detection — "Login to Continue", "Continue", "Generate" etc
+        val generatorTexts = listOf("Continue", "Login", "Generate", "Get Link", "Download", "Proceed", "Go", "Unlock")
+        val genBtn = doc.select("button, a, [class*='continue'], [class*='login'], [class*='generate']").firstOrNull { el ->
+            generatorTexts.any { el.text().contains(it, ignoreCase = true) }
+        }
+        if (genBtn != null) {
+            // Check data-* attrs
+            for (attr in listOf("data-url", "data-href", "data-link", "data-go", "data-target", "data-redirect", "data-action")) {
+                genBtn.attr(attr)?.trim()?.let { v ->
+                    if (v.isNotBlank()) {
+                        val targetUrl = if (v.startsWith("http")) v else getBaseUrl(pageUrl) + v
+                        if (isKnownHost(targetUrl)) return targetUrl
+                        if (isIntermediateHost(targetUrl)) return targetUrl
+                    }
+                }
+            }
+            // Check onclick
+            genBtn.attr("onclick")?.trim()?.let { handler ->
+                Regex("""['"]?(https?://[^'"\s]+)['"]?""").find(handler)?.groupValues?.get(1)?.let { url ->
+                    if (isKnownHost(url)) return url
+                    if (isIntermediateHost(url)) return url
+                }
+            }
+            // Check href
+            genBtn.attr("href")?.trim()?.let { href ->
+                if (href.isNotBlank()) {
+                    val targetUrl = if (href.startsWith("http")) href else getBaseUrl(pageUrl) + href
+                    if (isKnownHost(targetUrl)) return targetUrl
+                    if (isIntermediateHost(targetUrl)) return targetUrl
+                }
+            }
+        }
+
         // Find button.inline-flex target
         val inlineBtn = doc.selectFirst("button.inline-flex")
         if (inlineBtn != null) {
@@ -685,6 +763,17 @@ open class OlaLinks : ExtractorApi() {
             }
         }
 
+        // v14: data-* attrs on ANY element (not just buttons)
+        for (el in doc.select("[data-url], [data-href], [data-link], [data-go], [data-target], [data-redirect]")) {
+            for (attr in listOf("data-url", "data-href", "data-link", "data-go", "data-target", "data-redirect")) {
+                el.attr(attr)?.trim()?.let { v ->
+                    if (v.startsWith("http")) {
+                        if (isKnownHost(v) || isIntermediateHost(v)) return v
+                    }
+                }
+            }
+        }
+
         // Fallback: search for known host links in the page
         for (anchor in doc.select("a[href]")) {
             val href = anchor.attr("href")
@@ -693,6 +782,15 @@ open class OlaLinks : ExtractorApi() {
 
         // Fallback: search page text
         findKnownHostUrl(doc.toString())?.let { return it }
+
+        // v14: broad raw scan for ANY http URL in generator page
+        val html = doc.toString()
+        for (host in KNOWN_HOSTS) {
+            val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
+            urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', ''', ')', ';', ']', '}')?.let { found ->
+                if (found.startsWith("http")) return found
+            }
+        }
 
         return null
     }

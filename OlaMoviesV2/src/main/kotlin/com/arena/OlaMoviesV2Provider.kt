@@ -41,7 +41,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /**
- * OlaMovies v2 provider — SIMPLE rewrite based on LikDev's approach.
+ * OlaMovies v14 provider — SIMPLE rewrite based on LikDev's approach.
  *
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts
  * 4K UHD, HDR, Dolby Vision, and REMUX releases.
@@ -109,6 +109,11 @@ class OlaMoviesV2Provider : MainAPI() {
         /** OlaMovies link shortener — the primary URL pattern for download links */
         private val OLA_LINK_REGEX = Regex(
             """(?i)(links\.ol-am\.top|links\.olamovies\.mov)"""
+        )
+
+        /** v14: OlaMovies short link detection — matches ol-am.top short links (not just links.ol-am.top) */
+        private val OLA_SHORT_REGEX = Regex(
+            """(?i)(links\.ol-am\.top|links\.olamovies\.mov|ol-am\.top/[^/]+$)"""
         )
 
         /** Known mirror hosts that OlaMovies links resolve to */
@@ -552,6 +557,7 @@ class OlaMoviesV2Provider : MainAPI() {
         return out
     }
 
+    // v14: ULTRA PERMISSIVE — return UNION of strict + permissive (all unique links from both)
     private fun collectDownloadLinks(container: Element): List<String> {
         val all = container.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
@@ -564,11 +570,18 @@ class OlaMoviesV2Provider : MainAPI() {
             }
 
         val strict = all.filter { OLA_LINK_REGEX.containsMatchIn(it) || LINK_HOST_REGEX.containsMatchIn(it) }
-        if (strict.isNotEmpty()) return strict
-
         val permissive = all.filter { url ->
             !IGNORE_HOST_REGEX.containsMatchIn(url) &&
                     !url.contains(mainUrl, ignoreCase = true)
+        }
+
+        if (strict.isNotEmpty()) {
+            if (permissive.isNotEmpty()) {
+                val union = LinkedHashSet(strict + permissive)
+                Log.d(TAG, "collectDownloadLinks: strict=${strict.size} + permissive=${permissive.size} → union=${union.size}")
+                return union.toList()
+            }
+            return strict
         }
         if (permissive.isNotEmpty()) {
             Log.w(TAG, "Strict host whitelist matched 0 links, falling back to permissive (${permissive.size})")
@@ -612,7 +625,7 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // loadLinks - SIMPLE: just dispatch to OlaLinks or loadExtractor
+    // loadLinks - v14: dispatch to OlaLinks or loadExtractor + generator referers
     // ------------------------------------------------------------------
 
     override suspend fun loadLinks(
@@ -664,6 +677,31 @@ class OlaMoviesV2Provider : MainAPI() {
             }
         }
 
+        // ── v14 ULTIMATE ALL-MOVIES — extra mass loadExtractor with generator referers ──
+        // If still nothing worked, try loadExtractor on every short link with multiple referer variations
+        // Generator pages need specific referers to work
+        if (!anyDispatched) {
+            Log.w(TAG, "loadLinks: v14 ULTIMATE ALL-MOVIES — mass loadExtractor with generator referers on ${urls.size} URLs")
+            val generatorReferers = listOf(
+                "https://links.olamovies.mov/",
+                "https://v2.olamovies.mov/",
+                "",
+                "https://links.ol-am.top/"
+            )
+            urls.amap { rawUrl ->
+                val url = rawUrl.trim()
+                if (url.isNotBlank() && url.startsWith("http", ignoreCase = true)) {
+                    for (genRef in generatorReferers) {
+                        try {
+                            Log.d(TAG, "loadLinks: ULTIMATE loadExtractor($url, ref=$genRef)")
+                            loadExtractor(url, genRef, subtitleCallback, callback)
+                            anyDispatched = true
+                        } catch (_: Exception) {}
+                    }
+                }
+            }
+        }
+
         if (!anyDispatched) {
             Log.w(TAG, "loadLinks: every URL failed to dispatch (even after last resort)")
         }
@@ -679,7 +717,7 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     /**
-     * SIMPLE dispatch — just route to the right extractor:
+     * v14 dispatch — just route to the right extractor:
      *   1. OlaMovies shortener chain → OlaLinks (handles CF + chain + bypass)
      *   2. Known final hosts (HubCloud/GDFlix/etc.) → their custom extractors
      *   3. Everything else → loadExtractor() (CloudStream's built-in)
@@ -694,8 +732,8 @@ class OlaMoviesV2Provider : MainAPI() {
 
         return try {
             when {
-                // OlaMovies link shortener chain (links.ol-am.top / links.olamovies.mov / Anylinks / olamovies.download)
-                OLA_LINK_REGEX.containsMatchIn(url) ||
+                // v14: OlaMovies link shortener chain (links.ol-am.top / links.olamovies.mov / ol-am.top short links / Anylinks / olamovies.download)
+                OLA_SHORT_REGEX.containsMatchIn(url) ||
                 url.contains("ukrupdate.com", ignoreCase = true) ||
                 url.contains("mastkhabre.com", ignoreCase = true) ||
                 url.contains("aryx.xyz", ignoreCase = true) ||

@@ -12,13 +12,15 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v8: Multi-Strategy Aggressive Approach — 5 strategies (A-E):
+ * v14 SAB FIX — ab sare movie chale! Enhanced generator page scraping,
+ * broader JS patterns, S8+S9 ad bypass, ULTIMATE ALL-MOVIES fallback:
  *   A: loadExtractor() — CF bypass via WebView (BEST for CF Turnstile)
- *   B: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain (IMPROVED)
- *   C: Aggressive Scraping — full HTML scan for all known patterns
- *   D: Ad Shortener Special — bypassAdLinks() with retries + loadExtractor() fallback
- *   E: Last Resort — aggressive chain follow (depth 12)
- *   Plus: retries with delay, detailed logging, modular code
+ *   B: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain (IMPROVED v14)
+ *   C: Aggressive Scraping — full HTML scan (17 patterns incl generator pages)
+ *   D: Ad Shortener Special — bypassAdLinks() S1-S9 with loadExtractor() fallback
+ *   E: Last Resort — try everything on original page links (maxDepth=8)
+ *   + NUCLEAR: mass loadExtractor with generator referer variations
+ *   + ULTIMATE ALL-MOVIES: extra mass loadExtractor in Provider (v14)
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -28,12 +30,13 @@ class OlaMoviesV2Plugin : BasePlugin() {
 
         // ─── Custom OlaMovies link shortener extractors ────────────────
         // links.ol-am.top redirects to links.olamovies.mov — both need
-        // to be handled. OlaLinks uses 5-strategy aggressive approach:
+        // to be handled. OlaLinks uses v14 SAB FIX aggressive approach:
         //   A: loadExtractor() — CF WebView bypass
-        //   B: bypassOlaRedirect + bypassAdLinks — LikDev's chain
-        //   C: Aggressive HTML scraping — all patterns
-        //   D: Ad shortener special — retries + fallback
-        //   E: Last resort — aggressive chain follow
+        //   B: bypassOlaRedirect + bypassAdLinks — LikDev's chain (v14 enhanced)
+        //   C: Aggressive HTML scraping — 17 patterns incl generator pages
+        //   D: Ad shortener special — S1-S9 bypass + fallback
+        //   E: Last resort — aggressive chain follow (maxDepth=8)
+        //   + NUCLEAR: mass loadExtractor with multiple referers
         registerExtractorAPI(OlaLinks())
         registerExtractorAPI(OlaLinksMov())
 

@@ -1,10 +1,60 @@
-# 🎬 CloudStream KatMovieHD Extension
+# 🎬 CloudStream KatMovieHD + OlaMoviesV2 Extension
 
-A working CloudStream 3 extension for [KatMovieHD](https://new1.katmoviehd.cymru/) (Hindi dubbed & dual-audio Movies / TV Series).
+A working CloudStream 3 extension for [KatMovieHD](https://new1.katmoviehd.cymru/) (Hindi dubbed & dual-audio Movies / TV Series) and **OlaMoviesV2** (v2.olamovies.mov — 4K UHD / HDR / Dolby Vision / REMUX).
 
 Built with the proven modern toolchain used by [`phisher98/cloudstream-extensions-phisher`](https://github.com/phisher98/cloudstream-extensions-phisher) and [`SaurabhKaperwan/CSX`](https://github.com/SaurabhKaperwan/CSX) — AGP 8.5.2 + Kotlin 1.9.25 + Gradle 8.10 + JDK 17.
 
 > ⚠️ **Disclaimer:** Educational use only. This repo does not host any media files — the provider only scrapes publicly available links from third-party sites.
+
+---
+
+## 🔥 OlaMoviesV2 — v14 SAB FIX (ab sare movie chale!)
+
+**Target:** `v2.olamovies.mov` — WordPress/Gridlove site hosting 4K UHD, HDR, Dolby Vision, and REMUX releases.
+
+### The Link Chain (and how we crack it)
+
+```
+Movie page → links.ol-am.top/XXXXX → 301 → links.olamovies.mov/XXXXX (CF Turnstile)
+→ "Login to Continue" generator page (JS-heavy) → ad shortener → final host (HubCloud/GDFlix/etc.)
+```
+
+### v14 New Features
+
+| Feature | Description |
+|---------|-------------|
+| **Generator page scraping** | Detects "Login to Continue", "Please wait", generator buttons by text + class + data-* + onclick |
+| **17-pattern aggressive scrape** | 15 old + pattern 16 (generator button/text) + pattern 17 (broad raw JS URL scan) |
+| **Broader JS patterns** | `var loginUrl`, `continueUrl`, `generateUrl`, `nextPage`, `shortUrl`, `goToUrl` + onclick ANY-http regex |
+| **S8: Cookie + referer variations** | Tries different referer/cookie combos for flaky ad shorteners (dulink/ez4short/rocklinks/crazyblog) |
+| **S9: Direct host scan** | Scans ad page HTML for known host URLs — ultimate bypass |
+| **ULTIMATE ALL-MOVIES** | Extra mass loadExtractor in Provider with 4 generator referer variations |
+| **Ultra permissive link collection** | Returns UNION of strict + permissive links from movie page (sab links milenge) |
+| **Speed guards** | MAX_RETRIES=2, RETRY_DELAY_MS=800ms, maxDepth=8, maxSteps=6 |
+
+### v14 Status Table
+
+| Plan Item | Status | Notes |
+|-----------|--------|-------|
+| Phase 2.1: Plain short link entry | ✅ | bypassOlaRedirect handles plain + keyed |
+| Phase 2.2: loadExtractor better use | ✅ | Strategy A + NUCLEAR fallback |
+| Phase 2.3: Scraping & chain (MAXED) | ✅ | 17 patterns + generator page scraping |
+| Phase 2.4: Ad shortener (MULTI-API) | ✅ | S1-S9 (9 strategies!) |
+| Phase 2.5: Last Resort / ULTIMATE | ✅ | Phase 2.5 + ULTIMATE ALL-MOVIES block |
+| Generator page: "Login to Continue" | ✅ | Text-based + class + data-* + onclick scraping |
+| Broad JS vars (loginUrl/continueUrl) | ✅ | 8 new JS patterns added |
+| onclick ANY-http regex | ✅ | Broad regex catches all http URLs in handlers |
+| Speed guards (2 retries, 800ms) | ✅ | MAX_RETRIES=2, RETRY_DELAY_MS=800L |
+| maxDepth=8, maxSteps=6 | ✅ | Prevents infinite chains |
+| Version bump to 14 | ✅ | build.gradle + all comments updated |
+
+### Test Instructions
+
+1. Build the v14 plugin: `./gradlew makePluginsJson`
+2. Install `.cs3` file in CloudStream
+3. Test with **Hoppers (2026)** — should have 12 short links
+4. Check logcat for `OlaLinks`, `OlaUtils`, `OlaMoviesV2` tags
+5. Report: which strategy worked? Generator button detected? Final hosts resolved?
 
 ---
 

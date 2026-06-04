@@ -94,10 +94,10 @@ suspend fun loadSourceNameExtractor(
     }
 }
 
-// ─── LikDev's bypassOlaRedirect (IMPROVED for v2.olamovies.mov) ──────────────
+// ─── LikDev's bypassOlaRedirect (IMPROVED v14 for v2.olamovies.mov) ──────────
 
 /**
- * Bypass the OlaMovies redirect chain — IMPROVED v8.
+ * Bypass the OlaMovies redirect chain — IMPROVED v14.
  *
  * Handles TWO types of initial links:
  *   1. PLAIN links: links.ol-am.top/XXXXX (no ?key= or &id=)
@@ -106,8 +106,13 @@ suspend fun loadSourceNameExtractor(
  *      → Use the key as param name, id as param value, GET the page
  *      → Find #download > a for the next link in the chain
  *
- * The chain continues until we find a non-keyed link (final destination)
- * or until max steps reached.
+ * v14 improvements:
+ *   - maxSteps reduced to 6 for faster termination
+ *   - Generator page detection: "Login to Continue" / "Please turn off Adblocker" / "Buy Premium"
+ *     → Scrape buttons/links with text "Continue", "Login", "Generate", "Get Link"
+ *     → Check data-* attrs on ANY element, onclick handlers
+ *   - Broad anchor scraping for generator pages (ALL <a> with http href)
+ *   - 800ms delay instead of 1500ms for speed guards
  *
  * Based on LikDev's proven approach + improvements for v2.
  */
@@ -115,9 +120,9 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
     val shortLinkList = arrayListOf<String>()
     var currentLink = link
     var count = 0
-    val maxSteps = 10
+    val maxSteps = 6
 
-    Log.d(TAG, "bypassOlaRedirect: starting with $link")
+    Log.d(TAG, "bypassOlaRedirect v14: starting with $link")
 
     while (count < maxSteps) {
         count++
@@ -137,9 +142,9 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
                     ), timeout = 15_000L)
                 } catch (e: Exception) {
                     Log.d(TAG, "bypassOlaRedirect: plain link fetch failed: ${e.message}")
-                    // Retry once after delay
+                    // Retry once after delay (v14: 800ms speed guard)
                     try {
-                        delay(1500L)
+                        delay(800L)
                         app.get(currentLink, referer = referer, timeout = 15_000L)
                     } catch (e2: Exception) {
                         Log.d(TAG, "bypassOlaRedirect: retry also failed: ${e2.message}")
@@ -148,6 +153,7 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
                 }
 
                 val doc = response.document
+                val pageHtml = doc.toString()
 
                 // Check if we were redirected to a keyed link
                 val finalUrl = response.url
@@ -155,6 +161,113 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
                     Log.d(TAG, "bypassOlaRedirect: redirected to keyed link -> $finalUrl")
                     currentLink = finalUrl
                     continue  // Process this keyed link in the next iteration
+                }
+
+                // ── v14: Generator page detection ──
+                // When page contains "Login to Continue" or "Please turn off Adblocker" or "Buy Premium",
+                // it's likely a generator/interstitial page. Try harder to find the next link.
+                val isGeneratorPage = pageHtml.contains("Login to Continue", ignoreCase = true) ||
+                        pageHtml.contains("Please turn off Adblocker", ignoreCase = true) ||
+                        pageHtml.contains("Buy Premium", ignoreCase = true)
+
+                if (isGeneratorPage) {
+                    Log.d(TAG, "bypassOlaRedirect: generator page detected, trying aggressive scraping")
+
+                    // 1) Scrape buttons/links with specific text patterns
+                    val buttonTexts = listOf("Continue", "Login", "Generate", "Get Link")
+                    for (btnText in buttonTexts) {
+                        val btnSelectors = listOf(
+                            "a:contains($btnText)",
+                            "button:contains($btnText)",
+                            "input[value*=$btnText]",
+                            "[class*='btn']:contains($btnText)",
+                            "[class*='button']:contains($btnText)"
+                        )
+                        for (selector in btnSelectors) {
+                            try {
+                                val el = doc.selectFirst(selector)
+                                if (el != null) {
+                                    // Check href, data-url, data-href, data-link, onclick
+                                    val linkAttrs = listOf("href", "data-url", "data-href", "data-link")
+                                    for (attr in linkAttrs) {
+                                        val attrVal = el.attr(attr)?.trim()
+                                        if (!attrVal.isNullOrBlank() && attrVal.startsWith("http")) {
+                                            Log.d(TAG, "bypassOlaRedirect: generator button [$selector][$attr] -> $attrVal")
+                                            shortLinkList.add(attrVal)
+                                            currentLink = attrVal
+                                            if (!attrVal.contains("?key=") || !attrVal.contains("&id=")) {
+                                                return shortLinkList
+                                            }
+                                            // Continue chain with keyed link
+                                            break
+                                        }
+                                    }
+                                    // Check onclick handler for URL
+                                    val onclick = el.attr("onclick")?.trim()
+                                    if (!onclick.isNullOrBlank()) {
+                                        val onclickUrl = Regex("""(https?://[^\s'"]+)""").find(onclick)?.groupValues?.get(1)
+                                        if (onclickUrl != null) {
+                                            Log.d(TAG, "bypassOlaRedirect: generator onclick -> $onclickUrl")
+                                            shortLinkList.add(onclickUrl)
+                                            currentLink = onclickUrl
+                                            if (!onclickUrl.contains("?key=") || !onclickUrl.contains("&id=")) {
+                                                return shortLinkList
+                                            }
+                                            break
+                                        }
+                                    }
+                                }
+                            } catch (_: Exception) { /* selector not supported, skip */ }
+                        }
+                    }
+
+                    // 2) Check data-* attrs on ANY element that might hold a URL
+                    val allElements = doc.select("[data-url], [data-href], [data-link], [data-redirect]")
+                    for (el in allElements) {
+                        for (attr in listOf("data-url", "data-href", "data-link", "data-redirect")) {
+                            val attrVal = el.attr(attr)?.trim()
+                            if (!attrVal.isNullOrBlank() && attrVal.startsWith("http") && attrVal !in shortLinkList) {
+                                Log.d(TAG, "bypassOlaRedirect: generator data-attr [$attr] -> $attrVal")
+                                shortLinkList.add(attrVal)
+                                currentLink = attrVal
+                                if (!attrVal.contains("?key=") || !attrVal.contains("&id=")) {
+                                    return shortLinkList
+                                }
+                            }
+                        }
+                    }
+
+                    // 3) Check onclick handlers on ANY element
+                    val onclickElements = doc.select("[onclick]")
+                    for (el in onclickElements) {
+                        val onclick = el.attr("onclick")?.trim() ?: continue
+                        val onclickUrl = Regex("""(https?://[^\s'"]+)""").find(onclick)?.groupValues?.get(1)
+                        if (onclickUrl != null && onclickUrl !in shortLinkList) {
+                            Log.d(TAG, "bypassOlaRedirect: generator element onclick -> $onclickUrl")
+                            shortLinkList.add(onclickUrl)
+                            currentLink = onclickUrl
+                            if (!onclickUrl.contains("?key=") || !onclickUrl.contains("&id=")) {
+                                return shortLinkList
+                            }
+                        }
+                    }
+
+                    // 4) v14: Broad anchor scraping for generator pages — ALL <a> with http href
+                    val allAnchorsBroad = doc.select("a[href]").mapNotNull {
+                        it.attr("href").trim().takeIf { h -> h.startsWith("http") }
+                    }
+                    for (anchor in allAnchorsBroad) {
+                        if (anchor !in shortLinkList) {
+                            Log.d(TAG, "bypassOlaRedirect: generator broad anchor -> $anchor")
+                            shortLinkList.add(anchor)
+                        }
+                    }
+
+                    // If we collected links, return them (generator pages are usually terminal)
+                    if (shortLinkList.isNotEmpty()) {
+                        Log.d(TAG, "bypassOlaRedirect: generator page scraped ${shortLinkList.size} link(s)")
+                        return shortLinkList
+                    }
                 }
 
                 // Try to find #download > a
@@ -212,20 +325,10 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
                     }
                 }
 
-                // Scrape all <a> tags for any http link
+                // Scrape all <a> tags for known host URLs and keyed links
                 val allAnchors = doc.select("a[href]").mapNotNull { it.attr("href").trim().takeIf { h -> h.startsWith("http") } }
                 for (anchor in allAnchors) {
-                    if (anchor.contains("hubcloud", ignoreCase = true) ||
-                        anchor.contains("gdflix", ignoreCase = true) ||
-                        anchor.contains("gdtot", ignoreCase = true) ||
-                        anchor.contains("drive.google", ignoreCase = true) ||
-                        anchor.contains("pixeldrain", ignoreCase = true) ||
-                        anchor.contains("dulink", ignoreCase = true) ||
-                        anchor.contains("ez4short", ignoreCase = true) ||
-                        anchor.contains("rocklinks", ignoreCase = true) ||
-                        anchor.contains("crazyblog", ignoreCase = true) ||
-                        anchor.contains("anylinks", ignoreCase = true) ||
-                        anchor.contains("?key=", ignoreCase = true)) {
+                    if (isKnownHostUrl(anchor) || anchor.contains("?key=", ignoreCase = true)) {
                         if (anchor !in shortLinkList) {
                             shortLinkList.add(anchor)
                             Log.d(TAG, "bypassOlaRedirect: scraped anchor -> $anchor")
@@ -247,9 +350,58 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
             Log.d(TAG, "bypassOlaRedirect: keyed link, key='$key', id='$id'")
 
             val param = mapOf(key to id)
-            val doc = app.get(currentLink, referer = referer, params = param, timeout = 15_000L).document
+            val keyedResponse = app.get(currentLink, referer = referer, params = param, timeout = 15_000L)
+            val keyedDoc = keyedResponse.document
 
-            val nextHref = doc.selectFirst("#download > a")?.attr("href")?.trim()
+            // v14: Also check keyed pages for generator patterns
+            val keyedHtml = keyedDoc.toString()
+            val keyedIsGenerator = keyedHtml.contains("Login to Continue", ignoreCase = true) ||
+                    keyedHtml.contains("Please turn off Adblocker", ignoreCase = true) ||
+                    keyedHtml.contains("Buy Premium", ignoreCase = true)
+
+            if (keyedIsGenerator) {
+                Log.d(TAG, "bypassOlaRedirect: keyed page is a generator, trying aggressive scraping")
+
+                // Check data-* attrs on ANY element
+                val allElements = keyedDoc.select("[data-url], [data-href], [data-link], [data-redirect]")
+                for (el in allElements) {
+                    for (attr in listOf("data-url", "data-href", "data-link", "data-redirect")) {
+                        val attrVal = el.attr(attr)?.trim()
+                        if (!attrVal.isNullOrBlank() && attrVal.startsWith("http") && attrVal !in shortLinkList) {
+                            Log.d(TAG, "bypassOlaRedirect: keyed generator data-attr [$attr] -> $attrVal")
+                            shortLinkList.add(attrVal)
+                        }
+                    }
+                }
+
+                // Check onclick handlers on ANY element
+                val onclickElements = keyedDoc.select("[onclick]")
+                for (el in onclickElements) {
+                    val onclick = el.attr("onclick")?.trim() ?: continue
+                    val onclickUrl = Regex("""(https?://[^\s'"]+)""").find(onclick)?.groupValues?.get(1)
+                    if (onclickUrl != null && onclickUrl !in shortLinkList) {
+                        Log.d(TAG, "bypassOlaRedirect: keyed generator onclick -> $onclickUrl")
+                        shortLinkList.add(onclickUrl)
+                    }
+                }
+
+                // v14: Broad anchor scraping for keyed generator pages
+                val broadAnchors = keyedDoc.select("a[href]").mapNotNull {
+                    it.attr("href").trim().takeIf { h -> h.startsWith("http") }
+                }
+                for (anchor in broadAnchors) {
+                    if (anchor !in shortLinkList) {
+                        Log.d(TAG, "bypassOlaRedirect: keyed generator broad anchor -> $anchor")
+                        shortLinkList.add(anchor)
+                    }
+                }
+
+                if (shortLinkList.isNotEmpty()) {
+                    return shortLinkList
+                }
+            }
+
+            val nextHref = keyedDoc.selectFirst("#download > a")?.attr("href")?.trim()
             if (nextHref.isNullOrBlank()) {
                 Log.d(TAG, "bypassOlaRedirect: no #download > a at step $count, stopping")
                 break
@@ -270,25 +422,26 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
         }
     }
 
-    Log.d(TAG, "bypassOlaRedirect: collected ${shortLinkList.size} link(s)")
+    Log.d(TAG, "bypassOlaRedirect v14: collected ${shortLinkList.size} link(s)")
     return shortLinkList
 }
 
-// ─── LikDev's bypassAdLinks (IMPROVED v9 — Multiple Bypass APIs) ──────────────
+// ─── LikDev's bypassAdLinks (IMPROVED v14 — Multiple Bypass APIs) ────────────
 
 /**
- * Bypass ad shortener links — IMPROVED v9.
+ * Bypass ad shortener links — IMPROVED v14.
  *
  * MULTI-API APPROACH — less dependency on any single API:
  *
  * Strategy 1: emilyx API (dulink / ez4short / rocklinks)
- * Strategy 2: crazyblog cookie-based POST
- * Strategy 3: Direct redirect following (v2links / bestloansoffers / worldzc / earningtime)
- * Strategy 4: Alternate bypass APIs (bypass.city / bypass.pm)
+ * Strategy 2: Alternate bypass API — bypass.city
+ * Strategy 3: crazyblog cookie-based POST
+ * Strategy 4: Direct redirect following (v2links / bestloansoffers / worldzc / earningtime)
  * Strategy 5: Form-based extraction (POST with form data)
  * Strategy 6: Cookie-based timer bypass (wait + POST)
  * Strategy 7: JavaScript deobfuscation (for shorteners that use JS)
- * Strategy 8: Nuclear — return as-is, let loadExtractor handle it
+ * Strategy 8: Cookie + referer variations + raw scan for flaky ads (crazyblog/dulink/ez4short/rocklinks)
+ * Strategy 9: Direct host scan in ad page HTML (ultimate fallback)
  */
 suspend fun bypassAdLinks(link: String): String? {
     val emilyxApiSupportedLinks = listOf("dulink", "ez4short")
@@ -301,7 +454,7 @@ suspend fun bypassAdLinks(link: String): String? {
         else -> ""
     }
 
-    Log.d(TAG, "bypassAdLinks: resolving $link (type=$type)")
+    Log.d(TAG, "bypassAdLinks v14: resolving $link (type=$type)")
 
     // ── Strategy 1: Use emilyx API for supported shorteners ──
     if (emilyxApiSupportedLinks.any { link.contains(it, ignoreCase = true) } ||
@@ -532,7 +685,112 @@ suspend fun bypassAdLinks(link: String): String? {
         Log.d(TAG, "bypassAdLinks: [S7] JS deobfuscation failed: ${e.message}")
     }
 
-    Log.d(TAG, "bypassAdLinks: ALL strategies failed for $link")
+    // ── Strategy 8 (v14): Cookie + referer variations + raw scan for flaky ads ──
+    // Targets: crazyblog/dulink/ez4short/rocklinks and similar flaky ad shorteners
+    // These shorteners sometimes respond differently based on referer and cookies
+    if (link.contains("crazyblog", ignoreCase = true) ||
+        link.contains("dulink", ignoreCase = true) ||
+        link.contains("ez4short", ignoreCase = true) ||
+        link.contains("rocklinks", ignoreCase = true) ||
+        link.contains("olamovies", ignoreCase = true)) {
+        try {
+            Log.d(TAG, "bypassAdLinks: [S8] trying cookie + referer variations for flaky ad link")
+
+            val refererVariations = listOf(
+                "",                                                     // Empty referer
+                "https://v2.olamovies.mov",                            // OlaMovies main site
+                "https://links.olamovies.mov",                         // OlaMovies links site
+                "https://www.google.com",                              // Generic referer
+                getBaseUrl(link)                                        // Self-referer
+            )
+
+            val cookieVariations = listOf(
+                emptyMap<String, String>(),                             // No cookies
+                mapOf("visitor" to "1", "session" to "active"),         // Simple visitor cookies
+                mapOf("app_visitor" to "1", "AppSession" to "active"),  // crazyblog-style cookies
+                mapOf("visited" to "1", "hasVisited" to "true")         // Generic visited cookies
+            )
+
+            for (referer in refererVariations) {
+                for (cookies in cookieVariations) {
+                    try {
+                        val reqHeaders = mapOf(
+                            "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                        )
+                        val s8Response = app.get(
+                            link,
+                            referer = referer.ifBlank { null },
+                            headers = reqHeaders,
+                            cookies = cookies,
+                            timeout = 10_000L
+                        )
+                        val s8Html = s8Response.text
+
+                        // Raw scan the HTML response for known host URLs
+                        val hostUrlRegex = Regex("""(https?://[^\s"'<>\)]+)""")
+                        for (match in hostUrlRegex.findAll(s8Html)) {
+                            val candidate = match.groupValues[1].trimEnd(',', ';', ')')
+                            if (isKnownHostUrl(candidate) && candidate != link) {
+                                Log.d(TAG, "bypassAdLinks: [S8] raw scan found host URL -> $candidate (referer='$referer')")
+                                return candidate
+                            }
+                        }
+
+                        // Also check response URL in case of redirect
+                        val responseUrl = s8Response.url
+                        if (responseUrl != link && isKnownHostUrl(responseUrl)) {
+                            Log.d(TAG, "bypassAdLinks: [S8] redirect to host URL -> $responseUrl")
+                            return responseUrl
+                        }
+                    } catch (_: Exception) {
+                        // Continue with next variation
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "bypassAdLinks: [S8] cookie + referer variations failed: ${e.message}")
+        }
+    }
+
+    // ── Strategy 9 (v14): Direct host scan in ad page HTML (ultimate fallback) ──
+    // GET the ad page HTML, scan for ALL known host URLs in the raw HTML using regex
+    // This is the ultimate fallback that catches any host URL embedded in the page
+    try {
+        Log.d(TAG, "bypassAdLinks: [S9] trying direct host scan in ad page HTML")
+        val s9Response = app.get(link, timeout = 15_000L)
+        val s9Html = s9Response.text
+
+        // Comprehensive URL regex to find all URLs in the raw HTML
+        val urlRegex = Regex("""(https?://[^\s"'<>\)\]\},;]+)""")
+        val allUrls = urlRegex.findAll(s9Html).map { match ->
+            match.groupValues[1].trimEnd(',', ';', ')', ']', '}', '"', '\'')
+        }.toList()
+
+        // Return the first known host URL found
+        for (candidateUrl in allUrls) {
+            if (isKnownHostUrl(candidateUrl) && candidateUrl != link) {
+                Log.d(TAG, "bypassAdLinks: [S9] direct host scan found -> $candidateUrl")
+                return candidateUrl
+            }
+        }
+
+        // Also try base64-encoded URLs in the page (some shorteners encode the destination)
+        val b64Pattern = Regex("""[A-Za-z0-9+/]{20,}={0,2}""")
+        for (b64Match in b64Pattern.findAll(s9Html)) {
+            try {
+                val decoded = base64Decode(b64Match.value)
+                if (decoded.startsWith("http") && isKnownHostUrl(decoded)) {
+                    Log.d(TAG, "bypassAdLinks: [S9] base64 decoded host URL -> $decoded")
+                    return decoded
+                }
+            } catch (_: Exception) { /* not valid base64, skip */ }
+        }
+    } catch (e: Exception) {
+        Log.d(TAG, "bypassAdLinks: [S9] direct host scan failed: ${e.message}")
+    }
+
+    Log.d(TAG, "bypassAdLinks v14: ALL strategies (S1-S9) failed for $link")
     return null
 }
 
