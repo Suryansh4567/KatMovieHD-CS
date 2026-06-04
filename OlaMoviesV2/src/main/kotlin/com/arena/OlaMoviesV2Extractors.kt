@@ -787,7 +787,7 @@ open class OlaLinks : ExtractorApi() {
         val html = doc.toString()
         for (host in KNOWN_HOSTS) {
             val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
-            urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', ''', ')', ';', ']', '}')?.let { found ->
+            urlRegex.find(html)?.value?.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')?.let { found ->
                 if (found.startsWith("http")) return found
             }
         }
