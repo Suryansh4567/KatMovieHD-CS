@@ -55,12 +55,17 @@ private val KNOWN_HOSTS = listOf(
     "pixeldrain", "hubdrive", "hubstream", "hubcdn", "katdrive",
     "olamovies.dad", "space.olamovies", "gdmirrorbot", "gd-flix",
     "gdlink", "gdmirror", "1fichier", "send.cm", "mediafire",
-    "gdtot", "fuckingfast", "fastdl", "driveseed", "driveleech",
+    "fuckingfast", "fastdl", "driveseed", "driveleech",
     "bbupload", "filepress", "vidstack", "doodstream", "mixdrop",
     "streamtape", "filemoon", "streamlare", "krakenfiles",
     "filelions", "streamhide", "streamwish", "vidhide",
     "busycdn", "goflix", "zfile", "workers.dev",
-    "awscdn", "googleusercontent", "megadb", "shrdsk"
+    "awscdn", "googleusercontent", "megadb", "shrdsk",
+    // Added from real-site experiments
+    "hubcloud.foo", "hubcloud.dad", "katdrive.in",
+    "gdtot.cfd", "gdflix.dad", "gdflix.rest", "gdflix.dev",
+    "gdflix.cfd", "gdflix.net", "gdflix.one",
+    "filegram", "gdlink", "gdmirror"
 )
 
 /** Intermediate shortener domains (Anylinks.in network + v2links + Ola generate) */
@@ -71,7 +76,9 @@ private val INTERMEDIATE_HOSTS = listOf(
     "ez4short.com", "v2links.com", "v2links.me",
     "olamovies.mov", "links.olamovies.mov",
     "links.ol-am.top", "ol-am.top",
-    "olamovies.download", "app2.olamovies.download"
+    "olamovies.download", "app2.olamovies.download",
+    // Added from real-site experiments
+    "bestloansoffers.com", "worldzc.com", "earningtime.in"
 )
 
 private fun isKnownHost(url: String): Boolean =
@@ -98,10 +105,11 @@ private fun isIntermediateHost(url: String): Boolean =
  * handles CF challenges on real devices (opens WebView for user to solve
  * Turnstile, then stores cf_clearance cookies for subsequent requests).
  *
- * Resolution strategies (3 focused approaches):
- *   S1: Follow chain with app.get() + Anylinks resolution + OlaGenerate resolution
- *   S2: Try alternate domain (links.ol-am.top ↔ links.olamovies.mov)
- *   S3: loadExtractor() fallback (CloudStream's built-in CF bypass)
+ * Resolution strategies (4 focused approaches, reordered for max success):
+ *   S1: loadExtractor() — CloudStream's built-in CF bypass (WebView solves Turnstile)
+ *   S2: Follow chain with app.get() + Anylinks resolution + OlaGenerate resolution
+ *   S3: Try alternate domain (links.ol-am.top ↔ links.olamovies.mov)
+ *   S4: Direct form POST for Anylinks pages (simulates button click)
  */
 open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -130,19 +138,35 @@ open class OlaLinks : ExtractorApi() {
         try {
             Log.d("OlaLinks", "=== Resolving: $url ===")
 
-            // ── S1: Follow chain with app.get() + specialized resolvers ──────────
+            // ── S1: loadExtractor() — CloudStream's built-in CF bypass (WebView) ──
+            // This is the MOST RELIABLE way to handle CF Turnstile on real devices.
+            // CloudStream opens a WebView for the user to solve the challenge,
+            // then stores cf_clearance cookies for subsequent requests.
+            // We try this FIRST because manual chain resolution can't solve Turnstile.
+            try {
+                Log.d("OlaLinks", "S1: trying loadExtractor for CF bypass")
+                loadExtractor(url, "https://v2.olamovies.mov/", subtitleCallback, callback)
+                // If loadExtractor found something, we're done
+                // But we also try chain resolution as it might find more links
+            } catch (e: Exception) {
+                Log.d("OlaLinks", "S1 (loadExtractor) failed: ${e.message}")
+            }
+
+            // ── S2: Follow chain with app.get() + specialized resolvers ──────────
+            // After CF challenge is solved (cookies stored), app.get() can now
+            // follow the full shortener chain.
             try {
                 val resolved = resolveChain(url)
                 if (resolved != null && isKnownHost(resolved)) {
-                    Log.d("OlaLinks", "S1 (chain): $url -> $resolved")
+                    Log.d("OlaLinks", "S2 (chain): $url -> $resolved")
                     dispatchResolved(resolved, subtitleCallback, callback)
                     return
                 }
             } catch (e: Exception) {
-                Log.d("OlaLinks", "S1 failed: ${e.message}")
+                Log.d("OlaLinks", "S2 failed: ${e.message}")
             }
 
-            // ── S2: Try alternate domain (links.ol-am.top ↔ links.olamovies.mov) ─
+            // ── S3: Try alternate domain (links.ol-am.top ↔ links.olamovies.mov) ─
             try {
                 val altUrl = when {
                     url.contains("links.ol-am.top", ignoreCase = true) ->
@@ -152,24 +176,30 @@ open class OlaLinks : ExtractorApi() {
                     else -> null
                 }
                 if (altUrl != null && altUrl != url) {
-                    Log.d("OlaLinks", "S2: trying alternate domain $altUrl")
+                    Log.d("OlaLinks", "S3: trying alternate domain $altUrl")
                     val resolved = resolveChain(altUrl)
                     if (resolved != null && isKnownHost(resolved)) {
-                        Log.d("OlaLinks", "S2 (alt chain): $altUrl -> $resolved")
+                        Log.d("OlaLinks", "S3 (alt chain): $altUrl -> $resolved")
                         dispatchResolved(resolved, subtitleCallback, callback)
                         return
                     }
                 }
             } catch (e: Exception) {
-                Log.d("OlaLinks", "S2 failed: ${e.message}")
+                Log.d("OlaLinks", "S3 failed: ${e.message}")
             }
 
-            // ── S3: loadExtractor() fallback — CloudStream's built-in CF bypass ──
+            // ── S4: Direct form POST for Anylinks pages ──
+            // Sometimes the form action URL is available but needs a POST, not GET
             try {
-                Log.w("OlaLinks", "Chain resolution exhausted for $url, trying loadExtractor fallback")
-                loadExtractor(url, "https://v2.olamovies.mov/", subtitleCallback, callback)
+                Log.d("OlaLinks", "S4: trying form POST for $url")
+                val formResult = tryFormPost(url)
+                if (formResult != null && isKnownHost(formResult)) {
+                    Log.d("OlaLinks", "S4 (form POST): $url -> $formResult")
+                    dispatchResolved(formResult, subtitleCallback, callback)
+                    return
+                }
             } catch (e: Exception) {
-                Log.e("OlaLinks", "All strategies failed for $url: ${e.message}")
+                Log.d("OlaLinks", "S4 failed: ${e.message}")
             }
         } catch (e: Exception) {
             Log.e("OlaLinks", "Fatal error for $url: ${e.message}")
@@ -583,6 +613,83 @@ open class OlaLinks : ExtractorApi() {
         private const val MAX_CHAIN_DEPTH = 10
     }
 
+    // ─── Form POST Simulation ──────────────────────────────────────────────────
+
+    /**
+     * Simulate form POST for Anylinks pages.
+     * From bypass-all-shortlinks-debloated:
+     *   DoIfExists("form[name='tp']", 'submit', 11)
+     *
+     * We simulate this by:
+     *   1. Fetch the page
+     *   2. Find form[name='tp'] and its action + hidden inputs
+     *   3. POST the form data to the action URL
+     *   4. Check the response for the next URL
+     */
+    private suspend fun tryFormPost(url: String): String? {
+        if (!isAnylinksPage(url) && !isIntermediateHost(url)) return null
+
+        try {
+            val response = app.get(url, headers = olaHeaders, timeout = 15_000L)
+            val doc = response.document
+            val html = doc.toString()
+
+            // Look for form[name='tp']
+            val tpForm = doc.selectFirst("form[name='tp']")
+            if (tpForm != null) {
+                val formAction = tpForm.attr("action").ifBlank { url }
+                val formUrl = if (formAction.startsWith("http")) formAction
+                              else getBaseUrl(url) + formAction
+
+                // Collect all hidden inputs
+                val formData = mutableMapOf<String, String>()
+                for (input in tpForm.select("input")) {
+                    val name = input.attr("name")
+                    val value = input.attr("value")
+                    if (name.isNotBlank()) formData[name] = value
+                }
+
+                if (formData.isNotEmpty()) {
+                    Log.d("OlaLinks", "Form POST: posting ${formData.size} fields to $formUrl")
+                    val postResponse = app.post(formUrl, headers = olaHeaders, data = formData, timeout = 15_000L)
+                    val postFinal = postResponse.url
+
+                    if (isKnownHost(postFinal)) return postFinal
+                    if (isOlaGeneratePage(postFinal)) return postFinal
+
+                    // Search the POST response for known host URLs
+                    val postHtml = postResponse.document.toString()
+                    findKnownHostUrl(postHtml)?.let { return it }
+
+                    // Search for generate URL in POST response
+                    val generatePattern = Regex("""https?://(?:app2\.)?olamovies\.download/generate/\?id=[^\s"'<>\\]+""")
+                    generatePattern.find(postHtml)?.value?.let { return it }
+                }
+            }
+
+            // Also try: search for btn6 href that might be generated by JS
+            // Pattern: var currentLink = 'https://...'
+            val currentLinkPattern = Regex("""var\s+currentLink\s*=\s*['"]([^'"]+)['"]""")
+            currentLinkPattern.find(html)?.groupValues?.get(1)?.let { link ->
+                Log.d("OlaLinks", "Form POST: found currentLink -> $link")
+                if (isKnownHost(link)) return link
+                if (isOlaGeneratePage(link) || isIntermediateHost(link)) return link
+            }
+
+            // Pattern: var redirect_link = 'https://...'
+            val redirectLinkPattern = Regex("""var\s+redirect_link\s*=\s*['"]([^'"]+)['"]""")
+            redirectLinkPattern.find(html)?.groupValues?.get(1)?.let { link ->
+                Log.d("OlaLinks", "Form POST: found redirect_link -> $link")
+                if (isKnownHost(link)) return link
+                if (isOlaGeneratePage(link) || isIntermediateHost(link)) return link
+            }
+
+        } catch (e: Exception) {
+            Log.d("OlaLinks", "tryFormPost failed: ${e.message}")
+        }
+        return null
+    }
+
     // ─── Dispatch Resolved URL ────────────────────────────────────────────────
 
     private suspend fun dispatchResolved(
@@ -591,8 +698,18 @@ open class OlaLinks : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         when {
-            url.contains("hubcloud", ignoreCase = true) ->
-                OlaHubCloud().getUrl(url, name, subtitleCallback, callback)
+            // HubCloud family (lol, foo, dad, etc.)
+            url.contains("hubcloud", ignoreCase = true) -> {
+                // Route to the appropriate HubCloud extractor based on TLD
+                when {
+                    url.contains("hubcloud.foo", ignoreCase = true) ->
+                        OlaHubCloudFoo().getUrl(url, name, subtitleCallback, callback)
+                    url.contains("hubcloud.dad", ignoreCase = true) ->
+                        OlaHubCloudDad().getUrl(url, name, subtitleCallback, callback)
+                    else ->
+                        OlaHubCloud().getUrl(url, name, subtitleCallback, callback)
+                }
+            }
             url.contains("hubdrive", ignoreCase = true) ->
                 OlaHubdrive().getUrl(url, name, subtitleCallback, callback)
             url.contains("hubstream", ignoreCase = true) ->
