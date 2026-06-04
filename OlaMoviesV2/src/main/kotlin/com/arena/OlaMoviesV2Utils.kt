@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -93,16 +94,22 @@ suspend fun loadSourceNameExtractor(
     }
 }
 
-// ─── LikDev's bypassOlaRedirect (adapted for v2.olamovies.mov) ──────────────
+// ─── LikDev's bypassOlaRedirect (IMPROVED for v2.olamovies.mov) ──────────────
 
 /**
- * Bypass the OlaMovies redirect chain.
+ * Bypass the OlaMovies redirect chain — IMPROVED v8.
  *
- * The link format is: https://links.olamovies.mov/XXXXX?key=ENCRYPTED_KEY&id=VALUE
- * The page has `#download > a` with the next URL in the chain.
- * We follow this chain up to 10 times to collect all short links.
+ * Handles TWO types of initial links:
+ *   1. PLAIN links: links.ol-am.top/XXXXX (no ?key= or &id=)
+ *      → Follow the redirect, get the page, find #download > a
+ *   2. KEYED links: links.olamovies.mov/XXXXX?key=ENCRYPTED_KEY&id=VALUE
+ *      → Use the key as param name, id as param value, GET the page
+ *      → Find #download > a for the next link in the chain
  *
- * This is based on LikDev's proven approach from the old olamovies.cyou plugin.
+ * The chain continues until we find a non-keyed link (final destination)
+ * or until max steps reached.
+ *
+ * Based on LikDev's proven approach + improvements for v2.
  */
 suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
     val shortLinkList = arrayListOf<String>()
@@ -110,18 +117,134 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
     var count = 0
     val maxSteps = 10
 
+    Log.d(TAG, "bypassOlaRedirect: starting with $link")
+
     while (count < maxSteps) {
         count++
         try {
-            // Extract ?key= and &id= params from the URL
-            if (!currentLink.contains("?key=") || !currentLink.contains("&id=")) {
-                Log.d(TAG, "bypassOlaRedirect: no key/id params at step $count, stopping")
+            Log.d(TAG, "bypassOlaRedirect step $count: $currentLink")
+
+            // ── Handle PLAIN links (no ?key= or &id=) ──
+            // Initial links.ol-am.top/XXXXX format — just follow + scrape
+            if (!currentLink.contains("?key=") && !currentLink.contains("&id=")) {
+                Log.d(TAG, "bypassOlaRedirect: plain link (no key/id), following...")
+
+                val response = try {
+                    app.get(currentLink, referer = referer, headers = mapOf(
+                        "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Referer" to referer
+                    ), timeout = 15_000L)
+                } catch (e: Exception) {
+                    Log.d(TAG, "bypassOlaRedirect: plain link fetch failed: ${e.message}")
+                    // Retry once after delay
+                    try {
+                        delay(1500L)
+                        app.get(currentLink, referer = referer, timeout = 15_000L)
+                    } catch (e2: Exception) {
+                        Log.d(TAG, "bypassOlaRedirect: retry also failed: ${e2.message}")
+                        break
+                    }
+                }
+
+                val doc = response.document
+
+                // Check if we were redirected to a keyed link
+                val finalUrl = response.url
+                if (finalUrl != currentLink && finalUrl.contains("?key=") && finalUrl.contains("&id=")) {
+                    Log.d(TAG, "bypassOlaRedirect: redirected to keyed link -> $finalUrl")
+                    currentLink = finalUrl
+                    continue  // Process this keyed link in the next iteration
+                }
+
+                // Try to find #download > a
+                val nextHref = doc.selectFirst("#download > a")?.attr("href")?.trim()
+                if (!nextHref.isNullOrBlank() && nextHref.startsWith("http")) {
+                    Log.d(TAG, "bypassOlaRedirect: found #download > a -> $nextHref")
+                    shortLinkList.add(nextHref)
+
+                    // If the next link has key/id, continue the chain
+                    if (nextHref.contains("?key=") && nextHref.contains("&id=")) {
+                        currentLink = nextHref
+                        continue
+                    } else {
+                        // Final destination reached
+                        Log.d(TAG, "bypassOlaRedirect: final link (no more key/id)")
+                        break
+                    }
+                }
+
+                // Try other patterns on the page
+                val altPatterns = listOf(
+                    "#btn6" to "href",
+                    "#tp98" to "href",
+                    "button.inline-flex" to "data-url",
+                    "button.inline-flex" to "data-href",
+                    "a.btn-success" to "href",
+                    "a[href*=download]" to "href"
+                )
+
+                var found = false
+                for ((selector, attr) in altPatterns) {
+                    val val_ = doc.selectFirst(selector)?.attr(attr)?.trim()
+                    if (!val_.isNullOrBlank() && val_.startsWith("http")) {
+                        Log.d(TAG, "bypassOlaRedirect: found $selector[$attr] -> $val_")
+                        shortLinkList.add(val_)
+                        if (val_.contains("?key=") && val_.contains("&id=")) {
+                            currentLink = val_
+                            found = true
+                            break
+                        } else {
+                            found = true
+                            break
+                        }
+                    }
+                }
+
+                if (found) {
+                    // If the last found link has key/id, continue; otherwise stop
+                    val lastLink = shortLinkList.last()
+                    if (lastLink.contains("?key=") && lastLink.contains("&id=")) {
+                        currentLink = lastLink
+                        continue
+                    } else {
+                        break
+                    }
+                }
+
+                // Scrape all <a> tags for any http link
+                val allAnchors = doc.select("a[href]").mapNotNull { it.attr("href").trim().takeIf { h -> h.startsWith("http") } }
+                for (anchor in allAnchors) {
+                    if (anchor.contains("hubcloud", ignoreCase = true) ||
+                        anchor.contains("gdflix", ignoreCase = true) ||
+                        anchor.contains("gdtot", ignoreCase = true) ||
+                        anchor.contains("drive.google", ignoreCase = true) ||
+                        anchor.contains("pixeldrain", ignoreCase = true) ||
+                        anchor.contains("dulink", ignoreCase = true) ||
+                        anchor.contains("ez4short", ignoreCase = true) ||
+                        anchor.contains("rocklinks", ignoreCase = true) ||
+                        anchor.contains("crazyblog", ignoreCase = true) ||
+                        anchor.contains("anylinks", ignoreCase = true) ||
+                        anchor.contains("?key=", ignoreCase = true)) {
+                        if (anchor !in shortLinkList) {
+                            shortLinkList.add(anchor)
+                            Log.d(TAG, "bypassOlaRedirect: scraped anchor -> $anchor")
+                        }
+                    }
+                }
+
+                // No more links found on this page
+                Log.d(TAG, "bypassOlaRedirect: no more links on plain page, stopping")
                 break
             }
 
+            // ── Handle KEYED links: ?key=ENCRYPTED_KEY&id=VALUE ──
             val key = currentLink.substringAfter("?key=").substringBefore("&id=")
                 .replace("%2B", "+").replace("%3D", "=").replace("%2F", "/")
             val id = currentLink.substringAfter("&id=")
+                .substringBefore("&")  // Handle extra params after &id=
+
+            Log.d(TAG, "bypassOlaRedirect: keyed link, key='$key', id='$id'")
 
             val param = mapOf(key to id)
             val doc = app.get(currentLink, referer = referer, params = param, timeout = 15_000L).document
@@ -151,16 +274,17 @@ suspend fun bypassOlaRedirect(link: String, referer: String): List<String> {
     return shortLinkList
 }
 
-// ─── LikDev's bypassAdLinks (adapted for v2.olamovies.mov) ──────────────────
+// ─── LikDev's bypassAdLinks (IMPROVED for v2.olamovies.mov) ──────────────────
 
 /**
- * Bypass ad shortener links using emilyx.in API and crazyblog cookie approach.
+ * Bypass ad shortener links — IMPROVED v8.
  *
  * Supports:
  *   - dulink / ez4short / rocklinks → via api.emilyx.in/api/bypass
  *   - ser2.crazyblog / ser3.crazyblog → via cookie-based POST
+ *   - v2links / bestloansoffers / worldzc / earningtime → fallback to loadExtractor
  *
- * Based on LikDev's proven approach.
+ * Based on LikDev's proven approach + expanded shortener support.
  */
 suspend fun bypassAdLinks(link: String): String? {
     val emilyxApiSupportedLinks = listOf("dulink", "ez4short")
@@ -172,6 +296,8 @@ suspend fun bypassAdLinks(link: String): String? {
         link.contains("ez4short", ignoreCase = true) -> "ez4short"
         else -> ""
     }
+
+    Log.d(TAG, "bypassAdLinks: resolving $link (type=$type)")
 
     // Strategy 1: Use emilyx API for supported shorteners
     if (emilyxApiSupportedLinks.any { link.contains(it, ignoreCase = true) } ||
@@ -250,6 +376,23 @@ suspend fun bypassAdLinks(link: String): String? {
             }
         } catch (e: Exception) {
             Log.d(TAG, "bypassAdLinks: crazyblog failed for $link: ${e.message}")
+        }
+    }
+
+    // Strategy 3: Follow HTTP redirects for other shorteners
+    if (link.contains("v2links", ignoreCase = true) ||
+        link.contains("bestloansoffers", ignoreCase = true) ||
+        link.contains("worldzc", ignoreCase = true) ||
+        link.contains("earningtime", ignoreCase = true)) {
+        try {
+            // Try to follow the redirect chain
+            val resolved = resolveFinalUrl(link)
+            if (resolved != null && resolved.startsWith("http")) {
+                Log.d(TAG, "bypassAdLinks: redirect resolved $link -> $resolved")
+                return resolved
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "bypassAdLinks: redirect resolution failed for $link: ${e.message}")
         }
     }
 

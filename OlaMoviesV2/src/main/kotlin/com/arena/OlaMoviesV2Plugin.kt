@@ -12,11 +12,13 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v6: Simple rewrite based on LikDev's proven approach.
- *   - bypassOlaRedirect: Follows ?key=&id= chain, scrapes #download > a
- *   - bypassAdLinks: emilyx.in API + crazyblog cookie POST
- *   - loadExtractor: CloudStream's built-in CF bypass (WebView)
- *   - HubCloud/GDFlix/Hubdrive/Hubstream: Custom extractors with quality info
+ * v8: Multi-Strategy Aggressive Approach — 5 strategies (A-E):
+ *   A: loadExtractor() — CF bypass via WebView (BEST for CF Turnstile)
+ *   B: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain (IMPROVED)
+ *   C: Aggressive Scraping — full HTML scan for all known patterns
+ *   D: Ad Shortener Special — bypassAdLinks() with retries + loadExtractor() fallback
+ *   E: Last Resort — aggressive chain follow (depth 12)
+ *   Plus: retries with delay, detailed logging, modular code
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -26,10 +28,12 @@ class OlaMoviesV2Plugin : BasePlugin() {
 
         // ─── Custom OlaMovies link shortener extractors ────────────────
         // links.ol-am.top redirects to links.olamovies.mov — both need
-        // to be handled. OlaLinks uses 3-strategy approach:
-        //   S1: loadExtractor() — CloudStream's built-in CF bypass (WebView)
-        //   S2: bypassOlaRedirect + bypassAdLinks — LikDev's proven chain
-        //   S3: Direct app.get() chain follow with page scraping
+        // to be handled. OlaLinks uses 5-strategy aggressive approach:
+        //   A: loadExtractor() — CF WebView bypass
+        //   B: bypassOlaRedirect + bypassAdLinks — LikDev's chain
+        //   C: Aggressive HTML scraping — all patterns
+        //   D: Ad shortener special — retries + fallback
+        //   E: Last resort — aggressive chain follow
         registerExtractorAPI(OlaLinks())
         registerExtractorAPI(OlaLinksMov())
 
