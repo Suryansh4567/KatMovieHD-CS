@@ -445,7 +445,7 @@ suspend fun bypassAdLinks(link: String): String? {
                 val formResponse = if (method == "post") {
                     app.post(formUrl, data = formData, referer = link, timeout = 15_000L)
                 } else {
-                    app.get(formUrl, referer = link, data = formData, timeout = 15_000L)
+                    app.post(formUrl, referer = link, data = formData, timeout = 15_000L)
                 }
 
                 // Check the response for known host URLs
@@ -667,7 +667,7 @@ fun androidBase64Encode(value: String): String {
 
 /** Create a MediaType from a string (for OkHttp requestBody) */
 private fun String.toMediaTypeOrNull(): okhttp3.MediaType? {
-    return try { okhttp3.MediaType.parse(this) } catch (_: Exception) { null }
+    return try { okhttp3.MediaType.Companion.toMediaTypeOrNull(this) } catch (_: Exception) { null }
 }
 
 /** Create a RequestBody from a String with a MediaType */

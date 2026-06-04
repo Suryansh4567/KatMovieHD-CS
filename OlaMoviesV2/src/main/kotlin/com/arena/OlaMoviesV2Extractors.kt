@@ -513,7 +513,7 @@ open class OlaLinks : ExtractorApi() {
         url: String,
         referer: String,
         retries: Int = MAX_RETRIES
-    ): com.lagradost.cloudstream3.amap.Result? {
+    ): com.lagradost.cloudstream3.app.Response? {
         repeat(retries) { attempt ->
             try {
                 val response = app.get(url, headers = olaHeaders, referer = referer, timeout = 30_000L)
