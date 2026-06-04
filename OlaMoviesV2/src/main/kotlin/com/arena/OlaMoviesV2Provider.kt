@@ -46,11 +46,11 @@ import org.jsoup.nodes.Element
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts
  * 4K UHD, HDR, Dolby Vision, and REMUX releases.
  *
- * v17 key changes:
- *   - dispatchExtractor uses resolveCfShortUrl() via OlaLinks S0 strategy
- *   - External APIs (bypass.city/emilyx) bypass CF Turnstile
- *   - Bot User-Agent trick as additional CF bypass method
- *   - Simplified dispatch: short URL → OlaLinks (S0-S3) → final host
+ * v19 key changes:
+ *   - 3-TIER dispatch: short URL → loadExtractor() → OlaLinks.getUrl()
+ *   - OlaLinks: Tier 1 (regex/base64) → Tier 2 (app.get chain) → Tier 3 (loadExtractor CF bypass)
+ *   - OlaLinksMov: handles links.olamovies.mov with CloudStream's CF WebView popup
+ *   - Simplified dispatch: short URL → OlaLinks (3-tier) → final host
  *
  * Link chain:
  *   1. Movie page has `links.ol-am.top/XXXXX` links in `div.wp-block-button a[target=_blank]`
@@ -706,14 +706,12 @@ class OlaMoviesV2Provider : MainAPI() {
     }
 
     /**
-     * v16 dispatch — route to the right handler:
-     *   1. OlaMovies shortener chain → loadExtractor() (triggers OlaLinks via CF-aware WebView)
+     * v19 dispatch — 3-TIER routing:
+     *   1. OlaMovies short URLs → loadExtractor() → OlaLinks.getUrl() (3-tier inside)
+     *      - OlaLinks handles links.ol-am.top (Tier 1 regex + Tier 2 app.get)
+     *      - OlaLinksMov handles links.olamovies.mov (Tier 3 CF WebView)
      *   2. Known final hosts (HubCloud/GDFlix/etc.) → their custom extractors
      *   3. Everything else → loadExtractor() (CloudStream's built-in)
-     *
-     * v16 KEY CHANGE: OlaMovies short URLs now go through loadExtractor()
-     * instead of OlaLinks().resolve() direct call. This allows CloudStream's
-     * built-in CF WebView handling to kick in for links.olamovies.mov.
      */
     private suspend fun dispatchExtractor(
         rawUrl: String,
@@ -726,19 +724,12 @@ class OlaMoviesV2Provider : MainAPI() {
         return try {
             when {
                 // OlaMovies shortener chain → loadExtractor() → OlaLinks.getUrl()
-                // v16: loadExtractor() is CRITICAL because it triggers CloudStream's
-                // CF WebView handling. OlaLinks is registered as ExtractorApi with
-                // mainUrl = "https://links.ol-am.top", so loadExtractor() routes to it.
-                // Anti-recursion: OlaLinks.getUrl() NEVER calls loadExtractor() on own URLs.
+                // loadExtractor() routes to OlaLinks (links.ol-am.top) or
+                // OlaLinksMov (links.olamovies.mov) based on URL matching.
+                // Inside OlaLinks.getUrl(): Tier 1 (regex) → Tier 2 (app.get) → Tier 3 (loadExtractor on OlaLinksMov)
                 isOlaShortUrl(url) -> {
-                    try {
-                        loadExtractor(url, mainUrl, subtitleCallback, callback)
-                        true
-                    } catch (e: Exception) {
-                        Log.w(TAG, "dispatchExtractor: loadExtractor failed for short URL $url: ${e.message}")
-                        // Fallback: try direct resolve if loadExtractor fails
-                        OlaLinks().resolve(url, mainUrl, subtitleCallback, callback)
-                    }
+                    loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    true
                 }
                 // HubCloud
                 url.contains("hubcloud", ignoreCase = true) -> {

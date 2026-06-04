@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 18
+version = 19
 
 cloudstream {
     authors = listOf("arena")
@@ -12,8 +12,8 @@ cloudstream {
 
     description = "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from " +
             "OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. " +
-            "v18: Simplified CF bypass — use app.get() with CloudStream CloudflareInterceptor, " +
-            "removed broken external APIs, 3-tier fallback (simple chain → keyed redirect → aggressive scrape)."
+            "v19: 3-TIER CF bypass — Tier 1: regex/base64 extraction, Tier 2: app.get() chain, " +
+            "Tier 3: OlaLinksMov CF WebView bypass. Clean rewrite, simplified flow."
     language    = "en"
 
     tvTypes = listOf("Movie", "TvSeries", "Anime", "AsianDrama", "Documentary")

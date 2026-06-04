@@ -12,13 +12,12 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v17 — CF + 3-TIER FIX. Key changes:
- *   - S0: External CF bypass APIs (bypass.city/emilyx) as PRIMARY strategy
- *   - resolveCfShortUrl() in Utils tries 4 different methods to bypass CF
- *   - Bot User-Agent trick for CF pages that serve bots differently
- *   - Re-registered OlaLinks as ExtractorApi so loadExtractor() handles CF
- *   - Anti-recursion: OlaLinks.getUrl() NEVER calls loadExtractor() on own URLs
- *   - Based on Greasy Fork "Bypass All Shortlinks" patterns
+ * v19 — 3-TIER CF BYPASS. Key changes:
+ *   - Tier 1: Base64/regex extraction from URL (no HTTP call)
+ *   - Tier 2: app.get() chain for non-CF URLs
+ *   - Tier 3: loadExtractor() → OlaLinksMov for CF Turnstile WebView bypass
+ *   - OlaLinksMov handles links.olamovies.mov with CloudStream's CF interceptor
+ *   - Clean rewrite — removed 17-pattern aggressive scraper, simplified flow
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -26,12 +25,13 @@ class OlaMoviesV2Plugin : BasePlugin() {
     override fun load() {
         registerMainAPI(OlaMoviesV2Provider())
 
-        // ─── OlaMovies shortener chain ─────────────────────────────────
-        // v16: OlaLinks IS registered as ExtractorApi again!
-        // This allows loadExtractor() to handle CF-protected short URLs.
-        // Anti-recursion: OlaLinks.getUrl() NEVER calls loadExtractor() on
-        // URLs matching ol-am.top / olamovies.mov / olamovies.download.
+        // ─── OlaMovies shortener chain (v19 3-TIER) ──────────────────────
+        // OlaLinks handles links.ol-am.top — Tier 1 (regex) + Tier 2 (app.get chain)
+        // OlaLinksMov handles links.olamovies.mov — Tier 3 (CF WebView bypass)
+        // When OlaLinks Tier 2 fails (CF blocks app.get), it falls back to
+        // loadExtractor() which routes to OlaLinksMov for CF Turnstile solving
         registerExtractorAPI(OlaLinks())
+        registerExtractorAPI(OlaLinksMov())
 
         // ─── HubCloud ecosystem ────────────────────────────────────────
         registerExtractorAPI(OlaHubCloud())       // hubcloud.lol
