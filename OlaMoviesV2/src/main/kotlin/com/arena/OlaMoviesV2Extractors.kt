@@ -108,6 +108,13 @@ private fun isAdShortener(url: String): Boolean {
  * Only loadExtractor() triggers CloudStream's WebView which CAN solve CF.
  * So for CF-protected URLs, we must use loadExtractor() on a DIFFERENT ExtractorApi
  * that matches the CF URL (OlaLinksMov), which then shows a WebView popup.
+ *
+ * v20 FIX:
+ *   - Tier 2: Detect CF-blocked redirect (links.ol-am.top → links.olamovies.mov) EARLY.
+ *     When we see links.olamovies.mov in the redirect, bail out immediately.
+ *   - Tier 3: Rewrite the URL from links.ol-am.top to links.olamovies.mov BEFORE calling
+ *     loadExtractor(). This ensures OlaLinksMov is matched (not OlaLinks again).
+ *   - OlaLinksMov: Improved link extraction with CF-page-aware parsing.
  */
 open class OlaLinks : ExtractorApi() {
     override val name = "OlaLinks"
@@ -156,10 +163,15 @@ open class OlaLinks : ExtractorApi() {
         // This triggers CloudStream's WebView which shows CF Turnstile popup
         if (!anySuccess) {
             try {
-                Log.d(TAG, "→ [Tier3] loadExtractor() for CF bypass")
-                // The URL will be matched by OlaLinksMov (mainUrl=links.olamovies.mov)
-                // which shows a WebView popup for CF, then resolves the chain
-                loadExtractor(url, ref, subtitleCallback, callback)
+                // v20 FIX: Rewrite links.ol-am.top → links.olamovies.mov BEFORE loadExtractor().
+                // This ensures OlaLinksMov is matched (not OlaLinks again → infinite loop!)
+                val cfUrl = if (url.contains("links.ol-am.top", ignoreCase = true)) {
+                    url.replace("links.ol-am.top", "links.olamovies.mov", ignoreCase = true)
+                } else {
+                    url
+                }
+                Log.d(TAG, "→ [Tier3] loadExtractor() for CF bypass: $cfUrl")
+                loadExtractor(cfUrl, ref, subtitleCallback, callback)
                 anySuccess = true
             } catch (e: Exception) {
                 Log.d(TAG, "  [Tier3] failed: ${e.message}")
@@ -270,11 +282,32 @@ open class OlaLinks : ExtractorApi() {
                 return false
             }
 
+            // ── v20: Detect CF-protected redirect target EARLY ──
+            // links.ol-am.top → 301 → links.olamovies.mov (CF Turnstile)
+            // app.get() CANNOT solve CF Turnstile — bail out and let Tier 3 handle it via WebView.
+            if (currentUrl.contains("links.ol-am.top", ignoreCase = true) ||
+                currentUrl.contains("links.olamovies.mov", ignoreCase = true)) {
+                Log.d(TAG, "  Tier2: CF-protected shortener detected → bail to Tier 3")
+                return false
+            }
+
             // Fetch the page
             try {
                 val response = app.get(currentUrl, headers = olaHeaders, referer = referer, timeout = 30_000L)
                 val doc = response.document
                 val finalUrl = response.url
+
+                // v20: Check if we landed on a CF page after redirect
+                val html = doc.toString()
+                if ((finalUrl.contains("links.olamovies.mov", ignoreCase = true) ||
+                    html.contains("Attention Required", ignoreCase = true) ||
+                    html.contains("Just a moment", ignoreCase = true) ||
+                    html.contains("cf-browser-verification", ignoreCase = true)) &&
+                    !html.contains("#download", ignoreCase = true) &&
+                    !html.contains("#btn6", ignoreCase = true)) {
+                    Log.d(TAG, "  Tier2: CF challenge page detected → bail to Tier 3")
+                    return false
+                }
 
                 // Redirected to a known host
                 if (finalUrl != currentUrl && isKnownHost(finalUrl)) {
@@ -444,13 +477,18 @@ open class OlaLinks : ExtractorApi() {
 }
 
 /**
- * OlaLinksMov — CF Turnstile handler for links.olamovies.mov
+ * OlaLinksMov — CF Turnstile handler for links.olamovies.mov (v20)
  *
  * When CloudStream's loadExtractor() matches a URL to this extractor,
  * it opens a WebView popup so the user can solve the CF Turnstile challenge.
  * After CF is solved, the page loads and we extract the links from it.
  *
  * This is the ONLY reliable way to bypass CF Turnstile in CloudStream.
+ *
+ * v20 FIX:
+ *   - CF challenge page detection: if interceptor doesn't solve CF, detect the
+ *     challenge page and fall back to parent OlaLinks' 3-tier chain.
+ *   - Fallback in catch block: if everything fails, try parent's chain as last resort.
  */
 class OlaLinksMov : OlaLinks() {
     override val name = "OlaLinksMov"
@@ -473,6 +511,26 @@ class OlaLinksMov : OlaLinks() {
             val finalUrl = response.url
 
             Log.d("OlaLinksMov", "Got response: code=${response.code}, url=$finalUrl")
+
+            val html = doc.toString()
+
+            // ── v20: CF challenge page detection ──
+            val isCfPage = html.contains("Attention Required", ignoreCase = true) ||
+                    html.contains("Just a moment", ignoreCase = true) ||
+                    html.contains("cf-browser-verification", ignoreCase = true) ||
+                    (html.contains("challenge-platform", ignoreCase = true) &&
+                     html.contains("cf-turnstile", ignoreCase = true))
+
+            val hasDownloadLinks = html.contains("#download", ignoreCase = true) ||
+                    html.contains("#btn6", ignoreCase = true) ||
+                    html.contains("?key=", ignoreCase = true)
+
+            if (isCfPage && !hasDownloadLinks) {
+                Log.w("OlaLinksMov", "Response is CF challenge page, interceptor didn't resolve it")
+                // v20: Fall back to parent's 3-tier chain
+                super.getUrl(url, referer, subtitleCallback, callback)
+                return
+            }
 
             // Check if we landed on a known host directly
             if (isKnownHost(finalUrl)) {
@@ -521,7 +579,6 @@ class OlaLinksMov : OlaLinks() {
             }
 
             // JS variables
-            val html = doc.toString()
             val jsPatterns = listOf(
                 Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]"""),
                 Regex("""var\s+currentLink\s*=\s*['"]([^'"]+)['"]"""),
@@ -599,6 +656,11 @@ class OlaLinksMov : OlaLinks() {
             }
         } catch (e: Exception) {
             Log.e("OlaLinksMov", "Failed to resolve CF page: ${e.message}")
+            // v20: Last resort — try parent's full 3-tier chain
+            try {
+                Log.d("OlaLinksMov", "Falling back to parent 3-tier chain")
+                super.getUrl(url, referer, subtitleCallback, callback)
+            } catch (_: Exception) {}
         }
     }
 }

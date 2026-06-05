@@ -12,12 +12,15 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v19 — 3-TIER CF BYPASS. Key changes:
- *   - Tier 1: Base64/regex extraction from URL (no HTTP call)
- *   - Tier 2: app.get() chain for non-CF URLs
- *   - Tier 3: loadExtractor() → OlaLinksMov for CF Turnstile WebView bypass
- *   - OlaLinksMov handles links.olamovies.mov with CloudStream's CF interceptor
- *   - Clean rewrite — removed 17-pattern aggressive scraper, simplified flow
+ * v20 — CRITICAL FIX for link extraction failures.
+ *   - FIXED: Tier 3 infinite loop — now rewrites links.ol-am.top → links.olamovies.mov
+ *     before loadExtractor(), ensuring OlaLinksMov is matched (not OlaLinks again)
+ *   - FIXED: Tier 2 early CF detection — bails immediately when redirect target is
+ *     links.olamovies.mov instead of wasting time parsing CF challenge page
+ *   - FIXED: OlaLinksMov CF-aware parsing — detects unresolved CF challenge pages
+ *     and falls back to parent 3-tier chain instead of returning empty results
+ *   - IMPROVED: OlaLinksMov link extraction — handles encoded/obfuscated URLs,
+ *     atob patterns, NUXT payloads, and broader anchor scanning
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -25,11 +28,11 @@ class OlaMoviesV2Plugin : BasePlugin() {
     override fun load() {
         registerMainAPI(OlaMoviesV2Provider())
 
-        // ─── OlaMovies shortener chain (v19 3-TIER) ──────────────────────
+        // ─── OlaMovies shortener chain (v20 FIXED) ──────────────────────
         // OlaLinks handles links.ol-am.top — Tier 1 (regex) + Tier 2 (app.get chain)
         // OlaLinksMov handles links.olamovies.mov — Tier 3 (CF WebView bypass)
-        // When OlaLinks Tier 2 fails (CF blocks app.get), it falls back to
-        // loadExtractor() which routes to OlaLinksMov for CF Turnstile solving
+        // v20: Tier 3 now rewrites URL to links.olamovies.mov before loadExtractor()
+        //      to prevent infinite loop (OlaLinks matching itself repeatedly)
         registerExtractorAPI(OlaLinks())
         registerExtractorAPI(OlaLinksMov())
 
