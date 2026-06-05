@@ -192,13 +192,13 @@ class MkvHubProvider : MainAPI() {
                 loadExtractor(target, url, subtitleCallback, callback)
                 callback.invoke(
                     newExtractorLink(
-                        name,
+                        qualityText,
                         qualityText,
                         target,
-                        mainUrl,
-                        parseQuality(qualityText),
                         ExtractorLinkType.VIDEO
-                    )
+                    ) {
+                        this.quality = parseQuality(qualityText)
+                    }
                 )
             } catch (_: Exception) { }
         }
