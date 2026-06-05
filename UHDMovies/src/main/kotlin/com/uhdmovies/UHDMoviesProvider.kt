@@ -744,28 +744,26 @@ class UHDMoviesProvider : MainAPI() {
 
         linkEntries.amap { (qualityLabel, url) ->
             try {
-                val csQuality = mapQualityToCs(qualityLabel)
-
                 // If URL is a nexdrive redirector, follow it to get the actual URL
                 val resolvedUrls = resolveNexdrive(url)
 
                 if (resolvedUrls.isEmpty()) {
                     // Direct URL — try loadExtractor first, then add as direct link
-                    if (!tryLoadExtractor(url, qualityLabel, csQuality, subtitleCallback, callback)) {
-                        addDirectLink(url, qualityLabel, csQuality, callback)
+                    if (!tryLoadExtractor(url, subtitleCallback, callback)) {
+                        addDirectLink(url, callback, qualityLabel)
                     }
                     anySuccess = true
                 } else {
                     // Got destination URLs from nexdrive redirect
                     resolvedUrls.amap { resolvedUrl ->
                         try {
-                            if (!tryLoadExtractor(resolvedUrl, qualityLabel, csQuality, subtitleCallback, callback)) {
-                                addDirectLink(resolvedUrl, qualityLabel, csQuality, callback)
+                            if (!tryLoadExtractor(resolvedUrl, subtitleCallback, callback)) {
+                                addDirectLink(resolvedUrl, callback, qualityLabel)
                             }
                             anySuccess = true
                         } catch (e: Exception) {
                             Log.w(TAG, "Hoster extraction failed for $resolvedUrl: ${e.message}")
-                            addDirectLink(resolvedUrl, qualityLabel, csQuality, callback)
+                            addDirectLink(resolvedUrl, callback, qualityLabel)
                             anySuccess = true
                         }
                     }
@@ -774,36 +772,14 @@ class UHDMoviesProvider : MainAPI() {
                 Log.e(TAG, "Failed to resolve $url: ${e.message}")
                 // Last resort: try passing the URL directly to loadExtractor
                 try {
-                    val csQuality = mapQualityToCs(qualityLabel)
-                    if (tryLoadExtractor(url, qualityLabel, csQuality, subtitleCallback, callback)) {
+                    if (tryLoadExtractor(url, subtitleCallback, callback)) {
                         anySuccess = true
                     }
-                } catch (_: Exception) {
-                    // Silently ignore final fallback failure
-                }
+                } catch (_: Exception) {}
             }
         }
 
-        Log.d(TAG, "loadLinks(): anySuccess=$anySuccess")
         return anySuccess
-    }
-
-    /**
-     * Map a quality label string to a CloudStream Qualities value.
-     *   - 480p → Qualities.P480
-     *   - 720p → Qualities.P720
-     *   - 1080p → Qualities.P1080
-     *   - 2160p / 4K → Qualities.P2160
-     */
-    private fun mapQualityToCs(qualityLabel: String): Int {
-        val lower = qualityLabel.lowercase()
-        return when {
-            lower.contains("2160p") || lower.contains("4k") -> Qualities.P2160
-            lower.contains("1080p") -> Qualities.P1080
-            lower.contains("720p") -> Qualities.P720
-            lower.contains("480p") -> Qualities.P480
-            else -> Qualities.Unknown
-        }
     }
 
     /**
@@ -850,58 +826,53 @@ class UHDMoviesProvider : MainAPI() {
     }
 
     /**
-     * Try to load an extractor for the given URL using CloudStream's
-     * built-in extractors. Returns true if an extractor was found.
+     * Try CloudStream's built-in loadExtractor for a URL.
+     * Returns true if extraction succeeded.
      */
     private suspend fun tryLoadExtractor(
         url: String,
-        qualityLabel: String,
-        quality: Int,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         return try {
-            loadExtractor(url, mainUrl, subtitleCallback) { link ->
-                // Override the quality from our parsed quality label
-                callback.invoke(
-                    newExtractorLink(
-                        link.source,
-                        "$name $qualityLabel",
-                        link.url,
-                        INFER_TYPE
-                    ) {
-                        this.quality = if (quality != Qualities.Unknown) quality else link.quality
-                        this.referer = link.referer
-                        this.headers = link.headers
-                        this.extractorData = link.extractorData
-                    }
-                )
-            }
+            loadExtractor(url, mainUrl, subtitleCallback, callback)
             true
         } catch (e: Exception) {
-            Log.d(TAG, "loadExtractor no-op for $url: ${e.message}")
+            Log.d(TAG, "loadExtractor failed for $url: ${e.message}")
             false
         }
     }
 
     /**
-     * Add a direct link as a fallback when no CloudStream extractor matches.
+     * Add a direct download link as a fallback when no extractor
+     * can handle the URL. Uses INFER_TYPE so CloudStream tries
+     * to detect the stream type automatically.
      */
-    private fun addDirectLink(
+    private suspend fun addDirectLink(
         url: String,
-        qualityLabel: String,
-        quality: Int,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
+        label: String = "Direct"
     ) {
-        val name = "$name $qualityLabel"
-        callback.invoke(
+        val quality = when {
+            url.contains("2160p", true) || url.contains("4k", true) -> Qualities.P2160.value
+            url.contains("1080p", true) -> Qualities.P1080.value
+            url.contains("720p", true) -> Qualities.P720.value
+            url.contains("480p", true) -> Qualities.P480.value
+            label.contains("2160p", true) || label.contains("4k", true) -> Qualities.P2160.value
+            label.contains("1080p", true) -> Qualities.P1080.value
+            label.contains("720p", true) -> Qualities.P720.value
+            label.contains("480p", true) -> Qualities.P480.value
+            else -> Qualities.P720.value
+        }
+
+        callback(
             newExtractorLink(
-                name,
-                name,
+                "$name - $label",
+                label,
                 url,
                 INFER_TYPE
             ) {
-                this.quality = if (quality != Qualities.Unknown) quality else Qualities.Unknown
+                this.quality = quality
                 this.referer = mainUrl
             }
         )
