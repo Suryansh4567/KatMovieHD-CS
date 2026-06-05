@@ -25,25 +25,25 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.cs3",
         "status": 1,
-        "version": 1,
+        "version": 3,
         "name": "MkvHub",
         "internalName": "MkvHub",
         "authors": [
             "Suryansh4567"
         ],
         "description": "MkvHub \u2014 Bollywood, Hollywood, Dual Audio, South Indian, Punjabi Movies & Web Series (720p/1080p/4K)",
-        "fileSize": 17202,
+        "fileSize": 24198,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
             "Movie",
             "TvSeries"
         ],
-        "iconUrl": "https://imgurworld.top/images/2023/11/23/b9cadb3abae677123d3f718100de49eb.jpg",
+        "iconUrl": "https://www.mkvhub.beer/wp-content/uploads/2018/06/MkvHub-Icon.png",
         "apiVersion": 1,
-        "fileHash": "sha256-ef793c5d6779baa0ccc9f734eab63284f1296e846a7a4b088eef640ca863d4f3",
-        "jarFileSize": 61592,
+        "fileHash": "sha256-59ed9938807ddd1296e1e35c1111d6af2ca7bb513fe76b17279219e770686814",
+        "jarFileSize": 91432,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.jar",
-        "jarHash": "sha256-c287fce592a78ac308acb8ec328ad5c92cfb566e87e426996ce56deb844abef4"
+        "jarHash": "sha256-a39c070aa9f25b085f45ad872f9ac4a6b854ffdc8dbd8878e8c36f7ab92a0744"
     }
 ]
