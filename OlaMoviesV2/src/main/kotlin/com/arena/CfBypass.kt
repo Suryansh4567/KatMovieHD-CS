@@ -68,7 +68,7 @@ object CfBypass {
      *      → URL MATCHES → callback fires → cf_clearance detected → true
      *   4. WebView AUTO-CLOSES → cookies cached → retry with cookies
      */
-    private val OLA_URL_REGEX = Regex(""".*olamovies\.mov.*"")
+    private val OLA_URL_REGEX = Regex(""".*olamovies\.mov.*""")
 
     /**
      * Check if an HTTP response is a Cloudflare block/challenge page.
