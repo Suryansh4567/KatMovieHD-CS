@@ -32,7 +32,7 @@
             "arena"
         ],
         "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v19: 3-TIER CF bypass \u2014 Tier 1: regex/base64 extraction, Tier 2: app.get() chain, Tier 3: OlaLinksMov CF WebView bypass. Clean rewrite, simplified flow.",
-        "fileSize": 132412,
+        "fileSize": 134579,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-954b9417021f3fe23c1887630f9ea23e384c1b2bd13d2cd86f5bf4ecf9aa52a2"
+        "fileHash": "sha256-f8be1d78a7c936aeebb9b7293dc2e54a883170aa55d194742ae90f0593b2dbbe"
     }
 ]
