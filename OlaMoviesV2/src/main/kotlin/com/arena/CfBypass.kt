@@ -12,36 +12,52 @@ import com.lagradost.cloudstream3.network.WebViewResolver
  * a REAL Android WebView popup where CF Turnstile is solved.
  * After solving, cf_clearance cookies are cached and reused for subsequent requests.
  *
- * v23 — CRITICAL FIX based on logcat analysis:
+ * v24 — COMPLETE REWRITE based on CloudStream source code analysis:
  *
- *   BUG #1 (v22): interceptUrl = Regex(".^") NEVER matches anything!
- *     → WebViewResolver callback NEVER fires via interceptUrl
- *     → additionalUrls callbacks only LOG, they DON'T close the WebView
- *     → User has to manually press back — but they dismiss it after 1 sec
- *     → FIX: interceptUrl = Regex(".*olamovies.mov.*") → matches the target URL
- *       After CF challenge completes, page redirects back to olamovies.mov
- *       → callback fires → cf_clearance detected → returns true → AUTO-CLOSE!
+ *   STUDIED: CloudStream repo (recloudstream/cloudstream)
+ *     - WebViewResolver: library/src/commonMain/kotlin/.../network/WebViewResolver.kt
+ *     - CloudflareKiller: app/src/main/java/com/lagradost/cloudstream3/network/CloudflareKiller.kt
+ *     - ExtractorApi: library/src/commonMain/kotlin/.../utils/ExtractorApi.kt
  *
- *   BUG #2 (v22): Auto-click JavaScript is useless + harmful
- *     → CF Turnstile is interactive (needs checkbox click in iframe)
- *     → Auto-click JS runs in parent page, can't interact with Turnstile iframe
- *     → JS returns null → confusing "JS result: null" in logcat
- *     → Might interfere with Turnstile widget loading
- *     → FIX: Removed auto-click JS entirely. User solves challenge naturally.
+ *   KEY DISCOVERY — WebViewResolver behavior:
+ *     When interceptUrl matches a URL → callback fires → WebView IMMEDIATELY DESTROYED.
+ *     This means if interceptUrl matches the INITIAL page URL, the WebView opens and
+ *     closes instantly — user sees nothing!
  *
- *   BUG #3 (v22): No logging in callback when cf_clearance NOT found
- *     → Silent callback returns make debugging impossible
- *     → FIX: Added detailed logging for every callback invocation
+ *   CloudflareKiller's CORRECT approach (that we must follow):
+ *     interceptUrl = Regex(".^")         → NEVER matches (impossible regex)
+ *     additionalUrls = listOf(Regex(".")) → matches EVERY URL
+ *     → callback fires on every navigation/subrequest
+ *     → checks CookieManager for cf_clearance
+ *     → if found → return true → WebView destroyed (by additionalUrls callback)
+ *     → if not found → return false → WebView continues loading
  *
- * FLOW:
- *   1. app.get() fails with 403 + Server: cloudflare
- *   2. CfBypass.solveCf() opens WebViewResolver
- *   3. User sees CF challenge page, solves Turnstile (clicks checkbox)
- *   4. CF sets cf_clearance cookie, redirects back to original URL
- *   5. interceptUrl callback fires → detects cf_clearance → AUTO-CLOSES WebView
- *   6. Cookies cached for 30 minutes (subsequent requests = no popup)
- *   7. Extension retries app.get() with Cookie + WebView UA headers
- *   8. Request succeeds!
+ *   WHY Regex(".^") IS CORRECT (NOT a bug!):
+ *     - "." matches any char, "^" asserts start of string
+ *     - A single char cannot be both "any char" AND "start of string" simultaneously
+ *     - So it NEVER matches — this is intentional!
+ *     - It prevents interceptUrl from auto-destroying the WebView prematurely
+ *
+ *   v23 BUG — what went wrong:
+ *     Changed interceptUrl to Regex(".*olamovies.mov.*")
+ *     → Initial URL (links.olamovies.mov) matched on FIRST load
+ *     → WebView destroyed immediately → user saw nothing → "nhi hota"
+ *
+ *   FLOW (v24 — corrected):
+ *     1. app.get() fails with 403 + Server: cloudflare
+ *     2. CfBypass.solveCf() opens WebViewResolver
+ *     3. WebViewResolver:
+ *        - interceptUrl = Regex(".^") → never auto-destroys
+ *        - additionalUrls = listOf(Regex(".")) → callback on every URL
+ *        - useOkhttp = false → WebView handles requests natively
+ *        - userAgent = null → WebView uses its own default UA
+ *     4. User sees CF challenge page in WebView popup
+ *     5. User solves Turnstile (clicks checkbox)
+ *     6. CF sets cf_clearance cookie, redirects back
+ *     7. additionalUrls callback detects cf_clearance via CookieManager
+ *     8. callback returns true → WebView destroyed
+ *     9. Cookies cached for 30 minutes
+ *    10. Extension retries app.get() with cookies + WebView UA → success!
  */
 object CfBypass {
     private const val TAG = "CfBypass"
@@ -50,25 +66,6 @@ object CfBypass {
     private val cookieCache = mutableMapOf<String, MutableMap<String, String>>()
     private val cookieTimestamps = mutableMapOf<String, Long>()
     private const val CACHE_TTL_MS = 30 * 60 * 1000L // 30 minutes
-
-    /**
-     * Regex to match olamovies URLs for WebViewResolver interceptUrl.
-     *
-     * WHY THIS MATTERS (v22 bug fix):
-     *   v22 used Regex(".^") which NEVER matches (impossible pattern).
-     *   This meant the interceptUrl callback NEVER fired via the primary
-     *   intercept mechanism. additionalUrls was used instead, but
-     *   additionalUrls callbacks only LOG — they DON'T close the WebView.
-     *
-     *   With this fix:
-     *   1. WebView loads CF challenge page (on challenges.cloudflare.com)
-     *      → URL doesn't match → callback doesn't fire → WebView stays open
-     *   2. User solves Turnstile challenge
-     *   3. CF redirects back to olamovies.mov (original URL)
-     *      → URL MATCHES → callback fires → cf_clearance detected → true
-     *   4. WebView AUTO-CLOSES → cookies cached → retry with cookies
-     */
-    private val OLA_URL_REGEX = Regex(""".*olamovies\.mov.*""")
 
     /**
      * Check if an HTTP response is a Cloudflare block/challenge page.
@@ -135,23 +132,15 @@ object CfBypass {
     /**
      * Solve Cloudflare challenge using WebViewResolver.
      *
-     * Opens a REAL Android WebView popup. The CF Turnstile widget runs
-     * in the WebView. User interacts with it naturally (clicks checkbox).
+     * Follows CloudflareKiller's EXACT approach from CloudStream source:
+     *   - interceptUrl = Regex(".^")        → NEVER matches (no auto-destroy)
+     *   - additionalUrls = listOf(Regex(".")) → every URL triggers callback
+     *   - Callback checks CookieManager for cf_clearance → true = destroy
+     *   - userAgent = null → keeps WebView's native UA (CF requires this)
+     *   - useOkhttp = false → WebView handles requests natively (CF needs this)
      *
-     * 2-LAYER COOKIE DETECTION:
-     *
-     *   Layer 1 (auto-close): interceptUrl callback detects cf_clearance during
-     *     navigation → returns true → WebView auto-closes immediately.
-     *
-     *   Layer 2 (CookieManager): After WebViewResolver finishes (back press or
-     *     timeout), check CookieManager directly for cf_clearance cookies.
-     *     NOTE: resolveUsingWebView() returns Pair<Request?, List<Request>> —
-     *     Request objects, NOT cookies. We must read CookieManager separately.
-     *
-     * v23 FIXES:
-     *   FIX #1: interceptUrl = OLA_URL_REGEX (matches olamovies.mov)
-     *     → After CF redirect back, callback fires → cf_clearance → auto-close
-     *   FIX #2: CookieManager check after WebView closes (for back press case)
+     * After WebView closes (cf_clearance found / timeout / back press),
+     * checks CookieManager directly as fallback.
      *
      * @param url The CF-protected URL to solve
      * @return Map of cookies if successful, null if failed/timeout/hard-block
@@ -163,58 +152,75 @@ object CfBypass {
         var solvedCookies: Map<String, String>? = null
 
         try {
-            // resolveUsingWebView() returns Pair<Request?, List<Request>>
-            // — these are OkHttp Request objects, NOT cookies.
-            // We get cookies from CookieManager inside the callback and after.
+            // ═══════════════════════════════════════════════════════════════════
+            // CLOUDFLARE KILLER APPROACH — from CloudStream source code:
+            //
+            // interceptUrl = Regex(".^")  → impossible pattern, NEVER matches
+            //   → interceptUrl callback NEVER fires
+            //   → WebView is NEVER auto-destroyed by interceptUrl
+            //   → WebView stays open until WE decide to close it
+            //
+            // additionalUrls = listOf(Regex("."))  → matches EVERY URL
+            //   → callback fires on EVERY request the WebView makes
+            //   → (main page, iframes, XHR, redirects, everything)
+            //   → if callback returns true → WebView destroyed (our control)
+            //   → if callback returns false → WebView continues loading
+            //
+            // This is the ONLY correct way to use WebViewResolver for CF bypass!
+            // ═══════════════════════════════════════════════════════════════════
             WebViewResolver(
-                interceptUrl = OLA_URL_REGEX,      // v23: Matches olamovies.mov URLs
-                userAgent = null,                   // CRITICAL: Use WebView default UA
-                useOkhttp = false,                  // CRITICAL: OkHttp CANNOT solve CF
-                timeout = 90_000L                   // 90 seconds
+                interceptUrl = Regex(".^"),                    // NEVER matches
+                additionalUrls = listOf(Regex(".")),            // Match every URL
+                userAgent = null,                               // Keep WebView native UA
+                useOkhttp = false,                              // Native request handling
+                timeout = 90_000L                               // 90 seconds
             ).resolveUsingWebView(url = url) { request ->
-                // Layer 1: Callback — fires when URL matches OLA_URL_REGEX
-                // After CF challenge solved, page redirects to olamovies.mov
-                // → callback fires → check for cf_clearance → auto-close if found
+                // This callback fires for EVERY URL the WebView loads
+                // (initial page, CF challenge iframe, redirects, etc.)
                 try {
                     val requestUrl = request.url.toString()
-                    Log.d(TAG, ">> callback fired for: ${requestUrl.take(80)}")
+                    Log.d(TAG, ">> callback: ${requestUrl.take(80)}")
 
-                    val cookieStr = CookieManager.getInstance().getCookie(requestUrl)
-                        ?: CookieManager.getInstance().getCookie(url)
+                    // Check CookieManager for cf_clearance on every navigation
+                    // After Turnstile is solved, CF sets cf_clearance cookie
+                    // and redirects back → this callback will detect it
+                    val cm = CookieManager.getInstance()
+                    val cookieStr = cm.getCookie(requestUrl)
+                        ?: cm.getCookie(url)
+                        ?: cm.getCookie("https://$host")
 
                     if (cookieStr != null && cookieStr.contains("cf_clearance")) {
-                        Log.d(TAG, ">> LAYER 1 HIT: cf_clearance in callback! AUTO-CLOSE")
+                        Log.d(TAG, ">> cf_clearance FOUND! Destroying WebView...")
                         solvedCookies = parseCookieString(cookieStr)
                         return@resolveUsingWebView true  // true = destroy WebView
                     }
 
-                    Log.d(TAG, ">> LAYER 1: no cf_clearance yet")
+                    Log.d(TAG, ">> no cf_clearance yet, waiting...")
                 } catch (e: Exception) {
                     Log.d(TAG, ">> callback error: ${e.message}")
                 }
-                false // Keep waiting for CF challenge
+                false // Continue loading — don't destroy WebView
             }
 
-            // Layer 2: Check CookieManager directly after WebView closes
-            // This catches the case where user solved CF and pressed back
-            // (callback might have missed the cookie, but CookieManager has it)
+            // ═══════════════════════════════════════════════════════════════════
+            // FALLBACK: Check CookieManager after WebView closes
+            // This catches: user pressed back, or cookie was set after last callback
+            // ═══════════════════════════════════════════════════════════════════
             if (solvedCookies == null) {
                 try {
                     val cm = CookieManager.getInstance()
-                    // Check both the exact URL and the host-level cookies
                     val directCookies = cm.getCookie(url)
                         ?: cm.getCookie("https://$host")
                         ?: cm.getCookie("https://www.$host")
 
                     if (directCookies != null && directCookies.contains("cf_clearance")) {
-                        Log.d(TAG, ">> LAYER 2 HIT: cf_clearance found in CookieManager!")
+                        Log.d(TAG, ">> FALLBACK: cf_clearance found in CookieManager!")
                         solvedCookies = parseCookieString(directCookies)
                     } else {
-                        Log.d(TAG, ">> LAYER 2: no cf_clearance in CookieManager")
-                        Log.d(TAG, ">> CookieManager: ${directCookies?.take(60) ?: "empty"}")
+                        Log.d(TAG, ">> FALLBACK: no cf_clearance (cookies: ${directCookies?.take(60) ?: "empty"})")
                     }
                 } catch (e: Exception) {
-                    Log.d(TAG, ">> LAYER 2 check failed: ${e.message}")
+                    Log.d(TAG, ">> FALLBACK check failed: ${e.message}")
                 }
             }
 
@@ -223,6 +229,7 @@ object CfBypass {
             if (solvedCookies != null) {
                 val mutableCookies = solvedCookies.toMutableMap()
 
+                // Save WebView UA — CF requires same UA for subsequent requests
                 try {
                     WebViewResolver.webViewUserAgent?.let { ua ->
                         mutableCookies["_WebViewUA"] = ua
