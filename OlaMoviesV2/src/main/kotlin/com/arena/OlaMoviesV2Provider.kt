@@ -232,7 +232,7 @@ class OlaMoviesV2Provider : MainAPI() {
             if (!fallbackHtml.isNullOrBlank()) {
                 Jsoup.parse(fallbackHtml, fallbackUrl)
             } else {
-                return SearchResponseList()
+                return emptyList<SearchResponse>().toNewSearchResponseList()
             }
         }
         val results = parseListing(doc)
