@@ -165,9 +165,9 @@ class UHDMoviesProvider : MainAPI() {
             // Check that we got a valid page (not a domain-parking redirect)
             val titleText = doc.selectFirst("title")?.text()?.trim().orEmpty()
             // If the title looks like a parking page, try alternate domains
-            if (titleText.contains("Domain for sale", true) ||
-                titleText.contains("This domain is for sale", true) ||
-                titleText.contains("Suspended", true)
+            if (titleText.contains("Domain for sale", ignoreCase = true) ||
+                titleText.contains("This domain is for sale", ignoreCase = true) ||
+                titleText.contains("Suspended", ignoreCase = true)
             ) {
                 Log.w(TAG, "Domain parking detected for $url, trying fallbacks")
                 throw Exception("Domain parking page detected")
@@ -194,9 +194,9 @@ class UHDMoviesProvider : MainAPI() {
                 Log.d(TAG, "Trying alternate domain: $altUrl")
                 val doc = app.get(altUrl, headers = headers, timeout = 30).document
                 val titleText = doc.selectFirst("title")?.text()?.trim().orEmpty()
-                if (!titleText.contains("Domain for sale", true) &&
-                    !titleText.contains("This domain is for sale", true) &&
-                    !titleText.contains("Suspended", true)
+                if (!titleText.contains("Domain for sale", ignoreCase = true) &&
+                    !titleText.contains("This domain is for sale", ignoreCase = true) &&
+                    !titleText.contains("Suspended", ignoreCase = true)
                 ) {
                     Log.d(TAG, "Alternate domain succeeded: $altUrl")
                     // Update mainUrl so subsequent requests use the working domain
@@ -342,16 +342,16 @@ class UHDMoviesProvider : MainAPI() {
             val text = p.text().trim()
             // Skip short lines, movie metadata lines, and download section content
             if (text.length < 80) return@forEach
-            if (text.contains("Download Links", true)) return@forEach
-            if (text.startsWith("Size:", true)) return@forEach
-            if (text.startsWith("Format:", true)) return@forEach
-            if (text.startsWith("Runtime:", true)) return@forEach
-            if (text.startsWith("Quality:", true)) return@forEach
-            if (text.startsWith("Language:", true)) return@forEach
-            if (text.startsWith("Genres:", true)) return@forEach
-            if (text.startsWith("Cast:", true)) return@forEach
-            if (text.startsWith("Subtitle:", true)) return@forEach
-            if (text.startsWith("IMDb", true)) return@forEach
+            if (text.contains("Download Links", ignoreCase = true)) return@forEach
+            if (text.startsWith("Size:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Format:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Runtime:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Quality:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Language:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Genres:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Cast:", ignoreCase = true)) return@forEach
+            if (text.startsWith("Subtitle:", ignoreCase = true)) return@forEach
+            if (text.startsWith("IMDb", ignoreCase = true)) return@forEach
             if (plot.isBlank()) {
                 plot = text
             }
@@ -369,7 +369,7 @@ class UHDMoviesProvider : MainAPI() {
         var score: Score? = null
         entryContent.select("p, span, div").forEach { el ->
             val text = el.text().trim()
-            if (text.startsWith("IMDb", true) || text.contains("IMDb Rating", true)) {
+            if (text.startsWith("IMDb", ignoreCase = true) || text.contains("IMDb Rating", ignoreCase = true)) {
                 IMDB_RATING_REGEX.find(text)?.groupValues?.get(1)?.toFloatOrNull()?.let {
                     score = Score.from10(it)
                 }
@@ -380,7 +380,7 @@ class UHDMoviesProvider : MainAPI() {
         val tags = mutableListOf<String>()
         entryContent.select("p, span, div").forEach { el ->
             val text = el.text().trim()
-            if (text.startsWith("Genres", true)) {
+            if (text.startsWith("Genres", ignoreCase = true)) {
                 val genreStr = text.substringAfter(":").trim()
                 genreStr.split(",").map { it.trim() }
                     .filter { it.isNotBlank() }
@@ -400,7 +400,7 @@ class UHDMoviesProvider : MainAPI() {
                 title.contains("TV Series", ignoreCase = true) ||
                 url.contains("/tv-shows/") ||
                 tags.any {
-                    it.equals("Web Series", true) ||
+                    it.equals("Web Series", ignoreCase = true) ||
                     it.equals("TV Show", true) ||
                     it.equals("TV Shows", true)
                 }
@@ -502,10 +502,10 @@ class UHDMoviesProvider : MainAPI() {
                 val labelText = span.text().trim()
                 // Only update quality if the span text looks like a quality label
                 if (QUALITY_REGEX.containsMatchIn(labelText) ||
-                    labelText.contains("x265", true) ||
-                    labelText.contains("x264", true) ||
-                    labelText.contains("HEVC", true) ||
-                    labelText.contains("HEVC 10bit", true)
+                    labelText.contains("x265", ignoreCase = true) ||
+                    labelText.contains("x264", ignoreCase = true) ||
+                    labelText.contains("HEVC", ignoreCase = true) ||
+                    labelText.contains("HEVC 10bit", ignoreCase = true)
                 ) {
                     currentQuality = labelText
                     currentSize = ""
@@ -548,7 +548,7 @@ class UHDMoviesProvider : MainAPI() {
 
         // Look for the download section heading
         val downloadHeading = container.select("h5, h4, h3, h2").firstOrNull {
-            it.text().contains("Download Links", true)
+            it.text().contains("Download Links", ignoreCase = true)
         } ?: return emptyList()
 
         // Walk siblings after the heading looking for quality labels and links
@@ -854,14 +854,14 @@ class UHDMoviesProvider : MainAPI() {
         label: String = "Direct"
     ) {
         val quality = when {
-            url.contains("2160p", true) || url.contains("4k", true) -> Qualities.P2160.value
-            url.contains("1080p", true) -> Qualities.P1080.value
-            url.contains("720p", true) -> Qualities.P720.value
-            url.contains("480p", true) -> Qualities.P480.value
-            label.contains("2160p", true) || label.contains("4k", true) -> Qualities.P2160.value
-            label.contains("1080p", true) -> Qualities.P1080.value
-            label.contains("720p", true) -> Qualities.P720.value
-            label.contains("480p", true) -> Qualities.P480.value
+            url.contains("2160p", ignoreCase = true) || url.contains("4k", ignoreCase = true) -> Qualities.P2160.value
+            url.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
+            url.contains("720p", ignoreCase = true) -> Qualities.P720.value
+            url.contains("480p", ignoreCase = true) -> Qualities.P480.value
+            label.contains("2160p", ignoreCase = true) || label.contains("4k", ignoreCase = true) -> Qualities.P2160.value
+            label.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
+            label.contains("720p", ignoreCase = true) -> Qualities.P720.value
+            label.contains("480p", ignoreCase = true) -> Qualities.P480.value
             else -> Qualities.P720.value
         }
 
