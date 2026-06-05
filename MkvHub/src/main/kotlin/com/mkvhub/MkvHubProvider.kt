@@ -65,6 +65,18 @@ class MkvHubProvider : MainAPI() {
                     "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
         /**
+         * Known MkvHub domain TLDs — the site frequently changes domains.
+         * On domain failure, each alternative is tried in order.
+         */
+        private val DOMAIN_TLDS = listOf("beer", "works", "ink", "one", "win", "vip")
+
+        /**
+         * WordPress redirects non-existent pages to this category
+         * instead of returning 404. Used to detect invalid page loads.
+         */
+        private const val FALLBACK_CATEGORY = "/category/latest-releases"
+
+        /**
          * Hosts we recognise as known stream/mirror providers found on
          * linkszilla pages. Used by the strict-pass link filter.
          * A false positive just means loadExtractor no-ops harmlessly;
@@ -104,7 +116,7 @@ class MkvHubProvider : MainAPI() {
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """imgur|i\.imgur|postimg|imgbox|imgurworld|""" +
                     """wp-content|wp-includes|wp-json|""" +
-                    """mkvhub\.beer|gstatic|googletagmanager|google-analytics|""" +
+                    """mkvhub\.(?:beer|works|ink|one|win|vip)|gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
@@ -155,7 +167,21 @@ class MkvHubProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
+        // WordPress search pagination uses /page/N/?s=query format
+        // The ?s=query&page=N format does NOT work (returns page 1 always)
         val doc = app.get("$mainUrl/?s=$query", headers = headers).document
+
+        // Detect empty search results: WordPress returns 200 with
+        // <body class="search search-no-results"> when no matches
+        val bodyTag = doc.selectFirst("body")
+        if (bodyTag != null) {
+            val bodyClass = bodyTag.className()
+            if (bodyClass.contains("search-no-results")) {
+                Log.d(TAG, "search('$query'): no results found")
+                return emptyList()
+            }
+        }
+
         return doc.select("div.thumb").mapNotNull { it.toSearchResult() }
     }
 
@@ -186,10 +212,12 @@ class MkvHubProvider : MainAPI() {
         val href = fixUrlNull(linkEl.attr("href")) ?: return null
         val posterUrl = fixUrlNull(img.attr("src"))
 
-        val isSeries = title.contains(Regex("""\bS\d{2}\b""")) ||
+        val isSeries = title.contains(Regex("""\bS\d{1,2}\b""")) ||
                 title.contains("Season", ignoreCase = true) ||
                 title.contains("Complete", ignoreCase = true) ||
                 title.contains("Episode", ignoreCase = true) ||
+                title.contains("Web Series", ignoreCase = true) ||
+                title.contains("TV Series", ignoreCase = true) ||
                 href.contains("/category/web-series/") ||
                 href.contains("/category/tv-shows-hub/")
 
@@ -228,7 +256,17 @@ class MkvHubProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, headers = headers).document
+        val response = app.get(url, headers = headers)
+
+        // WordPress redirects non-existent pages to /category/latest-releases
+        // via 301 instead of returning 404. Detect this by checking the
+        // canonical URL or if the response landed on the fallback category.
+        val canonicalUrl = response.document.selectFirst("link[rel=canonical]")?.attr("href")
+        if (canonicalUrl != null && canonicalUrl.contains(FALLBACK_CATEGORY)) {
+            throw Exception("Page not found (redirected to fallback): $url")
+        }
+
+        val doc = response.document
 
         // Title from h1.page-title > span.material-text
         val title = doc.selectFirst("h1.page-title span.material-text")?.text()?.trim()
@@ -277,20 +315,52 @@ class MkvHubProvider : MainAPI() {
             }
         }
 
+        // Fallback: extract metadata from og:description when page parsing
+        // yields nothing (e.g. old format pages with different HTML structure)
+        if (score == null || plot.isBlank()) {
+            val ogDesc = doc.selectFirst("meta[property=og:description]")?.attr("content")
+            if (!ogDesc.isNullOrBlank()) {
+                if (score == null) {
+                    Regex("""IMDb\s+Rating:?\s*(\d+\.?\d*)/10""", RegexOption.IGNORE_CASE)
+                        .find(ogDesc)?.groupValues?.get(1)?.toFloatOrNull()?.let {
+                            score = Score.from10(it)
+                        }
+                }
+                if (plot.isBlank()) {
+                    val plotMatch = Regex("""(?:Storyline|Movie Plot):\s*(.+)""",
+                        RegexOption.IGNORE_CASE).find(ogDesc)
+                    plotMatch?.groupValues?.get(1)?.trim()?.let { if (it.isNotBlank()) plot = it }
+                }
+            }
+        }
+
         // Year from title
         val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(title)
             ?.groupValues?.get(1)?.toIntOrNull()
 
         // Series detection from categories and title
-        val isSeries = Regex("""\bS\d{2}\b""").containsMatchIn(title) ||
+        // Expanded heuristics: S01, Season, Complete, Episode, Web Series,
+        // TV Series, and category tags in page metadata
+        val isSeries = Regex("""\bS\d{1,2}\b""").containsMatchIn(title) ||
                 title.contains("Season", ignoreCase = true) ||
                 title.contains("Complete", ignoreCase = true) ||
                 title.contains("Episode", ignoreCase = true) ||
-                tags.any { it.equals("Web Series", true) || it.equals("TV Show", true) } ||
+                title.contains("Web Series", ignoreCase = true) ||
+                title.contains("TV Series", ignoreCase = true) ||
+                tags.any {
+                    it.equals("Web Series", true) ||
+                    it.equals("TV Show", true) ||
+                    it.equals("TV Shows", true)
+                } ||
                 doc.select("div.page-meta a em.material-text").any {
-                    it.text().trim().equals("Web Series", true) ||
-                            it.text().trim().equals("TV Shows", true)
-                }
+                    val catText = it.text().trim()
+                    catText.equals("Web Series", true) ||
+                    catText.equals("TV Shows", true) ||
+                    catText.equals("TV Show", true)
+                } ||
+                // Fallback: check URL category slug
+                url.contains("/category/web-series/") ||
+                url.contains("/category/tv-shows-hub/")
 
         Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries year=$year")
 
