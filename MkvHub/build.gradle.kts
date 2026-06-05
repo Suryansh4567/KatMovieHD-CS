@@ -1,4 +1,4 @@
-version = 1
+version = 2
 
 cloudstream {
     language = "hi"
@@ -11,7 +11,7 @@ cloudstream {
         "TvSeries"
     )
 
-    iconUrl = "https://imgurworld.top/images/2023/11/23/b9cadb3abae677123d3f718100de49eb.jpg"
+    iconUrl = "https://www.mkvhub.beer/wp-content/uploads/2018/06/MkvHub-Icon.png"
 
     isCrossPlatform = true
 }
