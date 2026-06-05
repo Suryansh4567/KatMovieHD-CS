@@ -32,7 +32,7 @@
             "arena"
         ],
         "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v23: CF auto-click \u2014 Turnstile submit button auto-clicked via JS injection. Cookie check fixed (uses request.url). Better logging for debugging.",
-        "fileSize": 145251,
+        "fileSize": 144996,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-03e51561b3706df934753affdf9ccda644a1e600076ff7f74aa587aff0ef32ae"
+        "fileHash": "sha256-c15cbacb55a279e7439cd283ae81905e83173cba796fc94553c202aaf2ca3a74"
     }
 ]
