@@ -37,6 +37,7 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -201,7 +202,13 @@ class OlaMoviesV2Provider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val url = "$mainUrl/${request.data}$page/"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        // v22: CF-safe fetch — if main site is behind Cloudflare, opens WebView popup
+        val html = CfBypass.cfSafeGet(url, headers = headers)
+        if (html.isNullOrBlank()) {
+            Log.w(TAG, "getMainPage: CF bypass failed or empty response for $url")
+            return newHomePageResponse(request.name, emptyList(), hasNext = false)
+        }
+        val doc = Jsoup.parse(html, url)
         return newHomePageResponse(request.name, parseListing(doc), hasNext = true)
     }
 
@@ -213,12 +220,20 @@ class OlaMoviesV2Provider : MainAPI() {
 
         val url = if (page <= 1) "$mainUrl/search/$slug/"
                   else "$mainUrl/search/$slug/page/$page/"
-        val doc = try {
-            app.get(url, headers = headers, timeout = 30).document
-        } catch (_: Exception) {
+        // v22: CF-safe fetch — handles Cloudflare on main site
+        val html = CfBypass.cfSafeGet(url, headers = headers)
+        val doc = if (!html.isNullOrBlank()) {
+            Jsoup.parse(html, url)
+        } else {
+            // Fallback: try WordPress search format
             val fallbackUrl = if (page <= 1) "$mainUrl/?s=$encoded"
                               else "$mainUrl/page/$page/?s=$encoded"
-            app.get(fallbackUrl, headers = headers, timeout = 30).document
+            val fallbackHtml = CfBypass.cfSafeGet(fallbackUrl, headers = headers)
+            if (!fallbackHtml.isNullOrBlank()) {
+                Jsoup.parse(fallbackHtml, fallbackUrl)
+            } else {
+                return SearchResponseList()
+            }
         }
         val results = parseListing(doc)
         Log.d(TAG, "search('$query', p$page): ${results.size} results")
@@ -287,7 +302,12 @@ class OlaMoviesV2Provider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        // v22: CF-safe fetch — handles Cloudflare on main site
+        val html = CfBypass.cfSafeGet(url, headers = headers)
+        if (html.isNullOrBlank()) {
+            throw Exception("Cannot load page (CF blocked): $url")
+        }
+        val doc = Jsoup.parse(html, url)
         val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()

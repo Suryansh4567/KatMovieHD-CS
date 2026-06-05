@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 21
+version = 22
 
 cloudstream {
     authors = listOf("arena")
@@ -12,8 +12,9 @@ cloudstream {
 
     description = "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from " +
             "OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. " +
-            "v21: WebViewResolver CF bypass — OlaLinksMov now explicitly opens Android WebView " +
-            "to solve Cloudflare challenges. No more passive interceptor dependency."
+            "v22: CF bypass fix — CloudStream's CloudflareKiller is dead code (never registered). " +
+            "Extension now has its own CfBypass utility using WebViewResolver with correct params. " +
+            "Main site + link shortener both CF-protected, both handled via WebView popup + cookie caching."
     language    = "en"
 
     tvTypes = listOf("Movie", "TvSeries", "Anime", "AsianDrama", "Documentary")

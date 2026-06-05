@@ -12,15 +12,33 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * Targets v2.olamovies.mov — a WordPress/Gridlove site that hosts 4K UHD,
  * HDR, Dolby Vision, and REMUX releases via Google Drive mirrors.
  *
- * v20 — CRITICAL FIX for link extraction failures.
- *   - FIXED: Tier 3 infinite loop — now rewrites links.ol-am.top → links.olamovies.mov
- *     before loadExtractor(), ensuring OlaLinksMov is matched (not OlaLinks again)
- *   - FIXED: Tier 2 early CF detection — bails immediately when redirect target is
- *     links.olamovies.mov instead of wasting time parsing CF challenge page
- *   - FIXED: OlaLinksMov CF-aware parsing — detects unresolved CF challenge pages
- *     and falls back to parent 3-tier chain instead of returning empty results
- *   - IMPROVED: OlaLinksMov link extraction — handles encoded/obfuscated URLs,
- *     atob patterns, NUXT payloads, and broader anchor scanning
+ * v22 — CLOUDFLARE BYPASS FIX (based on CloudflareKiller source code analysis)
+ *
+ *   ROOT CAUSE FOUND: CloudStream's CloudflareKiller interceptor is DEAD CODE —
+ *   it's NEVER registered as an OkHttp interceptor. So CF 403 responses pass
+ *   through to extensions as-is, causing "no link found" errors.
+ *
+ *   v22 SOLUTION — Implement CF bypass directly in the extension:
+ *   - NEW: CfBypass.kt utility — uses WebViewResolver with PROPER CloudflareKiller params:
+ *     * interceptUrl = Regex(".^") (unmatchable) → WebView stays open
+ *     * userAgent = null → uses WebView default UA (CF breaks with custom UA!)
+ *     * useOkhttp = false → OkHttp CANNOT solve CF, only WebView can
+ *     * requestCallBack checks CookieManager for cf_clearance → exits when found
+ *   - FIXED: OlaLinksMov 3 critical bugs:
+ *     * BUG #1: interceptUrl matched CF page URL → exited before challenge solved
+ *     * BUG #2: userAgent defaulted to CloudStream UA → CF rejected it
+ *     * BUG #3: No requestCallBack → never detected cf_clearance cookie
+ *   - FIXED: Main site (v2.olamovies.mov) CF bypass:
+ *     * getMainPage/search/load all use CfBypass.cfSafeGet()
+ *     * First time: WebView popup → user solves Turnstile → cookies cached 30 min
+ *     * Subsequent: uses cached cookies → no popup needed
+ *   - FIXED: Link shortener (links.olamovies.mov) CF bypass:
+ *     * OlaLinksMov uses CfBypass.solveCf() with proper WebViewResolver params
+ *     * Cookies shared between main site and link shortener via CfBypass cache
+ *
+ *   v20 FIXES (still present):
+ *   - Tier 3 infinite loop — rewrites links.ol-am.top → links.olamovies.mov
+ *   - Tier 2 early CF detection — bails when redirect target is CF-protected
  */
 @CloudstreamPlugin
 class OlaMoviesV2Plugin : BasePlugin() {
@@ -28,11 +46,10 @@ class OlaMoviesV2Plugin : BasePlugin() {
     override fun load() {
         registerMainAPI(OlaMoviesV2Provider())
 
-        // ─── OlaMovies shortener chain (v20 FIXED) ──────────────────────
+        // ─── OlaMovies shortener chain (v22 — CF WebView bypass) ───────────
         // OlaLinks handles links.ol-am.top — Tier 1 (regex) + Tier 2 (app.get chain)
-        // OlaLinksMov handles links.olamovies.mov — Tier 3 (CF WebView bypass)
-        // v20: Tier 3 now rewrites URL to links.olamovies.mov before loadExtractor()
-        //      to prevent infinite loop (OlaLinks matching itself repeatedly)
+        // OlaLinksMov handles links.olamovies.mov — CF bypass via CfBypass.solveCf()
+        // v22: Uses CfBypass utility with PROPER WebViewResolver params from CloudflareKiller
         registerExtractorAPI(OlaLinks())
         registerExtractorAPI(OlaLinksMov())
 

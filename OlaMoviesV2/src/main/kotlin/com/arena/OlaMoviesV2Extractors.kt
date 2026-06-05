@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.base64Decode
 import com.lagradost.cloudstream3.extractors.PixelDrain
-import com.lagradost.cloudstream3.network.WebViewResolver
+
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -490,23 +490,27 @@ open class OlaLinks : ExtractorApi() {
 }
 
 /**
- * OlaLinksMov — CF bypass handler for links.olamovies.mov (v21)
+ * OlaLinksMov — CF bypass handler for links.olamovies.mov (v22)
  *
- * v21: REWRITE — Uses CloudStream's WebViewResolver directly instead of
- * relying on the passive app-level interceptor.
+ * v22 CRITICAL FIXES — based on CloudStream's CloudflareKiller source analysis:
+ *
+ *   BUG #1 (v21): interceptUrl matched CF page URL itself → WebView exited immediately
+ *   BUG #2 (v21): userAgent NOT set to null → defaulted to CloudStream custom UA → CF broke
+ *   BUG #3 (v21): No requestCallBack → never detected cf_clearance cookie → timeout only
+ *
+ *   FIX #1: interceptUrl = Regex(".^") → NEVER matches → WebView stays open until callback exits
+ *   FIX #2: userAgent = null → WebView uses its own default UA (CF requires this!)
+ *   FIX #3: requestCallBack checks CookieManager for cf_clearance → exits immediately when found
+ *
+ * v22 also uses CfBypass utility for cookie caching — solves CF once per 30 minutes,
+ * subsequent requests use cached cookies (no WebView popup needed).
  *
  * Flow:
- *   1. app.get() first (fast path — if interceptor already solved CF, this works)
- *   2. If CF page detected → WebViewResolver.resolveUsingWebView() opens REAL WebView
- *   3. User solves Turnstile in WebView → cf_clearance cookie captured
- *   4. Extension fetches the actual page with cookies → extracts links
- *
- * KEY: WebViewResolver is in the library module (available to extensions).
- * It opens an Android WebView with JS enabled, loads the URL, and waits for
- * the CF challenge to resolve. After resolution, cookies are captured.
- *
- * useOkhttp=false is CRITICAL for CF bypass — OkHttp CANNOT solve CF challenges.
- * Only the WebView's native network stack (which has JS execution) can solve them.
+ *   1. Try app.get() with cached CF cookies (fast — no popup)
+ *   2. Try normal app.get() (works if no CF or already solved externally)
+ *   3. If CF 403 → CfBypass.solveCf() → opens WebView popup
+ *   4. User solves Turnstile → cf_clearance cookie cached → WebView closes
+ *   5. Retry app.get() with cookies + WebView UA → page fetched → links extracted
  */
 class OlaLinksMov : OlaLinks() {
     override val name = "OlaLinksMov"
@@ -520,117 +524,76 @@ class OlaLinksMov : OlaLinks() {
         callback: (ExtractorLink) -> Unit
     ) {
         val ref = referer ?: "https://v2.olamovies.mov/"
-        Log.d("OlaLinksMov", "═══ v21 CF WebView bypass: $url ═══")
+        Log.d("OlaLinksMov", "═══ v22 CF WebView bypass: $url ═══")
 
         try {
-            // ── Step 1: Fast path — try app.get() first ──
-            // If CloudStream's interceptor already has cf_clearance cookie,
-            // this will succeed directly without needing WebView.
             var resolvedHtml: String? = null
             var resolvedUrl: String = url
+            val host = url.substringAfter("://").substringBefore("/").substringBefore("?")
 
-            try {
-                val response = app.get(url, headers = olaHeaders, referer = ref, timeout = 30_000L)
-                val html = response.text
-                val finalUrl = response.url
-
-                val isCfPage = html.contains("Attention Required", ignoreCase = true) ||
-                        html.contains("Just a moment", ignoreCase = true) ||
-                        html.contains("cf-browser-verification", ignoreCase = true)
-
-                if (!isCfPage || html.contains("#download", ignoreCase = true) ||
-                    html.contains("#btn6", ignoreCase = true) || html.contains("?key=", ignoreCase = true)) {
-                    // No CF page or CF already solved — parse directly
-                    Log.d("OlaLinksMov", "Step 1: Got valid response (no CF page)")
-                    resolvedHtml = html
-                    resolvedUrl = finalUrl
-                } else {
-                    Log.d("OlaLinksMov", "Step 1: CF page detected, falling back to WebViewResolver")
-                }
-            } catch (e: Exception) {
-                Log.d("OlaLinksMov", "Step 1 failed: ${e.message}, trying WebViewResolver")
-            }
-
-            // ── Step 2: WebViewResolver — open REAL WebView to solve CF ──
-            if (resolvedHtml == null) {
-                Log.d("OlaLinksMov", "Step 2: Launching WebViewResolver for CF bypass...")
+            // ── Step 1: Fast path — try with cached CF cookies ──
+            val cachedCookies = CfBypass.getCachedCookies(host)
+            if (cachedCookies != null) {
                 try {
-                    val resolver = WebViewResolver(
-                        // Stop when we reach any page on the target domain (not the CF challenge)
-                        interceptUrl = Regex("""https?://(links\.)?olamovies\.mov/\S*"""),
-                        // Also capture requests to known hosts
-                        additionalUrls = KNOWN_HOSTS.map { host ->
-                            Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
-                        },
-                        // CRITICAL: useOkhttp=false for CF bypass
-                        // OkHttp CANNOT solve CF — only WebView's native stack can
-                        useOkhttp = false,
-                        // 90 second timeout for slow connections
-                        timeout = 90_000L
-                    )
+                    val h = olaHeaders.toMutableMap()
+                    h["Cookie"] = CfBypass.buildCookieHeader(cachedCookies)
+                    cachedCookies["_WebViewUA"]?.let { h["User-Agent"] = it }
 
-                    val result = resolver.resolveUsingWebView(
-                        url = url,
-                        referer = ref,
-                        method = "GET"
-                    )
-
-                    // result.first = the final intercepted request (with cookies)
-                    // result.second = all additional URLs captured during navigation
-                    val finalRequest = result.first
-                    val additionalUrls = result.second
-
-                    Log.d("OlaLinksMov", "WebViewResolver done: finalRequest=${finalRequest?.url?.toString()}, additionalUrls=${additionalUrls.size}")
-
-                    if (finalRequest != null) {
-                        // Fetch the actual page using the resolved request's cookies
-                        resolvedUrl = finalRequest.url.toString()
-                        Log.d("OlaLinksMov", "Fetching resolved page: $resolvedUrl")
-
-                        val headers = olaHeaders.toMutableMap()
-                        finalRequest.headers?.let { h ->
-                            for (i in 0 until h.size) {
-                                headers[h.name(i)] = h.value(i)
-                            }
-                        }
-
-                        val resolvedResponse = app.get(
-                            resolvedUrl,
-                            headers = headers,
-                            referer = ref,
-                            timeout = 30_000L
-                        )
-                        resolvedHtml = resolvedResponse.text
-                        resolvedUrl = resolvedResponse.url
-                        Log.d("OlaLinksMov", "Resolved page fetched: ${resolvedHtml?.take(100)}")
+                    val resp = app.get(url, headers = h, referer = ref, timeout = 30_000L)
+                    if (!CfBypass.isCfResponse(resp.headers["server"], resp.code, resp.text)) {
+                        resolvedHtml = resp.text
+                        resolvedUrl = resp.url
+                        Log.d("OlaLinksMov", "Step 1: OK with cached cookies")
+                    } else {
+                        Log.d("OlaLinksMov", "Step 1: Cached cookies expired, re-solving...")
                     }
-
-                    // Also process additional URLs captured during WebView navigation
-                    if (additionalUrls.isNotEmpty()) {
-                        Log.d("OlaLinksMov", "Processing ${additionalUrls.size} additional URLs from WebView")
-                        for (req in additionalUrls) {
-                            val reqUrl = req.url.toString()
-                            Log.d("OlaLinksMov", "  Additional URL: $reqUrl")
-                            when {
-                                isKnownHost(reqUrl) -> {
-                                    dispatchFinalHost(reqUrl, subtitleCallback, callback)
-                                }
-                                reqUrl.contains("?key=", ignoreCase = true) -> {
-                                    try {
-                                        loadExtractor(reqUrl, ref, subtitleCallback, callback)
-                                    } catch (_: Exception) {}
-                                }
-                            }
-                        }
-                    }
-
                 } catch (e: Exception) {
-                    Log.e("OlaLinksMov", "WebViewResolver failed: ${e.message}")
-                    e.printStackTrace()
+                    Log.d("OlaLinksMov", "Step 1 failed: ${e.message}")
                 }
             }
 
-            // ── Step 3: Parse the resolved HTML for links ──
+            // ── Step 2: Try normal request (no cookies) ──
+            if (resolvedHtml == null) {
+                try {
+                    val resp = app.get(url, headers = olaHeaders, referer = ref, timeout = 30_000L)
+                    val html = resp.text
+
+                    // Check if CF page or valid content
+                    if (!CfBypass.isCfResponse(resp.headers["server"], resp.code, html)) {
+                        resolvedHtml = html
+                        resolvedUrl = resp.url
+                        Log.d("OlaLinksMov", "Step 2: Got valid response (no CF)")
+                    } else {
+                        Log.d("OlaLinksMov", "Step 2: CF page detected, launching WebView...")
+                    }
+                } catch (e: Exception) {
+                    Log.d("OlaLinksMov", "Step 2 failed: ${e.message}")
+                }
+            }
+
+            // ── Step 3: WebViewResolver CF bypass (ONLY if steps 1 & 2 failed) ──
+            if (resolvedHtml == null) {
+                Log.d("OlaLinksMov", "Step 3: Solving CF via CfBypass.solveCf()...")
+                val cookies = CfBypass.solveCf(url)
+                if (cookies != null) {
+                    val h = olaHeaders.toMutableMap()
+                    h["Cookie"] = CfBypass.buildCookieHeader(cookies)
+                    cookies["_WebViewUA"]?.let { h["User-Agent"] = it }
+
+                    try {
+                        val resp = app.get(url, headers = h, referer = ref, timeout = 30_000L)
+                        resolvedHtml = resp.text
+                        resolvedUrl = resp.url
+                        Log.d("OlaLinksMov", "Step 3: CF solved! Got ${resolvedHtml?.length ?: 0} chars")
+                    } catch (e: Exception) {
+                        Log.e("OlaLinksMov", "Step 3: Request after CF solve failed: ${e.message}")
+                    }
+                } else {
+                    Log.w("OlaLinksMov", "Step 3: CF solve failed (timeout or user dismissed)")
+                }
+            }
+
+            // ── Step 4: Parse the resolved HTML ──
             if (resolvedHtml != null) {
                 processResolvedPage(resolvedHtml, resolvedUrl, ref, subtitleCallback, callback)
             } else {
