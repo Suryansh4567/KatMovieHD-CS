@@ -819,31 +819,26 @@ class UHDMoviesProvider : MainAPI() {
         if (!NEXDRIVE_REGEX.containsMatchIn(url)) return emptyList()
 
         return try {
-            val response = app.get(url, headers = headers + mapOf(
-                "Referer" to mainUrl
-            ), timeout = 20, allowRedirects = true)
-
-            val finalUrl = response.url
+            val res = app.get(url, referer = mainUrl, headers = headers, timeout = 15000)
+            val doc = res.document
             val results = mutableListOf<String>()
 
-            // If we were redirected to a different host, that's our destination
-            if (!NEXDRIVE_REGEX.containsMatchIn(finalUrl)) {
-                results.add(finalUrl)
-            }
-
-            // Also parse the response body for additional links
-            // (some nexdrive pages list multiple mirror hosts)
-            val doc = response.document
-            doc.select("a[href]").forEach { anchor ->
+            // Parse the response body for external links
+            // (nexdrive pages list mirror/host links on the landing page)
+            val excludeDomains = listOf("nexdrive.help", "nexdrive.vip") + "profitablecpmrate"
+            doc.select("a[href]").mapNotNull { anchor ->
                 val href = anchor.attr("href").trim()
+                val linkText = anchor.text().trim()
                 if (href.startsWith("http") &&
-                    !NEXDRIVE_REGEX.containsMatchIn(href) &&
+                    excludeDomains.none { href.contains(it, ignoreCase = true) } &&
                     !IGNORE_HOST_REGEX.containsMatchIn(href) &&
                     !href.contains(mainUrl, ignoreCase = true) &&
-                    href !in results
+                    linkText.isNotBlank()
                 ) {
-                    results.add(href)
-                }
+                    href
+                } else null
+            }.filter { it.startsWith("http") && it !in results }.forEach {
+                results.add(it)
             }
 
             Log.d(TAG, "resolveNexdrive($url): found ${results.size} resolved URL(s)")
@@ -869,18 +864,20 @@ class UHDMoviesProvider : MainAPI() {
             loadExtractor(url, mainUrl, subtitleCallback) { link ->
                 // Override the quality from our parsed quality label
                 callback.invoke(
-                    ExtractorLink(
-                        source = link.source,
-                        name = link.name,
-                        url = link.url,
-                        referer = link.referer,
-                        quality = if (quality != Qualities.Unknown) quality else link.quality,
-                        headers = link.headers,
-                        extractorData = link.extractorData,
-                        type = link.type
-                    )
+                    newExtractorLink(
+                        link.source,
+                        "$name $qualityLabel",
+                        link.url,
+                        INFER_TYPE
+                    ) {
+                        this.quality = if (quality != Qualities.Unknown) quality else link.quality
+                        this.referer = link.referer
+                        this.headers = link.headers
+                        this.extractorData = link.extractorData
+                    }
                 )
             }
+            true
         } catch (e: Exception) {
             Log.d(TAG, "loadExtractor no-op for $url: ${e.message}")
             false
