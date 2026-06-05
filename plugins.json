@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
         "status": 1,
-        "version": 19,
+        "version": 20,
         "name": "OlaMoviesV2",
         "internalName": "OlaMoviesV2",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v19: 3-TIER CF bypass \u2014 Tier 1: regex/base64 extraction, Tier 2: app.get() chain, Tier 3: OlaLinksMov CF WebView bypass. Clean rewrite, simplified flow.",
-        "fileSize": 134579,
+        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v20: CRITICAL FIX \u2014 infinite recursion bug fixed. OlaLinksMov no longer calls super.getUrl() on CF failure (was causing StackOverflow \u2192 no link found). Added recursion guard in OlaLinks.",
+        "fileSize": 134158,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-f8be1d78a7c936aeebb9b7293dc2e54a883170aa55d194742ae90f0593b2dbbe"
+        "fileHash": "sha256-5be4a1f7b4fb0ef69ed1944eaeed1eb8205a8b40401a5f77e39144bbd9fd3c97"
     }
 ]
