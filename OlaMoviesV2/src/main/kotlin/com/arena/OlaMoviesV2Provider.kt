@@ -202,18 +202,22 @@ class OlaMoviesV2Provider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val url = "$mainUrl/${request.data}$page/"
-        // v22: CF-safe fetch — if main site is behind Cloudflare, opens WebView popup
+        Log.e(TAG, "═══ getMainPage: $url ═══")
         val html = CfBypass.cfSafeGet(url, headers = headers)
         if (html.isNullOrBlank()) {
-            Log.w(TAG, "getMainPage: CF bypass failed or empty response for $url")
+            Log.e(TAG, "getMainPage: FAILED — empty response for $url")
             return newHomePageResponse(request.name, emptyList(), hasNext = false)
         }
         val doc = Jsoup.parse(html, url)
-        return newHomePageResponse(request.name, parseListing(doc), hasNext = true)
+        val items = parseListing(doc)
+        Log.e(TAG, "getMainPage: found ${items.size} items")
+        return newHomePageResponse(request.name, items, hasNext = true)
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
+        Log.e(TAG, "═══ search: '$query' page=$page ═══")
         mainUrl = OlaMoviesV2Plugin.getActiveMainUrl()
+        Log.e(TAG, "active mainUrl: $mainUrl")
 
         val slug = query.trim().replace(" ", "-")
         val encoded = query.trim().replace(" ", "+")
@@ -236,7 +240,7 @@ class OlaMoviesV2Provider : MainAPI() {
             }
         }
         val results = parseListing(doc)
-        Log.d(TAG, "search('$query', p$page): ${results.size} results")
+        Log.e(TAG, "search('$query', p$page): ${results.size} results")
         return results.toNewSearchResponseList()
     }
 
@@ -302,9 +306,10 @@ class OlaMoviesV2Provider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        // v22: CF-safe fetch — handles Cloudflare on main site
+        Log.e(TAG, "═══ load: $url ═══")
         val html = CfBypass.cfSafeGet(url, headers = headers)
         if (html.isNullOrBlank()) {
+            Log.e(TAG, "load: FAILED — CF blocked: $url")
             throw Exception("Cannot load page (CF blocked): $url")
         }
         val doc = Jsoup.parse(html, url)
@@ -687,7 +692,7 @@ class OlaMoviesV2Provider : MainAPI() {
             Log.w(TAG, "loadLinks: no URLs extracted from data")
             return false
         }
-        Log.d(TAG, "loadLinks: dispatching ${urls.size} URL(s)")
+        Log.e(TAG, "loadLinks: ${urls.size} URLs: ${urls.take(3).map { it.take(50) }}")
 
         var anyDispatched = false
         urls.amap { rawUrl ->
@@ -712,7 +717,7 @@ class OlaMoviesV2Provider : MainAPI() {
         }
 
         if (!anyDispatched) {
-            Log.w(TAG, "loadLinks: every URL failed to dispatch")
+            Log.e(TAG, "loadLinks: every URL FAILED to dispatch")
         }
         return true
     }

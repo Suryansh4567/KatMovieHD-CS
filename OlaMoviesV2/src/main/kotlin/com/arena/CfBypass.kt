@@ -147,7 +147,7 @@ object CfBypass {
      */
     suspend fun solveCf(url: String): Map<String, String>? {
         val host = url.substringAfter("://").substringBefore("/")
-        Log.d(TAG, ">> solveCf: Opening WebView for $url (host=$host)")
+        Log.e(TAG, ">> solveCf: Opening WebView for $url (host=$host)")
 
         var solvedCookies: Map<String, String>? = null
 
@@ -179,7 +179,7 @@ object CfBypass {
                 // (initial page, CF challenge iframe, redirects, etc.)
                 try {
                     val requestUrl = request.url.toString()
-                    Log.d(TAG, ">> callback: ${requestUrl.take(80)}")
+                    Log.e(TAG, ">> callback: ${requestUrl.take(80)}")
 
                     // Check CookieManager for cf_clearance on every navigation
                     // After Turnstile is solved, CF sets cf_clearance cookie
@@ -190,12 +190,12 @@ object CfBypass {
                         ?: cm.getCookie("https://$host")
 
                     if (cookieStr != null && cookieStr.contains("cf_clearance")) {
-                        Log.d(TAG, ">> cf_clearance FOUND! Destroying WebView...")
+                        Log.e(TAG, ">> cf_clearance FOUND! Destroying WebView...")
                         solvedCookies = parseCookieString(cookieStr)
                         return@resolveUsingWebView true  // true = destroy WebView
                     }
 
-                    Log.d(TAG, ">> no cf_clearance yet, waiting...")
+                    Log.d(TAG, ">> no cf_clearance yet...")
                 } catch (e: Exception) {
                     Log.d(TAG, ">> callback error: ${e.message}")
                 }
@@ -224,7 +224,7 @@ object CfBypass {
                 }
             }
 
-            Log.d(TAG, ">> solveCf result: ${if (solvedCookies != null) "SUCCESS (${solvedCookies.size} cookies)" else "FAILED"}")
+            Log.e(TAG, ">> solveCf result: ${if (solvedCookies != null) "SUCCESS (${solvedCookies.size} cookies)" else "FAILED"}")
 
             if (solvedCookies != null) {
                 val mutableCookies = solvedCookies.toMutableMap()
@@ -292,12 +292,12 @@ object CfBypass {
         timeout: Long = 30_000L
     ): String? {
         val host = url.substringAfter("://").substringBefore("/").substringBefore("?")
-        Log.d(TAG, "cfSafeGet: $url (host=$host)")
+        Log.e(TAG, "cfSafeGet: $url (host=$host)")
 
         // ── Phase 1: Try with cached cookies (fast path) ──
         val cached = getCachedCookies(host)
         if (cached != null) {
-            Log.d(TAG, "cfSafeGet Phase 1: Trying cached cookies...")
+            Log.e(TAG, "cfSafeGet Phase 1: Trying cached cookies...")
             try {
                 val h = headers.toMutableMap()
                 h["Cookie"] = buildCookieHeader(cached)
@@ -306,7 +306,7 @@ object CfBypass {
                 val resp = app.get(url, headers = h, referer = referer, timeout = timeout)
                 val cfType = detectCfType(resp.headers["server"], resp.code, resp.text)
                 if (cfType == null) {
-                    Log.d(TAG, "cfSafeGet Phase 1: OK with cached cookies (${resp.text.length} chars)")
+                    Log.e(TAG, "cfSafeGet Phase 1: OK (${resp.text.length} chars)")
                     return resp.text
                 }
                 Log.d(TAG, "cfSafeGet Phase 1: CF still present ($cfType) — cached cookies expired")
@@ -316,13 +316,13 @@ object CfBypass {
         }
 
         // ── Phase 2: Try normal request (no cookies) ──
-        Log.d(TAG, "cfSafeGet Phase 2: Normal request...")
+            Log.e(TAG, "cfSafeGet Phase 2: Normal request...")
         try {
             val resp = app.get(url, headers = headers, referer = referer, timeout = timeout)
             val cfType = detectCfType(resp.headers["server"], resp.code, resp.text)
             when (cfType) {
                 null -> {
-                    Log.d(TAG, "cfSafeGet Phase 2: OK — no CF (${resp.text.length} chars)")
+                    Log.e(TAG, "cfSafeGet Phase 2: OK — no CF (${resp.text.length} chars)")
                     return resp.text
                 }
                 "blocked" -> {
@@ -330,7 +330,7 @@ object CfBypass {
                     // Still try WebViewResolver — the user's device might get a different response
                 }
                 "challenge" -> {
-                    Log.d(TAG, "cfSafeGet Phase 2: CF challenge detected for $host — solving...")
+                    Log.e(TAG, "cfSafeGet Phase 2: CF challenge detected for $host — solving...")
                 }
             }
         } catch (e: Exception) {
@@ -338,15 +338,15 @@ object CfBypass {
         }
 
         // ── Phase 3: Solve CF via WebView ──
-        Log.d(TAG, "cfSafeGet Phase 3: Solving CF via WebViewResolver...")
+        Log.e(TAG, "cfSafeGet Phase 3: Solving CF via WebViewResolver...")
         val cookies = solveCf(url)
         if (cookies == null) {
-            Log.w(TAG, "cfSafeGet: CF solve FAILED for $host — returning null")
+            Log.e(TAG, "cfSafeGet: CF solve FAILED for $host — returning null")
             return null
         }
 
         // ── Phase 4: Retry with fresh cookies ──
-        Log.d(TAG, "cfSafeGet Phase 4: Retrying with ${cookies.size} cookies...")
+        Log.e(TAG, "cfSafeGet Phase 4: Retrying with ${cookies.size} cookies...")
         val h = headers.toMutableMap()
         h["Cookie"] = buildCookieHeader(cookies)
         cookies["_WebViewUA"]?.let { h["User-Agent"] = it }
@@ -355,9 +355,9 @@ object CfBypass {
             val resp = app.get(url, headers = h, referer = referer, timeout = timeout)
             val cfType = detectCfType(resp.headers["server"], resp.code, resp.text)
             if (cfType == null) {
-                Log.d(TAG, "cfSafeGet Phase 4: SUCCESS after CF solve! (${resp.text.length} chars)")
+                Log.e(TAG, "cfSafeGet Phase 4: SUCCESS after CF solve! (${resp.text.length} chars)")
             } else {
-                Log.w(TAG, "cfSafeGet Phase 4: CF still present after solving ($cfType)")
+                Log.e(TAG, "cfSafeGet Phase 4: CF still present after solving ($cfType)")
             }
             resp.text
         } catch (e: Exception) {

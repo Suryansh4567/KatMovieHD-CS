@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 24
+version = 25
 
 cloudstream {
     authors = listOf("arena")
@@ -12,8 +12,7 @@ cloudstream {
 
     description = "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from " +
             "OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. " +
-            "v24: CF bypass rewrite — follows CloudflareKiller's exact approach " +
-            "(interceptUrl never matches, additionalUrls catches all, CookieManager check)."
+            "v25: Verbose logging — every step visible in logcat (Log.e level)."
     language    = "en"
 
     tvTypes = listOf("Movie", "TvSeries", "Anime", "AsianDrama", "Documentary")
