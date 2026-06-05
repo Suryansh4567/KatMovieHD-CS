@@ -2,23 +2,11 @@ package com.mkvhub
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
-/**
- * MkvHub provider — https://www.mkvhub.beer
- *
- * WordPress movie site — Bollywood, Hollywood, Dual Audio, South Indian,
- * Punjabi, Web Series. No Cloudflare.
- *
- * Site structure:
- *   Home:  div.thumb > figure > img[poster] + figcaption > a[title+href]
- *   Categories: /category/bollywood-movies/ etc.
- *   Search: /?s=query
- *   Movie:  <h3>|| Download 1080p ... Size: X.XGB ||</h3>
- *           <p><a class="dbuttn blue" href="linkszilla">Get Download Links</a></p>
- *   Pagination: /page/2/
- */
 class MkvHubProvider : MainAPI() {
     override var mainUrl = "https://www.mkvhub.beer"
     override var name = "MkvHub"
@@ -42,17 +30,12 @@ class MkvHubProvider : MainAPI() {
         "$mainUrl/category/telugu-movies/" to "Telugu Movies"
     )
 
-    // ------------------------------------------------------------------
-    // Main page
-    // ------------------------------------------------------------------
-
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
         val url = if (page == 1) request.data else "${request.data}page/$page/"
         val doc = app.get(url).document
-
         val items = doc.select("div.thumb").mapNotNull { it.toSearchResult() }
         return newHomePageResponse(
             arrayListOf(HomePageList(request.name, items)),
@@ -60,18 +43,10 @@ class MkvHubProvider : MainAPI() {
         )
     }
 
-    // ------------------------------------------------------------------
-    // Search
-    // ------------------------------------------------------------------
-
     override suspend fun search(query: String): List<SearchResponse> {
         val doc = app.get("$mainUrl/?s=$query").document
         return doc.select("div.thumb").mapNotNull { it.toSearchResult() }
     }
-
-    // ------------------------------------------------------------------
-    // Parse thumbnail item from home/search/category pages
-    // ------------------------------------------------------------------
 
     private fun Element.toSearchResult(): SearchResponse? {
         val figcaption = selectFirst("figcaption") ?: return null
@@ -106,10 +81,6 @@ class MkvHubProvider : MainAPI() {
         }
     }
 
-    // ------------------------------------------------------------------
-    // Load — movie detail page
-    // ------------------------------------------------------------------
-
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
 
@@ -122,7 +93,6 @@ class MkvHubProvider : MainAPI() {
         val plot = doc.select(".entry-content p")
             .firstOrNull { it.text().length > 50 }?.text()?.trim()
 
-        // IMDb rating
         val ratingText = doc.select("p, span, div")
             .firstOrNull { it.text().trim().startsWith("IMDb") }
             ?.text()?.trim()
@@ -131,27 +101,22 @@ class MkvHubProvider : MainAPI() {
                 ?.toFloatOrNull()?.let { Score.from10(it) }
         }
 
-        // Genres
         val genreText = doc.select("p, span, div")
             .firstOrNull { it.text().trim().startsWith("Genres") }
             ?.text()?.trim()
         val tags = genreText?.substringAfter(":")
             ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
 
-        // Year
         val year = Regex("""\((\d{4})\)""").find(title)?.groupValues?.get(1)?.toIntOrNull()
             ?: Regex("""\b(19\d{2}|20\d{2})\b""").find(title)?.groupValues?.get(1)?.toIntOrNull()
 
-        // Movie or Series?
         val isSeries = Regex("""S\d{2}""").containsMatchIn(title) ||
                 title.contains("Season", ignoreCase = true) ||
                 title.contains("Complete", ignoreCase = true) ||
                 title.contains("Web Series", ignoreCase = true) ||
                 tags.any { it.contains("Web Series", true) || it.contains("TV Show", true) }
 
-        // Collect download links from h3+button pattern
         val downloadLinks = extractDownloadLinks(doc)
-
         val linkData = downloadLinks.joinToString("\n") { "${it.first}|||${it.second}" }
 
         return if (isSeries) {
@@ -173,20 +138,13 @@ class MkvHubProvider : MainAPI() {
         }
     }
 
-    /**
-     * Extract (qualityText, link) pairs from the movie page.
-     * Pattern: <h3>|| Download 1080p HD ... ||</h3> <p><a class="dbuttn" href="...">Get Download Links</a></p>
-     */
     private fun extractDownloadLinks(doc: org.jsoup.nodes.Document): List<Pair<String, String>> {
         val result = mutableListOf<Pair<String, String>>()
-
         doc.select("h3").forEach { h3 ->
             val text = h3.text().trim()
             if (!text.contains("480p", true) && !text.contains("720p", true) &&
                 !text.contains("1080p", true) && !text.contains("4K", true)
             ) return@forEach
-
-            // Next sibling <p> should contain the button
             val nextEl = h3.nextElementSibling()
             if (nextEl != null) {
                 val btn = nextEl.selectFirst("a.dbuttn[href]")
@@ -198,13 +156,8 @@ class MkvHubProvider : MainAPI() {
                 }
             }
         }
-
         return result
     }
-
-    // ------------------------------------------------------------------
-    // Load Links
-    // ------------------------------------------------------------------
 
     override suspend fun loadLinks(
         data: String,
@@ -213,7 +166,6 @@ class MkvHubProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         if (data.isBlank()) return false
-
         val links = data.split("\n")
             .filter { it.contains("|||") }
             .mapNotNull {
@@ -230,21 +182,13 @@ class MkvHubProvider : MainAPI() {
 
         links.amap { (qualityText, url) ->
             try {
-                // Try to resolve the short link
                 val resolved = app.get(url, referer = mainUrl, timeout = 15000)
                 val finalUrl = resolved.url
                 val doc = resolved.document
-
-                // Look for direct hosting links in the resolved page
                 val hostLink = doc.selectFirst("a[href*=hubcloud], a[href*=gdflix], a[href*=gdtot], a[href*=hubdrive], a[href*=drive.google], a[href*=pixeldrain]")
                 val iframe = doc.selectFirst("iframe[src]")
-
                 val target = hostLink?.attr("href") ?: iframe?.attr("src") ?: finalUrl
-
-                // Try CloudStream built-in extractors first
                 loadExtractor(target, url, subtitleCallback, callback)
-
-                // Also add a direct link as fallback
                 callback.invoke(
                     newExtractorLink(
                         name,
@@ -252,14 +196,9 @@ class MkvHubProvider : MainAPI() {
                         target,
                         mainUrl,
                         parseQuality(qualityText)
-                    ) {
-                        headers = mapOf("Referer" to url)
-                    }
+                    )
                 )
-            }
-            } catch (e: Exception) {
-                // Skip failed links
-            }
+            } catch (_: Exception) { }
         }
         return true
     }
