@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
         "status": 1,
-        "version": 22,
+        "version": 23,
         "name": "OlaMoviesV2",
         "internalName": "OlaMoviesV2",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v22: CF bypass fix \u2014 CloudStream's CloudflareKiller is dead code (never registered). Extension now has its own CfBypass utility using WebViewResolver with correct params. Main site + link shortener both CF-protected, both handled via WebView popup + cookie caching.",
-        "fileSize": 143750,
+        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v23: CF auto-click \u2014 Turnstile submit button auto-clicked via JS injection. Cookie check fixed (uses request.url). Better logging for debugging.",
+        "fileSize": 145251,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-6ded14506653ac8f526f1e3d3894b3b52ca35835a5a4f44a2eb499fc960da43a"
+        "fileHash": "sha256-03e51561b3706df934753affdf9ccda644a1e600076ff7f74aa587aff0ef32ae"
     }
 ]
