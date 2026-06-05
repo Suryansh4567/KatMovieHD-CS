@@ -117,7 +117,7 @@ class MkvHubProvider : MainAPI() {
         val doc = app.get(url).document
 
         val title = doc.selectFirst("h1")?.text()?.trim()
-            ?: throwError("No title found")
+            ?: throw Exception("No title found")
         val posterUrl = fixUrlNull(
             doc.selectFirst("article img, .entry-content img")?.attr("src")
                 ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
