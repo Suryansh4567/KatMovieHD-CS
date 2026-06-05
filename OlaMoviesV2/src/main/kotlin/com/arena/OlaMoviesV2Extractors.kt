@@ -125,6 +125,9 @@ open class OlaLinks : ExtractorApi() {
         private const val TAG = "OlaLinks"
     }
 
+    // v20: Track visited URLs to prevent any form of infinite recursion
+    private val visitedUrls = mutableSetOf<String>()
+
     override suspend fun getUrl(
         url: String,
         referer: String?,
@@ -134,7 +137,15 @@ open class OlaLinks : ExtractorApi() {
         val ref = referer ?: "https://v2.olamovies.mov/"
         var anySuccess = false
 
-        Log.d(TAG, "═══ OlaLinks.getUrl v19: $url ═══")
+        Log.d(TAG, "═══ OlaLinks.getUrl v20: $url ═══")
+
+        // v20: Recursion guard — if this URL was already visited, bail out immediately
+        val normalizedUrl = url.substringBefore("?")  // Strip query params for comparison
+        if (normalizedUrl in visitedUrls) {
+            Log.w(TAG, "URL already visited — preventing recursion: $url")
+            return
+        }
+        visitedUrls.add(normalizedUrl)
 
         // ── Tier 1: Base64/regex extraction from URL (NO HTTP call) ──
         try {
@@ -485,10 +496,13 @@ open class OlaLinks : ExtractorApi() {
  *
  * This is the ONLY reliable way to bypass CF Turnstile in CloudStream.
  *
- * v20 FIX:
- *   - CF challenge page detection: if interceptor doesn't solve CF, detect the
- *     challenge page and fall back to parent OlaLinks' 3-tier chain.
- *   - Fallback in catch block: if everything fails, try parent's chain as last resort.
+ * v20 FIX (ACTUAL):
+ *   - CRITICAL: NEVER call super.getUrl() when CF fails — it causes infinite recursion:
+ *     OlaLinksMov → super.getUrl() → OlaLinks.getUrl() → Tier3 loadExtractor()
+ *     → matches OlaLinksMov again → loop → StackOverflowError → "no link found"
+ *   - When CF challenge page detected: just log and return (do NOT recurse)
+ *   - Catch block: just log and return (do NOT recurse)
+ *   - CloudStream's WebView interceptor handles CF automatically when user has WebView enabled.
  */
 class OlaLinksMov : OlaLinks() {
     override val name = "OlaLinksMov"
@@ -526,9 +540,10 @@ class OlaLinksMov : OlaLinks() {
                     html.contains("?key=", ignoreCase = true)
 
             if (isCfPage && !hasDownloadLinks) {
-                Log.w("OlaLinksMov", "Response is CF challenge page, interceptor didn't resolve it")
-                // v20: Fall back to parent's 3-tier chain
-                super.getUrl(url, referer, subtitleCallback, callback)
+                Log.w("OlaLinksMov", "CF challenge page detected — WebView interceptor did not resolve it.")
+                Log.w("OlaLinksMov", "This means CF Turnstile was not solved. The user needs to solve it manually.")
+                Log.w("OlaLinksMov", "DO NOT call super.getUrl() here — it causes infinite recursion!")
+                // v20 FIX: Do NOT recurse! Just return empty — CF not solved, nothing we can do.
                 return
             }
 
@@ -656,11 +671,10 @@ class OlaLinksMov : OlaLinks() {
             }
         } catch (e: Exception) {
             Log.e("OlaLinksMov", "Failed to resolve CF page: ${e.message}")
-            // v20: Last resort — try parent's full 3-tier chain
-            try {
-                Log.d("OlaLinksMov", "Falling back to parent 3-tier chain")
-                super.getUrl(url, referer, subtitleCallback, callback)
-            } catch (_: Exception) {}
+            // v20 FIX: Do NOT call super.getUrl() — it causes infinite recursion!
+            // OlaLinksMov → super.getUrl() → OlaLinks.getUrl() → Tier3 loadExtractor()
+            // → matches OlaLinksMov again → StackOverflowError
+            // Just log and return — nothing more we can do.
         }
     }
 }
