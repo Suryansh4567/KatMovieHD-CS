@@ -138,24 +138,20 @@ object CfBypass {
      * Opens a REAL Android WebView popup. The CF Turnstile widget runs
      * in the WebView. User interacts with it naturally (clicks checkbox).
      *
-     * 3-LAYER COOKIE DETECTION (v23 critical fix):
+     * 2-LAYER COOKIE DETECTION:
      *
      *   Layer 1 (auto-close): interceptUrl callback detects cf_clearance during
-     *     navigation → returns true → WebView auto-closes with cookies.
+     *     navigation → returns true → WebView auto-closes immediately.
      *
-     *   Layer 2 (return value): WebViewResolver.resolveUsingWebView() RETURNS cookies
-     *     from CookieManager when WebView closes (back press or timeout).
-     *     PREVIOUS BUG: We were IGNORING this return value! Even though the user
-     *     solved the challenge and pressed back, cookies were lost!
-     *
-     *   Layer 3 (direct check): After WebViewResolver finishes, check CookieManager
-     *     directly for cf_clearance. Last resort fallback.
+     *   Layer 2 (CookieManager): After WebViewResolver finishes (back press or
+     *     timeout), check CookieManager directly for cf_clearance cookies.
+     *     NOTE: resolveUsingWebView() returns Pair<Request?, List<Request>> —
+     *     Request objects, NOT cookies. We must read CookieManager separately.
      *
      * v23 FIXES:
      *   FIX #1: interceptUrl = OLA_URL_REGEX (matches olamovies.mov)
-     *   FIX #2: CAPTURE resolveUsingWebView() return value! (was ignored!)
-     *   FIX #3: Direct CookieManager check as last resort
-     *   FIX #4: Detailed logging at every step
+     *     → After CF redirect back, callback fires → cf_clearance → auto-close
+     *   FIX #2: CookieManager check after WebView closes (for back press case)
      *
      * @param url The CF-protected URL to solve
      * @return Map of cookies if successful, null if failed/timeout/hard-block
@@ -167,16 +163,18 @@ object CfBypass {
         var solvedCookies: Map<String, String>? = null
 
         try {
-            // v23 FIX #2: CAPTURE THE RETURN VALUE!
-            // resolveUsingWebView() returns cookies from CookieManager when
-            // the WebView closes. We were ignoring this entire return value!
-            val webViewResult = WebViewResolver(
-                interceptUrl = OLA_URL_REGEX,      // v23 FIX #1: Matches olamovies.mov URLs
+            // resolveUsingWebView() returns Pair<Request?, List<Request>>
+            // — these are OkHttp Request objects, NOT cookies.
+            // We get cookies from CookieManager inside the callback and after.
+            WebViewResolver(
+                interceptUrl = OLA_URL_REGEX,      // v23: Matches olamovies.mov URLs
                 userAgent = null,                   // CRITICAL: Use WebView default UA
                 useOkhttp = false,                  // CRITICAL: OkHttp CANNOT solve CF
                 timeout = 90_000L                   // 90 seconds
             ).resolveUsingWebView(url = url) { request ->
-                // Layer 1: Callback detects cf_clearance during navigation
+                // Layer 1: Callback — fires when URL matches OLA_URL_REGEX
+                // After CF challenge solved, page redirects to olamovies.mov
+                // → callback fires → check for cf_clearance → auto-close if found
                 try {
                     val requestUrl = request.url.toString()
                     Log.d(TAG, ">> callback fired for: ${requestUrl.take(80)}")
@@ -190,34 +188,33 @@ object CfBypass {
                         return@resolveUsingWebView true  // true = destroy WebView
                     }
 
-                    Log.d(TAG, ">> LAYER 1: no cf_clearance yet for ${requestUrl.take(50)}")
+                    Log.d(TAG, ">> LAYER 1: no cf_clearance yet")
                 } catch (e: Exception) {
                     Log.d(TAG, ">> callback error: ${e.message}")
                 }
-                false // Keep waiting
+                false // Keep waiting for CF challenge
             }
 
-            // Layer 2: WebViewResolver returned cookies (user pressed back after solving)
-            if (solvedCookies == null && webViewResult.isNotEmpty()) {
-                Log.d(TAG, ">> LAYER 2 HIT: WebViewResolver returned ${webViewResult.size} cookies!")
-                Log.d(TAG, ">> LAYER 2 cookies: ${webViewResult.keys.joinToString()}")
-                solvedCookies = webViewResult
-            }
-
-            // Layer 3: Direct CookieManager check (last resort)
+            // Layer 2: Check CookieManager directly after WebView closes
+            // This catches the case where user solved CF and pressed back
+            // (callback might have missed the cookie, but CookieManager has it)
             if (solvedCookies == null) {
                 try {
                     val cm = CookieManager.getInstance()
-                    val directCookies = cm.getCookie(url) ?: cm.getCookie("https://$host")
+                    // Check both the exact URL and the host-level cookies
+                    val directCookies = cm.getCookie(url)
+                        ?: cm.getCookie("https://$host")
+                        ?: cm.getCookie("https://www.$host")
+
                     if (directCookies != null && directCookies.contains("cf_clearance")) {
-                        Log.d(TAG, ">> LAYER 3 HIT: cf_clearance found in CookieManager directly!")
+                        Log.d(TAG, ">> LAYER 2 HIT: cf_clearance found in CookieManager!")
                         solvedCookies = parseCookieString(directCookies)
                     } else {
-                        Log.d(TAG, ">> LAYER 3: no cf_clearance in CookieManager")
-                        Log.d(TAG, ">> CookieManager state: ${directCookies?.take(80) ?: "empty"}")
+                        Log.d(TAG, ">> LAYER 2: no cf_clearance in CookieManager")
+                        Log.d(TAG, ">> CookieManager: ${directCookies?.take(60) ?: "empty"}")
                     }
                 } catch (e: Exception) {
-                    Log.d(TAG, ">> LAYER 3 check failed: ${e.message}")
+                    Log.d(TAG, ">> LAYER 2 check failed: ${e.message}")
                 }
             }
 
@@ -226,7 +223,6 @@ object CfBypass {
             if (solvedCookies != null) {
                 val mutableCookies = solvedCookies.toMutableMap()
 
-                // Store WebView UA (CF ties clearance to UA)
                 try {
                     WebViewResolver.webViewUserAgent?.let { ua ->
                         mutableCookies["_WebViewUA"] = ua
@@ -238,8 +234,7 @@ object CfBypass {
                 cookieTimestamps[host] = System.currentTimeMillis()
                 Log.d(TAG, ">> CF SOLVED! Cookies cached for $host (TTL=${CACHE_TTL_MS / 1000}s)")
             } else {
-                Log.w(TAG, ">> solveCf FAILED: no cf_clearance in ANY layer")
-                Log.w(TAG, ">> User may have pressed back before challenge loaded")
+                Log.w(TAG, ">> solveCf FAILED: no cf_clearance found")
             }
         } catch (e: Exception) {
             Log.e(TAG, ">> solveCf EXCEPTION: ${e.message}")
