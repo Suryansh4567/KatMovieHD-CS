@@ -21,29 +21,5 @@
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
         "fileHash": "sha256-c8e41f33c9fe0d62056d239555800a21913c8fc95661a21f32edd998c0e30839"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
-        "status": 1,
-        "version": 25,
-        "name": "OlaMoviesV2",
-        "internalName": "OlaMoviesV2",
-        "authors": [
-            "arena"
-        ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v25: Verbose logging \u2014 every step visible in logcat (Log.e level).",
-        "fileSize": 145365,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "en",
-        "tvTypes": [
-            "Movie",
-            "TvSeries",
-            "Anime",
-            "AsianDrama",
-            "Documentary"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-7c1c0693910438b0080bc98632f18efaa2541970cc70f9318b209fc1e34f1332"
     }
 ]
