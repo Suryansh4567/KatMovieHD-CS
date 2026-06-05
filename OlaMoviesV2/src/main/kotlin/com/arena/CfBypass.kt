@@ -12,28 +12,36 @@ import com.lagradost.cloudstream3.network.WebViewResolver
  * a REAL Android WebView popup where CF Turnstile is solved.
  * After solving, cf_clearance cookies are cached and reused for subsequent requests.
  *
- * v23 — Three critical fixes based on QuickNovel CloudflareKiller analysis:
+ * v23 — CRITICAL FIX based on logcat analysis:
  *
- *   FIX #1: Added AUTO-CLICK JavaScript — CF Turnstile challenges often require
- *     clicking a submit button AFTER the token is generated. Without auto-click,
- *     the challenge never completes and the WebView times out.
+ *   BUG #1 (v22): interceptUrl = Regex(".^") NEVER matches anything!
+ *     → WebViewResolver callback NEVER fires via interceptUrl
+ *     → additionalUrls callbacks only LOG, they DON'T close the WebView
+ *     → User has to manually press back — but they dismiss it after 1 sec
+ *     → FIX: interceptUrl = Regex(".*olamovies.mov.*") → matches the target URL
+ *       After CF challenge completes, page redirects back to olamovies.mov
+ *       → callback fires → cf_clearance detected → returns true → AUTO-CLOSE!
  *
- *   FIX #2: Cookie check now uses request.url.toString() — the callback receives
- *     OkHttp Request objects; we must check cookies for the ACTUAL request URL,
- *     not the outer scope URL (which might differ for subresources/redirects).
+ *   BUG #2 (v22): Auto-click JavaScript is useless + harmful
+ *     → CF Turnstile is interactive (needs checkbox click in iframe)
+ *     → Auto-click JS runs in parent page, can't interact with Turnstile iframe
+ *     → JS returns null → confusing "JS result: null" in logcat
+ *     → Might interfere with Turnstile widget loading
+ *     → FIX: Removed auto-click JS entirely. User solves challenge naturally.
  *
- *   FIX #3: Better CF detection — "Sorry, you have been blocked" (hard block) vs
- *     "Just a moment" (Turnstile challenge) are handled differently. Hard blocks
- *     cannot be solved via WebView and are reported immediately.
+ *   BUG #3 (v22): No logging in callback when cf_clearance NOT found
+ *     → Silent callback returns make debugging impossible
+ *     → FIX: Added detailed logging for every callback invocation
  *
  * FLOW:
  *   1. app.get() fails with 403 + Server: cloudflare
  *   2. CfBypass.solveCf() opens WebViewResolver
- *   3. Auto-click JS clicks Turnstile submit button when token appears
- *   4. cf_clearance cookie set in CookieManager
- *   5. Callback detects cookie → WebView destroyed → cookies cached
- *   6. Extension retries app.get() with Cookie + WebView UA headers
- *   7. Request succeeds!
+ *   3. User sees CF challenge page, solves Turnstile (clicks checkbox)
+ *   4. CF sets cf_clearance cookie, redirects back to original URL
+ *   5. interceptUrl callback fires → detects cf_clearance → AUTO-CLOSES WebView
+ *   6. Cookies cached for 30 minutes (subsequent requests = no popup)
+ *   7. Extension retries app.get() with Cookie + WebView UA headers
+ *   8. Request succeeds!
  */
 object CfBypass {
     private const val TAG = "CfBypass"
@@ -44,58 +52,23 @@ object CfBypass {
     private const val CACHE_TTL_MS = 30 * 60 * 1000L // 30 minutes
 
     /**
-     * JavaScript to auto-click Cloudflare Turnstile submit button.
+     * Regex to match olamovies URLs for WebViewResolver interceptUrl.
      *
-     * Based on QuickNovel's CloudflareKiller pattern:
-     *   1. Wait 2 seconds for Turnstile widget to load
-     *   2. Check for cf-turnstile-response token in the form
-     *   3. If token found + submit button exists → click it
-     *   4. If not found → retry every 1 second for up to 60 seconds
+     * WHY THIS MATTERS (v22 bug fix):
+     *   v22 used Regex(".^") which NEVER matches (impossible pattern).
+     *   This meant the interceptUrl callback NEVER fired via the primary
+     *   intercept mechanism. additionalUrls was used instead, but
+     *   additionalUrls callbacks only LOG — they DON'T close the WebView.
      *
-     * This handles BOTH:
-     *   - Managed Turnstile (auto-solves, needs submit click)
-     *   - Interactive Turnstile (user clicks checkbox, then auto-submit)
+     *   With this fix:
+     *   1. WebView loads CF challenge page (on challenges.cloudflare.com)
+     *      → URL doesn't match → callback doesn't fire → WebView stays open
+     *   2. User solves Turnstile challenge
+     *   3. CF redirects back to olamovies.mov (original URL)
+     *      → URL MATCHES → callback fires → cf_clearance detected → true
+     *   4. WebView AUTO-CLOSES → cookies cached → retry with cookies
      */
-    private val CF_AUTOCLICK_JS = """
-(function() {
-    if (window._cfClicked) return;
-    
-    function tryClick() {
-        // Check multiple Turnstile token locations
-        var token = 
-            document.querySelector('[name="cf-turnstile-response"]')?.value ||
-            document.querySelector('#cf-chl-widget-multi-token')?.value ||
-            document.querySelector('[name="g-recaptcha-response"]')?.value ||
-            document.querySelector('.cf-turnstile-response')?.value;
-        
-        if (token) {
-            // Find and click submit button
-            var btn = 
-                document.querySelector('#challenge-form button[type="submit"]') ||
-                document.querySelector('#challenge-form input[type="submit"]') ||
-                document.querySelector('form[action*="cdn-cgi"] button') ||
-                document.querySelector('form[action*="cdn-cgi"] input[type="submit"]') ||
-                document.querySelector('#challenge-stage button');
-            
-            if (btn) {
-                window._cfClicked = true;
-                btn.click();
-                return;
-            }
-        }
-        
-        // Not ready yet — retry
-        if (!window._cfRetry) window._cfRetry = 0;
-        if (window._cfRetry < 60) {
-            window._cfRetry++;
-            setTimeout(tryClick, 1000);
-        }
-    }
-    
-    // Start checking after 2 seconds (give Turnstile time to load)
-    setTimeout(tryClick, 2000);
-})();
-""".trimIndent()
+    private val OLA_URL_REGEX = Regex(""".*olamovies\.mov.*"")
 
     /**
      * Check if an HTTP response is a Cloudflare block/challenge page.
@@ -162,14 +135,17 @@ object CfBypass {
     /**
      * Solve Cloudflare challenge using WebViewResolver.
      *
-     * Opens a REAL Android WebView popup. The CF Turnstile JavaScript runs
-     * in the WebView. Auto-click JS automatically clicks the submit button
-     * when the Turnstile token is generated.
+     * Opens a REAL Android WebView popup. The CF Turnstile widget runs
+     * in the WebView. User interacts with it naturally (clicks checkbox).
+     * After challenge solves, CF redirects back to the original URL,
+     * interceptUrl matches, callback detects cf_clearance, WebView AUTO-CLOSES.
      *
-     * v23 FIXES:
-     *   - Auto-click JS clicks submit button after Turnstile solves
-     *   - Cookie check uses request.url (not outer url) for accuracy
-     *   - scriptCallback receives JS debug output
+     * v23 FIXES (based on actual logcat analysis from device testing):
+     *   FIX #1: interceptUrl = OLA_URL_REGEX (matches olamovies.mov)
+     *     → After CF challenge completes + redirect, callback fires
+     *     → cf_clearance detected → returns true → WebView auto-closes
+     *   FIX #2: Removed auto-click JS (was useless for interactive Turnstile)
+     *   FIX #3: Detailed callback logging for debugging
      *
      * @param url The CF-protected URL to solve
      * @return Map of cookies if successful, null if failed/timeout/hard-block
@@ -182,38 +158,45 @@ object CfBypass {
 
         try {
             WebViewResolver(
-                interceptUrl = Regex(".^"),       // NEVER matches → WebView stays open until callback exits
-                additionalUrls = listOf(Regex(".")), // Match every URL → callback fires for all
+                interceptUrl = OLA_URL_REGEX,      // v23 FIX: Matches olamovies.mov URLs
                 userAgent = null,                   // CRITICAL: Use WebView default UA (not custom!)
                 useOkhttp = false,                  // CRITICAL: OkHttp CANNOT solve CF Turnstile
-                timeout = 90_000L,                  // 90 seconds for slow connections
-                script = CF_AUTOCLICK_JS,           // v23: Auto-click Turnstile submit button
-                scriptCallback = { result ->
-                    Log.d(TAG, ">> JS result: $result")
-                }
+                timeout = 90_000L                   // 90 seconds for slow connections
             ).resolveUsingWebView(url = url) { request ->
-                // This callback fires for EVERY URL the WebView loads/navigates to.
-                // Check if cf_clearance cookie is now set for the request URL.
+                // This callback fires when a URL matches OLA_URL_REGEX.
+                // Flow:
+                //   1. Initial load: CF challenge page served at olamovies.mov URL
+                //      → callback fires → no cf_clearance yet → return false → stay open
+                //   2. CF redirects to challenges.cloudflare.com
+                //      → callback does NOT fire (URL doesn't match OLA_URL_REGEX)
+                //   3. User solves Turnstile, CF redirects back to olamovies.mov
+                //      → callback fires → cf_clearance FOUND → return true → AUTO-CLOSE!
                 try {
-                    // v23 FIX: Use request.url.toString() instead of outer url
-                    // This correctly handles subresources/redirects
                     val requestUrl = request.url.toString()
-                    val cookieStr = CookieManager.getInstance().getCookie(requestUrl)
+                    Log.d(TAG, ">> interceptUrl callback fired for: $requestUrl")
 
-                    // Also check the original host URL (cookies may be set at domain level)
+                    // Check cookies for the request URL and original URL
+                    val cookieStr = CookieManager.getInstance().getCookie(requestUrl)
                     val hostCookieStr = cookieStr
                         ?: CookieManager.getInstance().getCookie(url)
+
+                    Log.d(TAG, ">> cookies for request: ${cookieStr?.take(60) ?: "null"}")
+                    Log.d(TAG, ">> cookies for host:   ${hostCookieStr?.take(60) ?: "null"}")
 
                     if (hostCookieStr != null && hostCookieStr.contains("cf_clearance")) {
                         Log.d(TAG, ">> cf_clearance DETECTED! Cookie: ${hostCookieStr.take(80)}...")
                         solvedCookies = parseCookieString(hostCookieStr)
                         return@resolveUsingWebView true  // true = destroy WebView immediately
                     }
+
+                    Log.d(TAG, ">> No cf_clearance yet — WebView stays open, waiting for challenge...")
                 } catch (e: Exception) {
-                    Log.d(TAG, "Callback error: ${e.message}")
+                    Log.d(TAG, ">> Callback error: ${e.message}")
                 }
-                false // Keep waiting
+                false // Keep waiting for CF challenge to complete
             }
+
+            Log.d(TAG, ">> WebViewResolver finished. solvedCookies=${solvedCookies != null}")
 
             if (solvedCookies != null) {
                 val mutableCookies = solvedCookies.toMutableMap()
@@ -224,7 +207,7 @@ object CfBypass {
                         mutableCookies["_WebViewUA"] = ua
                         Log.d(TAG, ">> WebView UA cached: ${ua.take(60)}...")
                     } ?: run {
-                        Log.w(TAG, ">> WebView UA is null after solve!")
+                        Log.w(TAG, ">> WebView UA is null after solve — cookies may not work!")
                     }
                 } catch (_: Exception) {}
 
@@ -232,7 +215,8 @@ object CfBypass {
                 cookieTimestamps[host] = System.currentTimeMillis()
                 Log.d(TAG, ">> CF SOLVED! Cookies cached for $host (${solvedCookies.size} cookies, TTL=${CACHE_TTL_MS / 1000}s)")
             } else {
-                Log.w(TAG, ">> solveCf: WebViewResolver finished but NO cf_clearance found (timeout or hard block)")
+                Log.w(TAG, ">> solveCf FAILED: WebView closed but NO cf_clearance found")
+                Log.w(TAG, ">> Possible causes: user pressed back too early, CF hard block, or timeout")
             }
         } catch (e: Exception) {
             Log.e(TAG, ">> solveCf FAILED: ${e.message}")
