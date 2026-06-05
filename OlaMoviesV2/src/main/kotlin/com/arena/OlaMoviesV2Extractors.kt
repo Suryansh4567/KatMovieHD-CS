@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.base64Decode
 import com.lagradost.cloudstream3.extractors.PixelDrain
+import com.lagradost.cloudstream3.network.WebViewResolver
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -14,6 +15,7 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.delay
+import okhttp3.Request
 import java.net.URI
 import java.net.URLDecoder
 import javax.crypto.Cipher
@@ -488,21 +490,23 @@ open class OlaLinks : ExtractorApi() {
 }
 
 /**
- * OlaLinksMov — CF Turnstile handler for links.olamovies.mov (v20)
+ * OlaLinksMov — CF bypass handler for links.olamovies.mov (v21)
  *
- * When CloudStream's loadExtractor() matches a URL to this extractor,
- * it opens a WebView popup so the user can solve the CF Turnstile challenge.
- * After CF is solved, the page loads and we extract the links from it.
+ * v21: REWRITE — Uses CloudStream's WebViewResolver directly instead of
+ * relying on the passive app-level interceptor.
  *
- * This is the ONLY reliable way to bypass CF Turnstile in CloudStream.
+ * Flow:
+ *   1. app.get() first (fast path — if interceptor already solved CF, this works)
+ *   2. If CF page detected → WebViewResolver.resolveUsingWebView() opens REAL WebView
+ *   3. User solves Turnstile in WebView → cf_clearance cookie captured
+ *   4. Extension fetches the actual page with cookies → extracts links
  *
- * v20 FIX (ACTUAL):
- *   - CRITICAL: NEVER call super.getUrl() when CF fails — it causes infinite recursion:
- *     OlaLinksMov → super.getUrl() → OlaLinks.getUrl() → Tier3 loadExtractor()
- *     → matches OlaLinksMov again → loop → StackOverflowError → "no link found"
- *   - When CF challenge page detected: just log and return (do NOT recurse)
- *   - Catch block: just log and return (do NOT recurse)
- *   - CloudStream's WebView interceptor handles CF automatically when user has WebView enabled.
+ * KEY: WebViewResolver is in the library module (available to extensions).
+ * It opens an Android WebView with JS enabled, loads the URL, and waits for
+ * the CF challenge to resolve. After resolution, cookies are captured.
+ *
+ * useOkhttp=false is CRITICAL for CF bypass — OkHttp CANNOT solve CF challenges.
+ * Only the WebView's native network stack (which has JS execution) can solve them.
  */
 class OlaLinksMov : OlaLinks() {
     override val name = "OlaLinksMov"
@@ -516,47 +520,149 @@ class OlaLinksMov : OlaLinks() {
         callback: (ExtractorLink) -> Unit
     ) {
         val ref = referer ?: "https://v2.olamovies.mov/"
-        Log.d("OlaLinksMov", "═══ CF WebView resolver: $url ═══")
+        Log.d("OlaLinksMov", "═══ v21 CF WebView bypass: $url ═══")
 
-        // Try to fetch the page — CloudStream's interceptor will show CF popup if needed
         try {
-            val response = app.get(url, headers = olaHeaders, referer = ref, timeout = 60_000L)
-            val doc = response.document
-            val finalUrl = response.url
+            // ── Step 1: Fast path — try app.get() first ──
+            // If CloudStream's interceptor already has cf_clearance cookie,
+            // this will succeed directly without needing WebView.
+            var resolvedHtml: String? = null
+            var resolvedUrl: String = url
 
-            Log.d("OlaLinksMov", "Got response: code=${response.code}, url=$finalUrl")
+            try {
+                val response = app.get(url, headers = olaHeaders, referer = ref, timeout = 30_000L)
+                val html = response.text
+                val finalUrl = response.url
 
-            val html = doc.toString()
+                val isCfPage = html.contains("Attention Required", ignoreCase = true) ||
+                        html.contains("Just a moment", ignoreCase = true) ||
+                        html.contains("cf-browser-verification", ignoreCase = true)
 
-            // ── v20: CF challenge page detection ──
-            val isCfPage = html.contains("Attention Required", ignoreCase = true) ||
-                    html.contains("Just a moment", ignoreCase = true) ||
-                    html.contains("cf-browser-verification", ignoreCase = true) ||
-                    (html.contains("challenge-platform", ignoreCase = true) &&
-                     html.contains("cf-turnstile", ignoreCase = true))
-
-            val hasDownloadLinks = html.contains("#download", ignoreCase = true) ||
-                    html.contains("#btn6", ignoreCase = true) ||
-                    html.contains("?key=", ignoreCase = true)
-
-            if (isCfPage && !hasDownloadLinks) {
-                Log.w("OlaLinksMov", "CF challenge page detected — WebView interceptor did not resolve it.")
-                Log.w("OlaLinksMov", "This means CF Turnstile was not solved. The user needs to solve it manually.")
-                Log.w("OlaLinksMov", "DO NOT call super.getUrl() here — it causes infinite recursion!")
-                // v20 FIX: Do NOT recurse! Just return empty — CF not solved, nothing we can do.
-                return
+                if (!isCfPage || html.contains("#download", ignoreCase = true) ||
+                    html.contains("#btn6", ignoreCase = true) || html.contains("?key=", ignoreCase = true)) {
+                    // No CF page or CF already solved — parse directly
+                    Log.d("OlaLinksMov", "Step 1: Got valid response (no CF page)")
+                    resolvedHtml = html
+                    resolvedUrl = finalUrl
+                } else {
+                    Log.d("OlaLinksMov", "Step 1: CF page detected, falling back to WebViewResolver")
+                }
+            } catch (e: Exception) {
+                Log.d("OlaLinksMov", "Step 1 failed: ${e.message}, trying WebViewResolver")
             }
 
-            // Check if we landed on a known host directly
-            if (isKnownHost(finalUrl)) {
-                dispatchFinalHost(finalUrl, subtitleCallback, callback)
-                return
+            // ── Step 2: WebViewResolver — open REAL WebView to solve CF ──
+            if (resolvedHtml == null) {
+                Log.d("OlaLinksMov", "Step 2: Launching WebViewResolver for CF bypass...")
+                try {
+                    val resolver = WebViewResolver(
+                        // Stop when we reach any page on the target domain (not the CF challenge)
+                        interceptUrl = Regex("""https?://(links\.)?olamovies\.mov/\S*"""),
+                        // Also capture requests to known hosts
+                        additionalUrls = KNOWN_HOSTS.map { host ->
+                            Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
+                        },
+                        // CRITICAL: useOkhttp=false for CF bypass
+                        // OkHttp CANNOT solve CF — only WebView's native stack can
+                        useOkhttp = false,
+                        // 90 second timeout for slow connections
+                        timeout = 90_000L
+                    )
+
+                    val result = resolver.resolveUsingWebView(
+                        url = url,
+                        referer = ref,
+                        method = "GET"
+                    )
+
+                    // result.first = the final intercepted request (with cookies)
+                    // result.second = all additional URLs captured during navigation
+                    val finalRequest = result.first
+                    val additionalUrls = result.second
+
+                    Log.d("OlaLinksMov", "WebViewResolver done: finalRequest=${finalRequest?.url?.toString()}, additionalUrls=${additionalUrls.size}")
+
+                    if (finalRequest != null) {
+                        // Fetch the actual page using the resolved request's cookies
+                        resolvedUrl = finalRequest.url.toString()
+                        Log.d("OlaLinksMov", "Fetching resolved page: $resolvedUrl")
+
+                        val headers = olaHeaders.toMutableMap()
+                        finalRequest.headers?.let { h ->
+                            for (i in 0 until h.size) {
+                                headers[h.name(i)] = h.value(i)
+                            }
+                        }
+
+                        val resolvedResponse = app.get(
+                            resolvedUrl,
+                            headers = headers,
+                            referer = ref,
+                            timeout = 30_000L
+                        )
+                        resolvedHtml = resolvedResponse.text
+                        resolvedUrl = resolvedResponse.url
+                        Log.d("OlaLinksMov", "Resolved page fetched: ${resolvedHtml?.take(100)}")
+                    }
+
+                    // Also process additional URLs captured during WebView navigation
+                    if (additionalUrls.isNotEmpty()) {
+                        Log.d("OlaLinksMov", "Processing ${additionalUrls.size} additional URLs from WebView")
+                        for (req in additionalUrls) {
+                            val reqUrl = req.url.toString()
+                            Log.d("OlaLinksMov", "  Additional URL: $reqUrl")
+                            when {
+                                isKnownHost(reqUrl) -> {
+                                    dispatchFinalHost(reqUrl, subtitleCallback, callback)
+                                }
+                                reqUrl.contains("?key=", ignoreCase = true) -> {
+                                    try {
+                                        loadExtractor(reqUrl, ref, subtitleCallback, callback)
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    Log.e("OlaLinksMov", "WebViewResolver failed: ${e.message}")
+                    e.printStackTrace()
+                }
             }
 
-            // Extract links from the resolved page
-            val links = mutableListOf<String>()
+            // ── Step 3: Parse the resolved HTML for links ──
+            if (resolvedHtml != null) {
+                processResolvedPage(resolvedHtml, resolvedUrl, ref, subtitleCallback, callback)
+            } else {
+                Log.w("OlaLinksMov", "Could not resolve CF page — no HTML to parse")
+            }
 
-            // #download > a
+        } catch (e: Exception) {
+            Log.e("OlaLinksMov", "getUrl failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Parse the resolved (post-CF) page and extract/dispatch links.
+     */
+    private suspend fun processResolvedPage(
+        html: String,
+        pageUrl: String,
+        referer: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        // Check if we landed on a known host directly
+        if (isKnownHost(pageUrl)) {
+            dispatchFinalHost(pageUrl, subtitleCallback, callback)
+            return
+        }
+
+        val links = mutableListOf<String>()
+
+        // #download > a
+        try {
+            val doc = org.jsoup.Jsoup.parse(html, pageUrl)
             doc.select("#download > a, #download a, div#download a").forEach {
                 val href = it.attr("href").trim()
                 if (href.startsWith("http")) links.add(href)
@@ -566,7 +672,6 @@ class OlaLinksMov : OlaLinks() {
             doc.select("#btn6, #tp98, #go-link, .btn-download, .download-btn, a.go-link").forEach {
                 val href = it.attr("href").trim()
                 if (href.startsWith("http")) links.add(href)
-                // Check data-* attrs
                 for (attr in listOf("data-url", "data-href", "data-link", "data-go")) {
                     it.attr(attr)?.trim()?.let { v -> if (v.startsWith("http")) links.add(v) }
                 }
@@ -578,56 +683,60 @@ class OlaLinksMov : OlaLinks() {
                 if (href.startsWith("http")) links.add(href)
             }
 
-            // data-* attributes on any element
+            // data-* attributes
             doc.select("[data-url], [data-href], [data-link], [data-go]").forEach { el ->
                 for (attr in listOf("data-url", "data-href", "data-link", "data-go")) {
                     el.attr(attr)?.trim()?.let { v -> if (v.startsWith("http")) links.add(v) }
                 }
             }
 
-            // All <a> tags with http hrefs
+            // All <a> tags with http hrefs (exclude self-referencing olamovies links)
             doc.select("a[href]").forEach { anchor ->
                 val href = anchor.attr("href").trim()
                 if (href.startsWith("http") && !href.contains("olamovies.mov/", ignoreCase = true)) {
                     links.add(href)
                 }
             }
+        } catch (e: Exception) {
+            Log.d("OlaLinksMov", "JSoup parse failed, falling back to regex: ${e.message}")
+        }
 
-            // JS variables
-            val jsPatterns = listOf(
-                Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""var\s+currentLink\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""var\s+link\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""var\s+redirect\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""var\s+pxl\s*=\s*['"]([^'"]+)['"]"""),
-                Regex("""(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]""")
-            )
-            for (pattern in jsPatterns) {
-                pattern.findAll(html).forEach { match ->
-                    val value = match.groupValues[1].trim()
-                    if (value.startsWith("http")) links.add(value)
-                    try {
-                        val decoded = base64Decode(value)
-                        if (decoded.startsWith("http")) links.add(decoded)
-                    } catch (_: Exception) {}
-                }
+        // JS variables (always works even if JSoup fails)
+        val jsPatterns = listOf(
+            Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+currentLink\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+link\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+redirect\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""var\s+pxl\s*=\s*['"]([^'"]+)['"]"""),
+            Regex("""(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]""")
+        )
+        for (pattern in jsPatterns) {
+            pattern.findAll(html).forEach { match ->
+                val value = match.groupValues[1].trim()
+                if (value.startsWith("http")) links.add(value)
+                try {
+                    val decoded = base64Decode(value)
+                    if (decoded.startsWith("http")) links.add(decoded)
+                } catch (_: Exception) {}
             }
+        }
 
-            // Raw HTML scan for known host URLs
-            for (host in KNOWN_HOSTS) {
-                val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
-                urlRegex.findAll(html).forEach { match ->
-                    val cleaned = match.value.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')
-                    if (cleaned.startsWith("http")) links.add(cleaned)
-                }
+        // Raw HTML scan for known host URLs
+        for (host in KNOWN_HOSTS) {
+            val urlRegex = Regex("""https?://[^\s"'<>\\]*${Regex.escape(host)}[^\s"'<>\\]*""")
+            urlRegex.findAll(html).forEach { match ->
+                val cleaned = match.value.trimEnd('\\', ',', '"', '\'', ')', ';', ']', '}')
+                if (cleaned.startsWith("http")) links.add(cleaned)
             }
+        }
 
-            // Deduplicate
-            val uniqueLinks = links.distinct()
-            Log.d("OlaLinksMov", "Found ${uniqueLinks.size} links from CF-resolved page")
+        // Deduplicate and dispatch
+        val uniqueLinks = links.distinct()
+        Log.d("OlaLinksMov", "Found ${uniqueLinks.size} unique links from resolved page")
 
-            var anySuccess = false
-            for (link in uniqueLinks) {
+        var anySuccess = false
+        for (link in uniqueLinks) {
+            try {
                 when {
                     isKnownHost(link) -> {
                         dispatchFinalHost(link, subtitleCallback, callback)
@@ -639,10 +748,8 @@ class OlaLinksMov : OlaLinks() {
                             dispatchFinalHost(result, subtitleCallback, callback)
                             anySuccess = true
                         } else if (result != null) {
-                            try {
-                                loadExtractor(result, ref, subtitleCallback, callback)
-                                anySuccess = true
-                            } catch (_: Exception) {}
+                            loadExtractor(result, referer, subtitleCallback, callback)
+                            anySuccess = true
                         }
                     }
                     isIntermediateSite(link) -> {
@@ -651,30 +758,22 @@ class OlaLinksMov : OlaLinks() {
                             dispatchFinalHost(result, subtitleCallback, callback)
                             anySuccess = true
                         } else if (result != null) {
-                            try {
-                                loadExtractor(result, ref, subtitleCallback, callback)
-                                anySuccess = true
-                            } catch (_: Exception) {}
+                            loadExtractor(result, referer, subtitleCallback, callback)
+                            anySuccess = true
                         }
                     }
                     else -> {
-                        try {
-                            loadExtractor(link, ref, subtitleCallback, callback)
-                            anySuccess = true
-                        } catch (_: Exception) {}
+                        loadExtractor(link, referer, subtitleCallback, callback)
+                        anySuccess = true
                     }
                 }
+            } catch (e: Exception) {
+                Log.d("OlaLinksMov", "Failed to process link $link: ${e.message}")
             }
+        }
 
-            if (!anySuccess) {
-                Log.w("OlaLinksMov", "No playable links found after CF resolve")
-            }
-        } catch (e: Exception) {
-            Log.e("OlaLinksMov", "Failed to resolve CF page: ${e.message}")
-            // v20 FIX: Do NOT call super.getUrl() — it causes infinite recursion!
-            // OlaLinksMov → super.getUrl() → OlaLinks.getUrl() → Tier3 loadExtractor()
-            // → matches OlaLinksMov again → StackOverflowError
-            // Just log and return — nothing more we can do.
+        if (!anySuccess) {
+            Log.w("OlaLinksMov", "No playable links found from ${uniqueLinks.size} extracted URLs")
         }
     }
 }

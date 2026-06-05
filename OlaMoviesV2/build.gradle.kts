@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 20
+version = 21
 
 cloudstream {
     authors = listOf("arena")
@@ -12,8 +12,8 @@ cloudstream {
 
     description = "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from " +
             "OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. " +
-            "v20: CRITICAL FIX — infinite recursion bug fixed. OlaLinksMov no longer calls super.getUrl() " +
-            "on CF failure (was causing StackOverflow → no link found). Added recursion guard in OlaLinks."
+            "v21: WebViewResolver CF bypass — OlaLinksMov now explicitly opens Android WebView " +
+            "to solve Cloudflare challenges. No more passive interceptor dependency."
     language    = "en"
 
     tvTypes = listOf("Movie", "TvSeries", "Anime", "AsianDrama", "Documentary")
