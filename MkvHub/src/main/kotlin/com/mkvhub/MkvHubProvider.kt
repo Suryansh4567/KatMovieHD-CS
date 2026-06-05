@@ -319,46 +319,123 @@ class MkvHubProvider : MainAPI() {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Series episode parsing
+    // ------------------------------------------------------------------
+
+    /** Regex to match season numbers from headings like "S05" or "Season 5" */
+    private val SEASON_REGEX = Regex("""(?i)(?:S(\d{1,2})\b|Season\s*(\d{1,2}))""")
+
+    /** Regex to match episode numbers from headings like "S05E01", "E01", "Episode 01" */
+    private val EPISODE_REGEX = Regex("""(?i)(?:S\d{1,2}E(\d{1,3})\b|E(\d{1,3})\b|Episode\s*[-–:#]?\s*(\d{1,3})\b)""")
+
+    /** Regex to detect quality labels in heading text */
+    private val QUALITY_REGEX = Regex("""(?i)(4K|2160p|1080p|720p|480p)""")
+
     /**
-     * Build episodes for a series page. Each quality section becomes
-     * a separate "episode" so the user can pick their preferred quality.
-     *
-     * Typical series page layout:
-     *   <h3>|| Complete Series Download (Ep 01-07) 720p – 2GB Zip ||</h3>
-     *   <p><a class="dbuttn blue" href="https://secure.linkszilla.top/view/XXX">...</a></p>
-     *   <h3>|| Complete Series Download (Ep 01-07) 1080p – 4GB Zip ||</h3>
-     *   <p><a class="dbuttn blue" href="https://secure.linkszilla.top/view/YYY">...</a></p>
+     * Phrases that indicate a heading is NOT an episode marker even if it
+     * contains numbers (e.g. "more episodes will be added").
      */
-    private fun buildSeriesEpisodes(doc: org.jsoup.nodes.Document, pageUrl: String): List<Episode> {
+    private val EPISODE_NEGATIVE_PHRASES = listOf(
+        "more episodes", "will be added", "episode list",
+        "all episodes", "single episodes link"
+    )
+
+    /**
+     * Build episodes for a series page. Handles all 4 MkvHub formats:
+     *
+     * Format A – Complete Pack (h3 per quality):
+     *   <h3>|| Complete Series Download (Ep 01-07) 480p – 1GB Zip ||</h3>
+     *   <p><a class="dbuttn blue" href="...">Get Download Links</a></p>
+     *   <h3>|| Complete Series Download (Ep 01-07) 720p – 2.6GB Zip ||</h3>
+     *   <p><a class="dbuttn blue" href="...">Get Download Links</a></p>
+     *
+     * Format B – Per-Episode (h2 for episode, h3 for quality):
+     *   <h2>|| Download S05E01 via Single Links ||</h2>
+     *   <h3>|| Download 480p HD via Single Links Size: 214MB ||</h3>
+     *   <p><a class="dbuttn blue" href="...">Get Download Links</a></p>
+     *   <h3>|| Download 720p HD via Single Links Size: 559MB ||</h3>
+     *   <p><a class="dbuttn blue" href="...">Get Download Links</a></p>
+     *
+     * Format C – Per-Episode (h2 for episode, h4 for quality):
+     *   <h2>|| Download S04E01 via Single Links ||</h2>
+     *   <h4>|| 480p HD via Single Links Size: 158MB ||</h4>
+     *   <p><a class="dbuttn directdl" href="...">Get Download Links</a></p>
+     *
+     * Format D – Per-Episode all-h3:
+     *   <h3>|| Episode 01 – 9th January 2026 ||</h3>
+     *   <h3>|| Download 480p HD via Single Links Size: 452MB ||</h3>
+     *   <p><a class="dbuttn blue" href="...">Get Download Links</a></p>
+     *   <h3>|| Download 720p HD via Single Links Size: 500MB ||</h3>
+     *   <p><a class="dbuttn blue" href="...">Get Download Links</a></p>
+     *
+     * Strategy: Walk all elements in document order. Track the current
+     * (season, episode) cursor. When a download link is found, bucket it
+     * under the current cursor. Then build Episode objects with ALL quality
+     * links for that episode joined as newline-separated URLs.
+     */
+    private fun buildSeriesEpisodes(
+        doc: org.jsoup.nodes.Document,
+        pageUrl: String
+    ): List<Episode> {
         val pageBody = doc.selectFirst("main.page-body") ?: return emptyList()
+
+        // Detect page format by checking for h2 episode headers
+        val hasH2EpisodeHeaders = pageBody.select("h2").any { h2 ->
+            EPISODE_REGEX.containsMatchIn(h2.text())
+        }
+
+        // Also detect format D: h3 elements that look like episode names (not quality labels)
+        val hasH3EpisodeHeaders = pageBody.select("h3").any { h3 ->
+            val text = h3.text().trim()
+            EPISODE_REGEX.containsMatchIn(text) && !QUALITY_REGEX.containsMatchIn(text)
+        }
+
+        // Detect format A: only "Complete Series/Pack" h3 headers
+        val isPackOnly = !hasH2EpisodeHeaders && !hasH3EpisodeHeaders &&
+            pageBody.select("h3").any { h3 ->
+                val text = h3.text().trim()
+                text.contains("Complete", true) && QUALITY_REGEX.containsMatchIn(text)
+            }
+
+        Log.d(TAG, "buildSeriesEpisodes: h2Ep=$hasH2EpisodeHeaders h3Ep=$hasH3EpisodeHeaders packOnly=$isPackOnly")
+
+        return if (isPackOnly) {
+            // Format A: quality packs — each quality is its own "episode"
+            // since there are no individual episode links
+            buildPackEpisodes(pageBody)
+        } else {
+            // Formats B, C, D: per-episode — group all quality links under
+            // each episode so user sees "Episode 01" with all quality options
+            buildPerEpisodeLayout(pageBody)
+        }
+    }
+
+    /**
+     * Format A: Complete Pack pages. Each h3 heading represents a quality
+     * level pack (e.g. "Complete Series 720p – 2GB Zip"). Create one
+     * Episode per quality pack with a descriptive name.
+     */
+    private fun buildPackEpisodes(pageBody: Element): List<Episode> {
         val episodes = mutableListOf<Episode>()
 
         pageBody.select("h3").forEach { h3 ->
             val h3Text = h3.text().trim()
-            if (!h3Text.contains("480p", true) && !h3Text.contains("720p", true) &&
-                !h3Text.contains("1080p", true) && !h3Text.contains("4K", true) &&
-                !h3Text.contains("2160p", true) && !h3Text.contains("Download", true)
-            ) return@forEach
+            if (!QUALITY_REGEX.containsMatchIn(h3Text) && !h3Text.contains("Download", true))
+                return@forEach
 
-            // Try to find the download button in the next sibling
-            val nextSib = h3.nextElementSibling()
-            val btn = nextSib?.selectFirst("a.dbuttn")
-                ?: nextSib?.selectFirst("a[href]")
-                ?: h3.nextElementSibling()?.selectFirst("a.dbuttn")
-                ?: h3.nextElementSibling()?.selectFirst("a[href]")
-
+            // Find the download button after this heading
+            val btn = findDownloadButton(h3)
             if (btn != null) {
                 val linkUrl = btn.attr("href").trim()
                 if (linkUrl.startsWith("http")) {
-                    // Build a quality label from the h3 text
                     val qualityLabel = extractQualityLabel(h3Text)
-                    val sizeMatch = Regex("""Size:\s*([\d.]+(?:MB|GB))""", RegexOption.IGNORE_CASE).find(h3Text)
-                        ?: Regex("""([\d.]+(?:MB|GB))""", RegexOption.IGNORE_CASE).find(h3Text)
+                    val sizeMatch = Regex("""([\d.]+(?:MB|GB))""", RegexOption.IGNORE_CASE).find(h3Text)
                     val sizeStr = sizeMatch?.groupValues?.get(1) ?: ""
 
                     val epName = buildString {
-                        append(qualityLabel)
-                        if (sizeStr.isNotBlank()) append(" • $sizeStr")
+                        append("Complete Pack – $qualityLabel")
+                        if (sizeStr.isNotBlank()) append(" ($sizeStr)")
                     }
 
                     episodes.add(newEpisode(linkUrl) {
@@ -376,7 +453,7 @@ class MkvHubProvider : MainAPI() {
                 val url = btn.attr("href").trim()
                 if (url.startsWith("http")) {
                     episodes.add(newEpisode(url) {
-                        name = "Source ${idx + 1}"
+                        name = "Pack ${idx + 1}"
                         season = 1
                         episode = idx + 1
                     })
@@ -388,7 +465,187 @@ class MkvHubProvider : MainAPI() {
     }
 
     /**
-     * Extract a clean quality label from h3 heading text.
+     * Formats B, C, D: Per-episode pages. Walk elements in document order,
+     * track the current (season, episode) cursor from headings, and bucket
+     * every download link under the current episode. Each Episode then
+     * stores ALL quality URLs as newline-separated data, so when the user
+     * picks an episode they see all quality options (480p, 720p, 1080p).
+     */
+    private fun buildPerEpisodeLayout(pageBody: Element): List<Episode> {
+        // (season, episode) -> list of download URLs
+        val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+        // (season, episode) -> episode name from heading
+        val episodeNames = linkedMapOf<Pair<Int, Int>, String>()
+
+        var currentSeason = 1
+        var currentEpisode: Int? = null
+
+        // Walk all elements in document order
+        for (element in pageBody.allElements) {
+            val tag = element.tagName()
+            val text = element.ownText().ifBlank { element.text() }.trim()
+
+            // Only process heading elements (h2, h3, h4)
+            if (tag !in listOf("h2", "h3", "h4")) continue
+            if (text.isEmpty() || text.length > 200) continue
+            if (EPISODE_NEGATIVE_PHRASES.any { it in text.lowercase() }) continue
+
+            // Check if this heading is an episode marker (not a quality label)
+            val isQualityHeading = QUALITY_REGEX.containsMatchIn(text) &&
+                !EPISODE_REGEX.containsMatchIn(text)
+            val isEpisodeHeading = !isQualityHeading &&
+                (EPISODE_REGEX.containsMatchIn(text) ||
+                 SEASON_REGEX.containsMatchIn(text))
+
+            if (isEpisodeHeading) {
+                // Update season from heading
+                SEASON_REGEX.find(text)?.let { m ->
+                    (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
+                        ?.let { currentSeason = it }
+                }
+                // Update episode from heading
+                EPISODE_REGEX.find(text)?.let { m ->
+                    (m.groupValues[1].ifBlank { m.groupValues[2] }.ifBlank { m.groupValues[3] })
+                        .toIntOrNull()?.let { currentEpisode = it }
+                }
+                // Store the episode name from the heading
+                currentEpisode?.let { ep ->
+                    val key = currentSeason to ep
+                    if (!episodeNames.containsKey(key)) {
+                        episodeNames[key] = cleanEpisodeName(text)
+                    }
+                }
+            }
+
+            // For quality headings, check for a download button as sibling
+            // and bucket it under the current episode
+            if (isQualityHeading && currentEpisode != null) {
+                val btn = findDownloadButton(element)
+                if (btn != null) {
+                    val url = btn.attr("href").trim()
+                    if (url.startsWith("http")) {
+                        val key = currentSeason to currentEpisode
+                        val bucket = episodeMap.getOrPut(key) { mutableListOf() }
+                        if (url !in bucket) bucket.add(url)
+                    }
+                }
+            }
+        }
+
+        // Also handle case where h2 episode headers have a.dbuttn directly
+        // as next sibling (without h3/h4 quality sub-headers)
+        pageBody.select("h2").forEach { h2 ->
+            val h2Text = h2.text().trim()
+            EPISODE_REGEX.find(h2Text)?.let { m ->
+                val epNum = (m.groupValues[1].ifBlank { m.groupValues[2] })
+                    .toIntOrNull() ?: return@let
+                val seasonNum = SEASON_REGEX.find(h2Text)?.let { sm ->
+                    (sm.groupValues[1].ifBlank { sm.groupValues[2] }).toIntOrNull()
+                } ?: currentSeason
+
+                // Look for download buttons between this h2 and the next h2
+                val key = seasonNum to epNum
+                if (!episodeMap.containsKey(key)) {
+                    // No quality sub-headers found — look for direct download buttons
+                    var sib = h2.nextElementSibling()
+                    while (sib != null && sib.tagName() != "h2") {
+                        val btn = sib.selectFirst("a.dbuttn") ?: sib.selectFirst("a[href]")
+                        if (btn != null) {
+                            val url = btn.attr("href").trim()
+                            if (url.startsWith("http")) {
+                                val bucket = episodeMap.getOrPut(key) { mutableListOf() }
+                                if (url !in bucket) bucket.add(url)
+                            }
+                        }
+                        sib = sib.nextElementSibling()
+                    }
+                }
+
+                // Store episode name from h2
+                if (!episodeNames.containsKey(key)) {
+                    episodeNames[key] = cleanEpisodeName(h2Text)
+                }
+            }
+        }
+
+        // Build Episode objects from the map
+        val episodes = mutableListOf<Episode>()
+        for ((key, links) in episodeMap) {
+            val (season, ep) = key
+            val name = episodeNames[key] ?: "Episode $ep"
+            // Store all quality URLs as newline-separated string
+            // loadLinks() will resolve each one
+            episodes.add(newEpisode(links.joinToString("\n")) {
+                this.name = name
+                this.season = season
+                this.episode = ep
+            })
+        }
+
+        // If still no episodes found, try the generic h3+a.dbuttn fallback
+        if (episodes.isEmpty()) {
+            Log.w(TAG, "Per-episode parsing found 0 episodes, using generic fallback")
+            pageBody.select("a.dbuttn").forEachIndexed { idx, btn ->
+                val url = btn.attr("href").trim()
+                if (url.startsWith("http")) {
+                    episodes.add(newEpisode(url) {
+                        name = "Source ${idx + 1}"
+                        season = 1
+                        episode = idx + 1
+                    })
+                }
+            }
+        }
+
+        Log.d(TAG, "Per-episode layout: ${episodes.size} episodes from ${episodeMap.size} unique (season, episode) pairs")
+        return episodes
+    }
+
+    /**
+     * Find the nearest download button (a.dbuttn) after a heading element.
+     * Checks the next sibling element and its children.
+     */
+    private fun findDownloadButton(heading: Element): Element? {
+        val nextSib = heading.nextElementSibling()
+        return nextSib?.selectFirst("a.dbuttn")
+            ?: nextSib?.selectFirst("a[href]")
+            ?: heading.nextElementSibling()?.let { ns ->
+                ns.selectFirst("a.dbuttn") ?: ns.selectFirst("a[href]")
+            }
+    }
+
+    /**
+     * Clean up an episode name from a heading string.
+     * Input:  "|| Download S05E01 via Single Links ||"
+     * Output: "S05E01"
+     * Input:  "|| Episode 01 – 9th January 2026 ||"
+     * Output: "Episode 01"
+     */
+    private fun cleanEpisodeName(text: String): String {
+        // Try to extract S05E01 format
+        val sxxExxMatch = Regex("""(?i)(S\d{1,2}E\d{1,3})""").find(text)
+        if (sxxExxMatch != null) return sxxExxMatch.groupValues[1].uppercase()
+
+        // Try to extract "Episode NN" format
+        val episodeMatch = EPISODE_REGEX.find(text)
+        if (episodeMatch != null) {
+            val epNum = (episodeMatch.groupValues[1]
+                .ifBlank { episodeMatch.groupValues[2] }
+                .ifBlank { episodeMatch.groupValues[3] })
+            return "Episode $epNum"
+        }
+
+        // Fallback: return cleaned text
+        return text
+            .replace("||", "")
+            .replace("Download", "", ignoreCase = true)
+            .replace("via Single Links", "", ignoreCase = true)
+            .trim()
+            .takeIf { it.isNotBlank() } ?: "Episode"
+    }
+
+    /**
+     * Extract a clean quality label from heading text.
      * Input: "|| Download 720p HD via Single Links Size: 918MB ||"
      * Output: "720p"
      */
