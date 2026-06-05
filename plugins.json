@@ -45,5 +45,29 @@
         "jarFileSize": 110040,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.jar",
         "jarHash": "sha256-d97eb52e7554e766aedb83f41c446b68cf62897c746f7565c608193ab7460fcc"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/SSRMovies.cs3",
+        "status": 1,
+        "version": 1,
+        "name": "SSRMovies",
+        "internalName": "SSRMovies",
+        "authors": [
+            "Suryansh4567"
+        ],
+        "description": "SSRMovies \u2014 Hollywood, Bollywood, Hindi Dubbed Movies & Web Series (480p/720p/1080p)",
+        "fileSize": 28669,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "hi",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "iconUrl": "https://ssr-movies.com/wp-content/uploads/2023/05/cropped-2566a7fdfbc8c7375b7373359d645472-1-192x192.jpg",
+        "apiVersion": 1,
+        "fileHash": "sha256-b173fe24e6693b5037370c6c842f89e923add4b6f3b75ed874370f326f74ae0c",
+        "jarFileSize": 105569,
+        "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/SSRMovies.jar",
+        "jarHash": "sha256-22222c56cfbc7d302a64e975c6d1784efaed5e53690f9c1e09c2516fd90e7c11"
     }
 ]
