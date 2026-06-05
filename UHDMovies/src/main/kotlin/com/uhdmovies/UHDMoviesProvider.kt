@@ -159,11 +159,10 @@ class UHDMoviesProvider : MainAPI() {
      * Attempt to fetch a URL, falling back through alternate domain TLDs
      * if the primary domain fails. Returns the successful response or throws.
      */
-    private suspend fun fetchWithDomainFallback(url: String): com.lagradost.cloudstream3.utils.AppResponse {
+    private suspend fun fetchWithDomainFallback(url: String): org.jsoup.nodes.Document {
         return try {
-            val resp = app.get(url, headers = headers, timeout = 30)
+            val doc = app.get(url, headers = headers, timeout = 30).document
             // Check that we got a valid page (not a domain-parking redirect)
-            val doc = resp.document
             val titleText = doc.selectFirst("title")?.text()?.trim().orEmpty()
             // If the title looks like a parking page, try alternate domains
             if (titleText.contains("Domain for sale", true) ||
@@ -173,7 +172,7 @@ class UHDMoviesProvider : MainAPI() {
                 Log.w(TAG, "Domain parking detected for $url, trying fallbacks")
                 throw Exception("Domain parking page detected")
             }
-            resp
+            doc
         } catch (e: Exception) {
             Log.w(TAG, "Primary domain failed for $url: ${e.message}, trying fallbacks")
             tryAlternateDomains(url)
@@ -183,7 +182,7 @@ class UHDMoviesProvider : MainAPI() {
     /**
      * Try fetching the same path on each alternate domain TLD.
      */
-    private suspend fun tryAlternateDomains(originalUrl: String): com.lagradost.cloudstream3.utils.AppResponse {
+    private suspend fun tryAlternateDomains(originalUrl: String): org.jsoup.nodes.Document {
         val path = Regex("""https?://[^/]+(.*)""").find(originalUrl)?.groupValues?.get(1)
             ?: throw Exception("Cannot parse URL path: $originalUrl")
 
@@ -193,8 +192,7 @@ class UHDMoviesProvider : MainAPI() {
             if (altUrl == originalUrl) continue
             try {
                 Log.d(TAG, "Trying alternate domain: $altUrl")
-                val resp = app.get(altUrl, headers = headers, timeout = 30)
-                val doc = resp.document
+                val doc = app.get(altUrl, headers = headers, timeout = 30).document
                 val titleText = doc.selectFirst("title")?.text()?.trim().orEmpty()
                 if (!titleText.contains("Domain for sale", true) &&
                     !titleText.contains("This domain is for sale", true) &&
@@ -203,7 +201,7 @@ class UHDMoviesProvider : MainAPI() {
                     Log.d(TAG, "Alternate domain succeeded: $altUrl")
                     // Update mainUrl so subsequent requests use the working domain
                     mainUrl = "https://$tld"
-                    return resp
+                    return doc
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Alternate domain $tld also failed: ${e.message}")
@@ -227,7 +225,7 @@ class UHDMoviesProvider : MainAPI() {
             val base = request.data.trimEnd('/')
             "$base/page/$page/"
         }
-        val doc = fetchWithDomainFallback(url).document
+        val doc = fetchWithDomainFallback(url)
         val items = doc.select("article.post-item").mapNotNull { it.toSearchResult() }
         val hasNext = doc.selectFirst("a.next.page-numbers") != null ||
                 doc.selectFirst("nav.navigation a:not(.prev)") != null
@@ -240,7 +238,7 @@ class UHDMoviesProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         // DLE search format
         val searchUrl = "$mainUrl/index.php?do=search&subaction=search&story=${java.net.URLEncoder.encode(query, "UTF-8")}"
-        val doc = fetchWithDomainFallback(searchUrl).document
+        val doc = fetchWithDomainFallback(searchUrl)
         return doc.select("article.post-item").mapNotNull { it.toSearchResult() }
     }
 
@@ -314,7 +312,7 @@ class UHDMoviesProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = fetchWithDomainFallback(url).document
+        val doc = fetchWithDomainFallback(url)
 
         // Title: from og:title or <title> (strip site suffix)
         val rawTitle = doc.selectFirst("meta[property=og:title]")?.attr("content")?.trim()
