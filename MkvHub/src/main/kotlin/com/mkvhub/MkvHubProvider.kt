@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import org.jsoup.nodes.Element
 
 class MkvHubProvider : MainAPI() {
@@ -195,7 +196,8 @@ class MkvHubProvider : MainAPI() {
                         qualityText,
                         target,
                         mainUrl,
-                        parseQuality(qualityText)
+                        parseQuality(qualityText),
+                        ExtractorLinkType.VIDEO
                     )
                 )
             } catch (_: Exception) { }
