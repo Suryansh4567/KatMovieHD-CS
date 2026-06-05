@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMoviesV2.cs3",
         "status": 1,
-        "version": 23,
+        "version": 24,
         "name": "OlaMoviesV2",
         "internalName": "OlaMoviesV2",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v23: CF auto-click \u2014 Turnstile submit button auto-clicked via JS injection. Cookie check fixed (uses request.url). Better logging for debugging.",
-        "fileSize": 144996,
+        "description": "4K UHD / 2160p HDR / Dolby Vision / REMUX movies & TV series from OlaMovies v2 (v2.olamovies.mov). Google Drive & multi-mirror sources. v24: CF bypass rewrite \u2014 follows CloudflareKiller's exact approach (interceptUrl never matches, additionalUrls catches all, CookieManager check).",
+        "fileSize": 145026,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -44,6 +44,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-c15cbacb55a279e7439cd283ae81905e83173cba796fc94553c202aaf2ca3a74"
+        "fileHash": "sha256-fd6d0e4be1fb367a8d728079649fd6c56d24c7ed5382d39c2a4f50a9da1558f9"
     }
 ]
