@@ -1,10 +1,7 @@
 package com.mkvhub
 
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.getQualityFromString
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
@@ -232,7 +229,7 @@ class MkvHubProvider : MainAPI() {
         if (links.isEmpty()) return false
 
         links.amap { (qualityText, url) ->
-            safeApiCall {
+            try {
                 // Try to resolve the short link
                 val resolved = app.get(url, referer = mainUrl, timeout = 15000)
                 val finalUrl = resolved.url
@@ -249,15 +246,19 @@ class MkvHubProvider : MainAPI() {
 
                 // Also add a direct link as fallback
                 callback.invoke(
-                    ExtractorLink(
+                    newExtractorLink(
                         name,
                         qualityText,
                         target,
                         mainUrl,
-                        parseQuality(qualityText),
+                        parseQuality(qualityText)
+                    ) {
                         headers = mapOf("Referer" to url)
-                    )
+                    }
                 )
+            }
+            } catch (e: Exception) {
+                // Skip failed links
             }
         }
         return true
@@ -265,11 +266,11 @@ class MkvHubProvider : MainAPI() {
 
     private fun parseQuality(text: String): Int {
         return when {
-            text.contains("4K", true) || text.contains("2160p", true) -> Qualities._4K.value
-            text.contains("1080p", true) -> Qualities._1080p.value
-            text.contains("720p", true) -> Qualities._720p.value
-            text.contains("480p", true) -> Qualities._480p.value
-            else -> Qualities._720p.value
+            text.contains("4K", true) || text.contains("2160p", true) -> Qualities.P2160.value
+            text.contains("1080p", true) -> Qualities.P1080.value
+            text.contains("720p", true) -> Qualities.P720.value
+            text.contains("480p", true) -> Qualities.P480.value
+            else -> Qualities.P720.value
         }
     }
 }
