@@ -37,11 +37,12 @@ import org.jsoup.nodes.Element
  *   - Homepage / category / search pages: movie cards as `div.thumb` elements
  *     containing `figure > img` (poster) and `figcaption > a > p` (title).
  *   - Detail pages: title in `h1.page-title span.material-text`, poster in
- *     `p.poster img`, metadata in centered `<p>`, quality sections in `<h3>`
- *     headings followed by `a.dbuttn.blue` download buttons.
- *   - Download flow: MkvHub detail page → `a.dbuttn.blue` → linkszilla
- *     intermediate page → actual file hoster links (streamtape, clicknupload,
- *     gofile, 1fichier, etc.).
+ *     `p.poster img`, metadata in centered `<p>`, download sections in `<h3>`
+ *     headings (new pages) or directly in `<p>` (old pages), followed by
+ *     `a.dbuttn` download buttons.
+ *   - Download flow: MkvHub detail page → `a.dbuttn` button → intermediate
+ *     redirector (linkszilla / linkomark / direct-cloud) → actual file hoster
+ *     links (streamtape, clicknupload, gofile, 1fichier, etc.).
  *
  * This provider follows the same proven patterns as KatMovieHDProvider:
  *   - Two-pass link collection (strict whitelist, then permissive fallback)
@@ -77,12 +78,16 @@ class MkvHubProvider : MainAPI() {
                     // File sharing / cloud hosts
                     """gofile\.io|drive\.google|mediafire|pixeldrain|pixeldra\.in|""" +
                     """1fichier|send\.cm|sendvid|send\.now|krakenfiles|""" +
-                    // Common download hosts seen on linkszilla
+                    // Common download hosts seen on redirector pages
                     """clicknupload|uploadflix|sendgb|rapidgator|megaup|hexload|""" +
                     """vikingfile|katdrive|hubcloud|hubdrive|""" +
                     // Hindi-dub specific hosts
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
-                    """bbupload|gofileserver|bbserver|gdtot|techkit""" +
+                    """bbupload|gofileserver|bbserver|gdtot|techkit|""" +
+                    // Additional hosts seen on linkomark/older pages
+                    """uploadrar|dl\.uploadflix|catshare|nitroflare|""" +
+                    """turbobit|icerbox|alfafile|""" +
+                    """9xupload|xupload|cloudmail|mega\.nz""" +
                     """)"""
         )
 
@@ -231,9 +236,11 @@ class MkvHubProvider : MainAPI() {
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: throw Exception("No title found at $url")
 
-        // Poster: main.page-body > p.poster > img, fallback to og:image
+        // Poster: main.page-body > p.poster > img (new pages),
+        // or first img in page-body (old pages), fallback to og:image
         val posterUrl = fixUrlNull(
             doc.selectFirst("main.page-body p.poster img")?.attr("src")
+                ?: doc.selectFirst("main.page-body p > img.aligncenter")?.attr("src")
                 ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
         )
 
@@ -259,8 +266,13 @@ class MkvHubProvider : MainAPI() {
                         .filter { it.isNotBlank() }
                         .forEach { tags.add(it) }
                 }
-                text.startsWith("Storyline", ignoreCase = true) -> {
-                    plot = text.substringAfter("Storyline").substringAfter(":").trim()
+                text.startsWith("Storyline", ignoreCase = true) ||
+                text.contains("Movie Plot", ignoreCase = true) -> {
+                    // New pages use "Storyline:", old pages use "Movie Plot:"
+                    val plotText = if (text.contains("Storyline", ignoreCase = true))
+                        text.substringAfter("Storyline") else text.substringAfter("Movie Plot")
+                    val cleaned = plotText.substringAfter(":").trim()
+                    if (cleaned.isNotBlank()) plot = cleaned
                 }
             }
         }
@@ -662,33 +674,93 @@ class MkvHubProvider : MainAPI() {
 
     /**
      * Collect all download button URLs from the page body.
+     * Handles 3 distinct movie page formats found on MkvHub:
+     *
+     * Format 1 (NEW): h3 per quality + single a.dbuttn.blue in next <p>
+     *   <h3>|| Download 720p HD via Single Links Size: 1.2GB ||</h3>
+     *   <p><a class="dbuttn blue" href="https://secure.linkszilla.top/view/XXX">...</a></p>
+     *
+     * Format 2 (Transitional): One h3 + multiple buttons in single <p>
+     *   <h3>|| Full Movie Download via Single Links Size: 3.1GB ||</h3>
+     *   <p>
+     *     <a class="dbuttn watch" href="...">Watch Online Links</a>
+     *     <a class="dbuttn blue" href="...">Get Download Links</a>
+     *     <a class="dbuttn magnet" href="...">Magnet Link</a>
+     *   </p>
+     *
+     * Format 3 (OLD): No h3 headings, just a <p> with buttons directly
+     *   <p>
+     *     <a class="dbuttn watch" href="...">Watch Online Links</a>
+     *     <a class="dbuttn blue" href="...">Get Download Links</a>
+     *     <a class="dbuttn torrent" href="...">Torrent Download</a>
+     *   </p>
+     *
      * Returns newline-joined string (v9-compatible format for loadLinks).
      */
     private fun collectDownloadUrls(pageBody: Element): String {
         val links = mutableListOf<String>()
 
-        // Primary: h3 + a.dbuttn pairs (quality-labeled downloads)
-        pageBody.select("h3").forEach { h3 ->
-            val nextSib = h3.nextElementSibling()
-            val btn = nextSib?.selectFirst("a.dbuttn")
-            if (btn != null) {
-                val url = btn.attr("href").trim()
-                if (url.startsWith("http") && url !in links) {
-                    links.add(url)
+        // Strategy 1: h3 + a.dbuttn pairs (NEW format — one button per h3)
+        // Also handles Transitional format — multiple buttons per h3
+        val h3DownloadHeadings = pageBody.select("h3").filter { h3 ->
+            val text = h3.text().trim()
+            // Skip the "How to Download from MkvHub?" heading and other non-download h3s
+            text.contains("Download", true) &&
+                !text.contains("How to Download", true) &&
+                !text.contains("from MkvHub", true)
+        }
+
+        for (h3 in h3DownloadHeadings) {
+            // Find ALL a.dbuttn buttons in the next sibling(s)
+            // Handles both: single <p> with one button, and single <p> with multiple buttons
+            var sib = h3.nextElementSibling()
+            while (sib != null) {
+                // Stop if we hit another heading or the "How to Download" section
+                if (sib.tagName() in listOf("h1", "h2", "h3", "h4")) break
+
+                val buttons = sib.select("a.dbuttn")
+                if (buttons.isNotEmpty()) {
+                    for (btn in buttons) {
+                        val url = btn.attr("href").trim()
+                        val btnClass = btn.className().trim()
+                        val btnText = btn.text().trim()
+                        if (url.startsWith("http") && url !in links) {
+                            // Skip torrent/magnet links — CloudStream can't play them
+                            if (btnClass.contains("torrent", true) ||
+                                btnClass.contains("magnet", true) ||
+                                btnText.contains("Torrent", true) ||
+                                btnText.contains("Magnet", true)
+                            ) continue
+                            links.add(url)
+                        }
+                    }
+                    // Found buttons for this h3, move to next heading
+                    break
                 }
+                sib = sib.nextElementSibling()
             }
         }
 
-        // Fallback: any a.dbuttn on the page
+        // Strategy 2: No h3 headings found — find standalone a.dbuttn buttons
+        // (OLD format pages have download buttons without any h3 headings)
         if (links.isEmpty()) {
             pageBody.select("a.dbuttn").forEach { btn ->
                 val url = btn.attr("href").trim()
+                val btnClass = btn.className().trim()
+                val btnText = btn.text().trim()
                 if (url.startsWith("http") && url !in links) {
+                    // Skip torrent/magnet links
+                    if (btnClass.contains("torrent", true) ||
+                        btnClass.contains("magnet", true) ||
+                        btnText.contains("Torrent", true) ||
+                        btnText.contains("Magnet", true)
+                    ) return@forEach
                     links.add(url)
                 }
             }
         }
 
+        Log.d(TAG, "collectDownloadUrls: found ${links.size} download URL(s)")
         return links.joinToString("\n")
     }
 
@@ -753,27 +825,40 @@ class MkvHubProvider : MainAPI() {
     }
 
     /**
-     * Try to resolve a linkszilla intermediate page and extract the
-     * actual file hoster links.
+     * Known intermediate redirector domains used by MkvHub across
+     * different eras of the site. All serve the same purpose:
+     * they show a page with actual file hoster links.
+     */
+    private val REDIRECTOR_DOMAINS = listOf(
+        "linkszilla",       // NEW format: secure.linkszilla.top
+        "linkomark",        // Transitional + OLD: safe.linkomark.top
+        "direct-cloud",     // Some series pages: dl.direct-cloud.top
+        "torrent-box",      // Magnet redirector: get.torrent-box.top
+        "dwn7"              // Torrent redirector: torrent.dwn7.xyz
+    )
+
+    /**
+     * Resolve an intermediate redirector page (linkszilla, linkomark,
+     * direct-cloud, etc.) and extract the actual file hoster links.
      *
-     * Linkszilla page structure (verified):
+     * These redirector pages all share a similar structure:
      *   <div class="view_tab">
      *     <a href="https://dl.uploadflix.com/...">...</a>
-     *     <a href="https://sendgb.com/...">...</a>
      *     <a href="https://clicknupload.click/...">...</a>
      *     ...
      *   </div>
      *
      * Returns list of (hostName, url) pairs, or empty list if not a
-     * linkszilla page or no links found.
+     * redirector page or no links found.
      */
     private suspend fun resolveLinkszilla(url: String): List<Pair<String, String>> {
-        // Only resolve linkszilla URLs
-        if (!url.contains("linkszilla", ignoreCase = true)) {
-            return emptyList()
+        // Check if this URL is a known redirector domain
+        val isRedirector = REDIRECTOR_DOMAINS.any { domain ->
+            url.contains(domain, ignoreCase = true)
         }
+        if (!isRedirector) return emptyList()
 
-        Log.d(TAG, "Resolving linkszilla: $url")
+        Log.d(TAG, "Resolving redirector: $url")
         val res = app.get(
             url,
             referer = mainUrl,
@@ -786,14 +871,16 @@ class MkvHubProvider : MainAPI() {
         val viewTab = doc.selectFirst("div.view_tab")
         val anchorContainer = viewTab ?: doc
 
+        // Build a list of domains to exclude from results
+        val excludeDomains = REDIRECTOR_DOMAINS + "profitablecpmrate"
+
         val links = anchorContainer.select("a[href]").mapNotNull { a ->
             val href = a.attr("href").trim()
             val linkText = a.text().trim()
-            // Filter: must be a real external URL, not linkszilla itself,
+            // Filter: must be a real external URL, not a redirector itself,
             // not ad networks, not images/CSS
             if (href.startsWith("http") &&
-                !href.contains("linkszilla", ignoreCase = true) &&
-                !href.contains("profitablecpmrate", ignoreCase = true) &&
+                excludeDomains.none { href.contains(it, ignoreCase = true) } &&
                 !IGNORE_HOST_REGEX.containsMatchIn(href) &&
                 linkText.isNotBlank()
             ) {
@@ -802,12 +889,12 @@ class MkvHubProvider : MainAPI() {
         }.filter { it.second.startsWith("http") }
 
         if (links.isEmpty()) {
-            Log.w(TAG, "Linkszilla page yielded 0 usable links from $url")
+            Log.w(TAG, "Redirector page yielded 0 usable links from $url")
             // Diagnostic: dump what we found
             val allAnchors = doc.select("a[href]").map { it.attr("href") }
-            Log.d(TAG, "Linkszilla page anchors (${allAnchors.size}): ${allAnchors.take(5)}")
+            Log.d(TAG, "Redirector page anchors (${allAnchors.size}): ${allAnchors.take(5)}")
         } else {
-            Log.d(TAG, "Linkszilla resolved ${links.size} hoster link(s)")
+            Log.d(TAG, "Redirector resolved ${links.size} hoster link(s)")
         }
 
         return links
