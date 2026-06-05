@@ -72,10 +72,10 @@ class UHDMoviesProvider : MainAPI() {
             href.contains("/tv-shows/")
 
         val quality = when {
-            title.contains("2160p", ignoreCase = true) -> SearchQuality.P2160
-            title.contains("1080p", ignoreCase = true) -> SearchQuality.P1080
-            title.contains("720p", ignoreCase = true) -> SearchQuality.P720
-            title.contains("480p", ignoreCase = true) -> SearchQuality.P480
+            title.contains("2160p", ignoreCase = true) -> getQualityFromString("2160p")
+            title.contains("1080p", ignoreCase = true) -> getQualityFromString("1080p")
+            title.contains("720p", ignoreCase = true) -> getQualityFromString("720p")
+            title.contains("480p", ignoreCase = true) -> getQualityFromString("480p")
             else -> null
         }
 
