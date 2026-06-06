@@ -1,8 +1,8 @@
-version = 22
+version = 23
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v22: CRASH FIX — fixUrl corrupting pipe-delimited episode data (now uses fix=false), episode=-1 changed to null (was showing literal -1 in UI), dynamic domain fallback regex, Drive/Instant link label distinction"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v23: Series overhaul — newline-joined URLs (like KatMovieHD/MkvHub), fixed duplicate quality labels (x264 X264), Complete Pack naming, quality labels via URL fragment, simplified loadLinks"
     authors = listOf("Suryansh4567")
     status = 1
 

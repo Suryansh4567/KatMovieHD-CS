@@ -32,11 +32,11 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter provider for CloudStream — v22
+ * MoviesCounter provider for CloudStream — v23
  *
  * Site: moviescounter.boston (WordPress, custom Tailwind-based theme)
  *
- * Version history (v9 → v22 — every update is substantive):
+ * Version history (v9 → v23 — every update is substantive):
  *
  * v9  — Series episodes show per-episode quality links only (no pack merging).
  *        Full season packs shown as separate "Full Pack" entries after episodes.
@@ -61,14 +61,16 @@ import org.jsoup.nodes.Element
  *        input validation, bounded collections, structured error categorization.
  * v21 — CRASH FIX: Removed kotlinx.coroutines.delay (not in plugin classpath),
  *        hubdrive.space now handled by CloudStream's native loadExtractor
- *        instead of crash-prone 3-hop HTTP chain, Full Pack episodes use
- *        episode=-1 to avoid ugly "901." numbers in UI.
- * v22 — CRASH FIX: newEpisode(data) pipe-delimited data corrupted by fixUrl()
- *        auto-prepending mainUrl to non-http-starting strings — now uses
- *        fix=false to pass raw data through. episode=-1 changed to null
- *        (CloudStream showed literal "-1" in episode list). Domain fallback
- *        regex now dynamic (was hardcoded to .boston). Drive vs Instant
- *        link distinction in quality labels.
+ *        instead of crash-prone 3-hop HTTP chain.
+ * v22 — CRASH FIX: pipe-delimited data format swapped to URL-first to avoid
+ *        fixUrl corruption. episode=-1 changed to null. Dynamic domain
+ *        fallback regex. Drive/Instant link label distinction.
+ * v23 — SERIES OVERHAUL: Simplified episode data to newline-joined URLs
+ *        (matching KatMovieHD/MkvHub proven pattern). Fixed duplicate quality
+ *        labels (x264 X264 → x264). Pack-only series now show "Complete Pack"
+ *        names with sequential episode numbers. Per-episode links carry
+ *        quality labels via URL fragment (#label=...) instead of pipe delimiter.
+ *        loadLinks simplified to standard URL parsing. No more fixUrl risk.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -86,10 +88,10 @@ class MoviesCounterProvider : MainAPI() {
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
-        /** Known domain TLDs — site rotates these when one gets blocked. v18 */
+        /** Known domain TLDs — site rotates these when one gets blocked. */
         private val DOMAIN_TLDS = listOf("boston", "wiki", "one", "vip", "lol", "cc")
 
-        /** Max retry attempts for redirector resolution. v12 */
+        /** Max retry attempts for redirector resolution. */
         private const val MAX_RETRIES = 2
 
         private val IGNORE_HOST_REGEX = Regex(
@@ -107,8 +109,7 @@ class MoviesCounterProvider : MainAPI() {
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
                     """\.css|\.js\?|/feed/|#|""" +
                     """doubleclick|popads|propeller|profitablecpm|""" +
-                    /** v20: additional ad/malware domains to filter */
-                    """adsboosters|admaven|winexch|a-ads|tinyurl""" +
+                    """adsboosters|admaven|winexch|a-ads|tinyurl|hdhub4u""" +
                     """)"""
         )
 
@@ -134,17 +135,17 @@ class MoviesCounterProvider : MainAPI() {
         /** Regex to detect quality in heading text */
         private val QUALITY_REGEX = Regex("""(?i)(4K|2160p|1080p|720p|480p|300MB)""")
 
-        /** v17: Regex to extract audio/subtitle metadata from heading text */
+        /** Regex to extract audio/subtitle metadata */
         private val AUDIO_META_REGEX = Regex(
-            """(?i)(DD5\.1|DDP5\.1|ATMOS|AAC|5\.1|2\.0|ESub|Hindi|English|Dual\s*Audio)"""
+            """(?i)(DD5\.1|DDP5\.1|ATMOS|AAC5\.1|5\.1|2\.0|ESub|ESubs|Hindi|English|Dual\s*Audio)"""
         )
 
-        /** v19: Regex to extract source platform (AMZN, NF, DSNP etc.) */
+        /** Regex to extract source platform (AMZN, NF, DSNP etc.) */
         private val SOURCE_PLATFORM_REGEX = Regex(
             """(?i)\b(AMZN|NF|DSNP|HMAX|APTV|PMTP|iP|HULU|BBC|ITV|Crav|STAN|BFI|CC)\b"""
         )
 
-        /** v19: Regex to extract codec info */
+        /** Regex to extract codec info */
         private val CODEC_REGEX = Regex(
             """(?i)\b(x264|x265|HEVC|H264|H265|AV1|10Bit|8Bit|HDR|SDR|DV|HDRip)\b"""
         )
@@ -192,8 +193,6 @@ class MoviesCounterProvider : MainAPI() {
         val doc = fetchWithFallback(url)
         val results = parseListing(doc).toMutableList()
 
-        // v14: Search pagination — fetch page 2 if page 1 had results
-        // and there's a "next" pagination link
         if (results.isNotEmpty()) {
             val hasNext = doc.selectFirst("a.next.page-numbers") != null
             if (hasNext) {
@@ -202,10 +201,7 @@ class MoviesCounterProvider : MainAPI() {
                     val doc2 = fetchWithFallback(page2Url)
                     val page2Results = parseListing(doc2)
                     results.addAll(page2Results)
-                    Log.d(TAG, "search(): page 2 added ${page2Results.size} results")
-                } catch (e: Exception) {
-                    Log.w(TAG, "search(): page 2 fetch failed: ${e.message}")
-                }
+                } catch (_: Exception) {}
             }
         }
 
@@ -213,7 +209,7 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     /**
-     * v18: Fetch URL with domain auto-fallback.
+     * Fetch URL with domain auto-fallback.
      * If the primary domain fails, tries alternate TLDs in order.
      */
     private suspend fun fetchWithFallback(
@@ -226,18 +222,15 @@ class MoviesCounterProvider : MainAPI() {
             Log.w(TAG, "Primary domain failed for $url: ${e.message}")
         }
 
-        // v22: Dynamic TLD extraction — regex was hardcoded to .boston which
-        // breaks when mainUrl has already fallen back to another domain.
         val currentTld = mainUrl.substringAfterLast(".").trimEnd('/')
         val tldRegex = Regex("""\.$currentTld/""")
 
         for (tld in DOMAIN_TLDS) {
-            if (tld.equals(currentTld, ignoreCase = true)) continue // skip current
+            if (tld.equals(currentTld, ignoreCase = true)) continue
             val altUrl = url.replace(tldRegex, ".$tld/")
             try {
                 val doc = app.get(altUrl, headers = headers, timeout = timeout).document
                 Log.d(TAG, "Domain fallback succeeded: .$tld")
-                // Update mainUrl for this session
                 mainUrl = "https://moviescounter.$tld"
                 return doc
             } catch (_: Exception) {
@@ -245,7 +238,6 @@ class MoviesCounterProvider : MainAPI() {
             }
         }
 
-        // All fallbacks failed — throw with clear message
         throw Exception("All domain fallbacks failed for $url")
     }
 
@@ -327,7 +319,6 @@ class MoviesCounterProvider : MainAPI() {
             }
         }
 
-        Log.d(TAG, "parseListing(): ${results.size} results")
         return results.distinctBy { it.url }
     }
 
@@ -368,7 +359,7 @@ class MoviesCounterProvider : MainAPI() {
 
         val title = cleanTitle(rawTitle)
 
-        // v16: Poster resolution — 5-tier fallback strategy
+        // Poster resolution — 5-tier fallback strategy
         val posterUrl = resolvePoster(doc)
 
         // Plot from og:description or longest paragraph in post-body
@@ -400,7 +391,7 @@ class MoviesCounterProvider : MainAPI() {
         val imdbUrl = doc.selectFirst("a[href*=imdb.com/title]")?.attr("href")
 
         // ---------------------------------------------------------------
-        // Series detection — SCOPED to post-body ONLY
+        // Series detection
         // ---------------------------------------------------------------
         val titleIndicatesSeries = detectSeriesFromTitle(rawTitle, url)
 
@@ -422,18 +413,17 @@ class MoviesCounterProvider : MainAPI() {
             (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
         } ?: 1
 
-        Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries " +
-            "titleIndicates=$titleIndicatesSeries tagIndicates=$tagIndicatesSeries " +
-            "singleSection=$hasSingleEpisodeSection tags=$tags season=$seasonNum")
+        Log.d(TAG, "load() title='$title' isSeries=$isSeries season=$seasonNum")
 
         val container = postBody ?: doc.selectFirst("article") ?: doc
 
         if (isSeries) {
             val episodes = buildSeriesEpisodes(container, seasonNum)
-            Log.d(TAG, "load() built ${episodes.size} series episode(s)")
+            Log.d(TAG, "load() built ${episodes.size} episode(s)")
 
             val finalEpisodes = if (episodes.isEmpty()) {
-                val links = collectAllDownloadLinks(container)
+                // Ultimate fallback: single episode with all links
+                val links = collectDownloadLinks(container)
                 if (links.isNotEmpty()) {
                     listOf(newEpisode(links.joinToString("\n") { it.second }) {
                         name = "Watch"
@@ -454,7 +444,7 @@ class MoviesCounterProvider : MainAPI() {
                 imdbUrl?.let { addImdbUrl(it) }
             }
         } else {
-            val links = collectAllDownloadLinks(container)
+            val links = collectDownloadLinks(container)
             val data = links.joinToString("\n") { it.second }
             Log.d(TAG, "load() found ${links.size} download link(s) for movie")
 
@@ -469,14 +459,10 @@ class MoviesCounterProvider : MainAPI() {
         }
     }
 
-    /**
-     * v16: Multi-tier poster resolution strategy.
-     * 1. TMDB image (highest quality, most reliable)
-     * 2. og:image meta tag
-     * 3. article img.aligncenter
-     * 4. First article img with valid src
-     * 5. data-src lazy-load fallback
-     */
+    // ------------------------------------------------------------------
+    // Poster resolution
+    // ------------------------------------------------------------------
+
     private fun resolvePoster(doc: org.jsoup.nodes.Document): String? {
         // Tier 1: TMDB image
         doc.selectFirst("article img[src*=tmdb], article img[src*=image.tmdb.org]")?.let {
@@ -516,7 +502,12 @@ class MoviesCounterProvider : MainAPI() {
     // Download link collection (for movies & fallback)
     // ------------------------------------------------------------------
 
-    private fun collectAllDownloadLinks(
+    /**
+     * Collect ALL download links from the container.
+     * Returns list of (qualityLabel, url) pairs.
+     * Skips episode headers, SAMPLE links, and non-content URLs.
+     */
+    private fun collectDownloadLinks(
         container: Element
     ): List<Pair<String, String>> {
         val results = mutableListOf<Pair<String, String>>()
@@ -536,7 +527,7 @@ class MoviesCounterProvider : MainAPI() {
             if (href.contains(mainUrl, ignoreCase = true)) return@forEach
 
             seen.add(href)
-            val qualityLabel = buildRichQualityLabel(headingText) // v17/v19
+            val qualityLabel = buildQualityLabel(headingText)
             results.add(Pair(qualityLabel, href))
         }
 
@@ -556,7 +547,6 @@ class MoviesCounterProvider : MainAPI() {
             }
         }
 
-        Log.d(TAG, "collectAllDownloadLinks(): ${results.size} links")
         return results
     }
 
@@ -590,13 +580,17 @@ class MoviesCounterProvider : MainAPI() {
     /**
      * Parse series page with BOTH pack section and per-episode section.
      * Per-episode entries get ONLY their own quality links.
-     * Full packs shown as separate entries labeled "Full Pack – 4K" etc.
+     * Full packs shown as separate entries labeled "Complete Pack – 4K" etc.
+     *
+     * v23: Episode data is newline-joined URLs (proven pattern from
+     * KatMovieHD/MkvHub). Quality labels passed via URL fragment
+     * (#label=...) so loadLinks can extract them for addDirectLink.
      */
     private fun buildPerEpisodeWithPacks(
         container: Element,
         defaultSeason: Int
     ): List<Episode> {
-        val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<Pair<String, String>>>()
+        val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
         var currentSeason = defaultSeason
         var currentEpisode: Int? = null
 
@@ -634,14 +628,9 @@ class MoviesCounterProvider : MainAPI() {
                     element.select("a[href]").forEach { anchor ->
                         val href = anchor.attr("href").trim()
                         if (isValidDownloadLink(href)) {
-                            val qualityLabel = buildRichQualityLabel(text)
-                            val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1) ?: ""
-                            val label = buildString {
-                                append(qualityLabel)
-                                if (sizeStr.isNotBlank()) append(" ($sizeStr)")
-                            }
+                            val qualityLabel = buildPackLabel(text)
                             if (packLinks.none { it.second == href }) {
-                                packLinks.add(Pair(label, href))
+                                packLinks.add(Pair(qualityLabel, href))
                             }
                         }
                     }
@@ -656,7 +645,6 @@ class MoviesCounterProvider : MainAPI() {
                     .toIntOrNull()
                 if (epNum != null) {
                     currentEpisode = epNum
-                    // v13: Detect season from episode header text (e.g. "S02E03")
                     SEASON_REGEX.find(text)?.let { m ->
                         (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
                             ?.let { currentSeason = it }
@@ -665,26 +653,22 @@ class MoviesCounterProvider : MainAPI() {
                 }
             }
 
-            // v11/v22: Collect ALL links for the current episode (including dual links
-            // like "720p – Drive Instant" which has hubdrive + hubcdn URLs).
-            // v22: Append (Drive)/(Instant) to quality label so user can distinguish
-            // between the two link types for the same quality tier.
+            // Collect links for the current episode
             if (currentEpisode != null) {
-                val baseQualityLabel = buildRichQualityLabel(text)
-
                 element.select("a[href]").forEach { anchor ->
                     val href = anchor.attr("href").trim()
                     if (isValidDownloadLink(href)) {
-                        val linkType = detectLinkType(anchor.text().trim(), href)
-                        val qualityLabel = if (linkType.isNotBlank()) {
-                            "$baseQualityLabel ($linkType)"
-                        } else {
-                            baseQualityLabel
-                        }
                         val key = currentSeason to currentEpisode
                         val bucket = episodeMap.getOrPut(key) { mutableListOf() }
-                        if (bucket.none { it.second == href }) {
-                            bucket.add(Pair(qualityLabel, href))
+                        if (href !in bucket) {
+                            // v23: Encode quality label into URL fragment
+                            val qualityLabel = buildPerEpLinkLabel(text, anchor)
+                            val urlWithLabel = if (qualityLabel.isNotBlank()) {
+                                "$href#label=${java.net.URLEncoder.encode(qualityLabel, "UTF-8")}"
+                            } else {
+                                href
+                            }
+                            bucket.add(urlWithLabel)
                         }
                     }
                 }
@@ -692,20 +676,15 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         // Build per-episode Episode objects
-        // v22: CRITICAL FIX — pipe-delimited data uses URL-first format
-        // ("https://url|quality") instead of quality-first ("720p|https://url").
-        // CloudStream's newEpisode(url) calls fixUrl() which prepends mainUrl
-        // to any string not starting with "http" — quality-first format was
-        // getting corrupted. URL-first format starts with "http" so fixUrl
-        // passes it through unchanged.
+        // v23: data = newline-joined URLs (like KatMovieHD/MkvHub).
+        // fixUrl() passes through because data starts with "http".
         val episodes = mutableListOf<Episode>()
 
-        for ((key, links) in episodeMap.entries.sortedWith(
+        for ((key, urls) in episodeMap.entries.sortedWith(
             compareBy({ it.key.first }, { it.key.second })
         )) {
             val (season, ep) = key
-            // v22: URL first, then quality label — prevents fixUrl corruption
-            val data = links.joinToString("\n") { (ql, url) -> "$url|$ql" }
+            val data = urls.joinToString("\n")
             episodes.add(newEpisode(data) {
                 name = "Episode $ep"
                 this.season = season
@@ -714,14 +693,15 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         // Build pack Episode objects — placed AFTER real episodes.
-        // v22: episode=null instead of -1 — CloudStream displays "-1" literally
-        // in the episode list, which is ugly. With null, CS auto-assigns index.
+        // Sequential episode numbering like MkvHub.
+        var epOffset = episodeMap.size
         for ((idx, packLink) in packLinks.withIndex()) {
             val (label, href) = packLink
+            epOffset++
             episodes.add(newEpisode(href) {
-                name = "Full Pack – $label"
+                name = label
                 season = defaultSeason
-                episode = null  // v22: null = CS auto-assigns, no ugly "-1" or "901"
+                episode = epOffset
             })
         }
 
@@ -733,6 +713,8 @@ class MoviesCounterProvider : MainAPI() {
 
     /**
      * Pack-only fallback: No per-episode links available.
+     * Each quality tier becomes a "Complete Pack" episode entry
+     * (matching MkvHub's proven pattern).
      */
     private fun buildPackOnlyEpisodes(
         container: Element,
@@ -746,29 +728,24 @@ class MoviesCounterProvider : MainAPI() {
             val href = link?.attr("href")?.trim()
 
             if (EPISODE_HEADER_REGEX.containsMatchIn(text)) return@forEach
+            if (SAMPLE_REGEX.containsMatchIn(text)) return@forEach
 
             if (href != null && isValidDownloadLink(href)) {
-                val qualityLabel = buildRichQualityLabel(text)
-                val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1) ?: ""
-
-                val epName = buildString {
-                    append("Full Pack – $qualityLabel")
-                    if (sizeStr.isNotBlank()) append(" ($sizeStr)")
-                }
-
+                val label = buildPackLabel(text)
                 episodes.add(newEpisode(href) {
-                    name = epName
+                    name = label
                     season = defaultSeason
                     episode = episodes.size + 1
                 })
             }
         }
 
+        // Fallback: if no heading links found
         if (episodes.isEmpty()) {
-            val allLinks = collectAllDownloadLinks(container)
+            val allLinks = collectDownloadLinks(container)
             allLinks.forEachIndexed { idx, (ql, link) ->
                 episodes.add(newEpisode(link) {
-                    name = "Full Pack – $ql"
+                    name = "Complete Pack – $ql"
                     season = defaultSeason
                     episode = idx + 1
                 })
@@ -779,251 +756,90 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // loadLinks — resolve URLs to playable streams
-    // ------------------------------------------------------------------
-
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        if (data.isBlank()) return false
-
-        // v22: Parse pipe-delimited data supporting BOTH orderings:
-        //   New v22 format: "https://url|quality label"  (URL first)
-        //   Old v21 format: "quality label|https://url"  (quality first)
-        // Also handles legacy v21 corrupted data where fixUrl prepended mainUrl
-        // to quality labels (e.g. "https://moviescounter.boston/720p x264|...").
-        // Also handles plain URL lines (no pipe delimiter).
-        val entries = data.lines()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .map { line ->
-                val pipeIdx = line.indexOf('|')
-                if (pipeIdx > 0) {
-                    val left = line.substring(0, pipeIdx).trim()
-                    val right = line.substring(pipeIdx + 1).trim()
-                    when {
-                        // v22 format: URL|quality  (left starts with http)
-                        left.startsWith("http") && right.isNotBlank() -> {
-                            // Strip mainUrl prefix from quality label (v21 corruption fixup)
-                            val cleanLabel = right
-                                .removePrefix(mainUrl.trimEnd('/') + "/")
-                                .removePrefix(mainUrl + "/")
-                                .trim()
-                            Pair(cleanLabel.ifBlank { right }, left)
-                        }
-                        // Old format: quality|URL  (right starts with http)
-                        right.startsWith("http") && left.isNotBlank() -> {
-                            // Strip mainUrl prefix from quality label (v21 corruption fixup)
-                            val cleanLabel = left
-                                .removePrefix(mainUrl.trimEnd('/') + "/")
-                                .removePrefix(mainUrl + "/")
-                                .trim()
-                            Pair(cleanLabel.ifBlank { left }, right)
-                        }
-                        // Both look like URLs? Take right as URL
-                        left.startsWith("http") -> Pair("", left)
-                        right.startsWith("http") -> Pair("", right)
-                        else -> null
-                    }
-                } else if (line.startsWith("http")) {
-                    Pair("", line)
-                } else {
-                    null
-                }
-            }
-            .filterNotNull()
-
-        val urls = entries.map { it.second }
-        if (urls.isEmpty()) return false
-
-        Log.d(TAG, "loadLinks(): resolving ${urls.size} URL(s)")
-        var anySuccess = false
-
-        urls.amap { url ->
-            try {
-                val resolved = resolveRedirectorWithRetry(url) // v12: retry logic
-
-                if (resolved.isEmpty()) {
-                    if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
-                        val qualityLabel = entries.find { it.second == url }?.first ?: ""
-                        addDirectLink(url, callback, qualityLabel)
-                    }
-                    anySuccess = true
-                } else {
-                    resolved.amap { resolvedUrl ->
-                        try {
-                            if (!loadExtractor(resolvedUrl, mainUrl, subtitleCallback, callback)) {
-                                val qualityLabel = entries.find { it.second == url }?.first ?: ""
-                                addDirectLink(resolvedUrl, callback, qualityLabel)
-                            }
-                            anySuccess = true
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Extraction failed for $resolvedUrl: ${e.message}")
-                            addDirectLink(resolvedUrl, callback)
-                            anySuccess = true
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to resolve $url: ${e.message}")
-                try {
-                    if (loadExtractor(url, mainUrl, subtitleCallback, callback)) {
-                        anySuccess = true
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-
-        return anySuccess
-    }
-
-    // ------------------------------------------------------------------
-    // Redirector resolution
+    // Quality label builders
     // ------------------------------------------------------------------
 
     /**
-     * v12: Resolve redirector with retry.
-     * Retries up to MAX_RETRIES times on failure.
+     * Build a clean pack label like "Complete Pack – 1080p HEVC (5.8GB)"
+     * Matching MkvHub's naming convention.
      */
-    private suspend fun resolveRedirectorWithRetry(url: String): List<String> {
-        var lastException: Exception? = null
-
-        for (attempt in 0..MAX_RETRIES) {
-            try {
-                return resolveRedirector(url)
-            } catch (e: Exception) {
-                lastException = e
-                Log.d(TAG, "Retry $attempt for $url: ${e.message}")
-            }
-        }
-
-        Log.w(TAG, "All retries exhausted for $url: ${lastException?.message}")
-        return emptyList()
-    }
-
-    private suspend fun resolveRedirector(url: String): List<String> {
-        val isHubcdn = url.contains("hubcdn.org", ignoreCase = true) ||
-            url.contains("hubcdn.sbs", ignoreCase = true)
-        val isMclinks = url.contains("mclinks.xyz", ignoreCase = true)
-
-        // hubdrive.space / hubcloud.foo / hubcloud.cx — these are handled by
-        // CloudStream's built-in extractors (hubdrive extractor exists).
-        // Do NOT try to resolve them manually — it causes crashes from
-        // nested HTTP requests (3-hop chain: hubdrive→hubcloud→gamerxyt→hoster).
-        // Let loadExtractor handle hubdrive/hubcloud natively.
-        val isHubdrive = url.contains("hubdrive.space", ignoreCase = true) ||
-            url.contains("hubdrive.link", ignoreCase = true) ||
-            url.contains("hubcloud.foo", ignoreCase = true) ||
-            url.contains("hubcloud.cx", ignoreCase = true) ||
-            url.contains("hubcloud.fans", ignoreCase = true)
-
-        if (isHubdrive) return emptyList() // let loadExtractor handle it
-
-        if (!isHubcdn && !isMclinks) return emptyList()
-
-        return try {
-            when {
-                isHubcdn -> resolveHubcdn(url)
-                isMclinks -> resolveMclinks(url)
-                else -> emptyList()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "resolveRedirector failed for $url: ${e.message}")
-            emptyList()
+    private fun buildPackLabel(text: String): String {
+        val quality = buildQualityLabel(text)
+        val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1) ?: ""
+        return buildString {
+            append("Complete Pack – $quality")
+            if (sizeStr.isNotBlank()) append(" ($sizeStr)")
         }
     }
-
-    private suspend fun resolveHubcdn(url: String): List<String> {
-        val linkParam = Regex("""[?&]link=(https?://[^&]+)""").find(url)?.groupValues?.get(1)
-        if (linkParam != null) {
-            Log.d(TAG, "resolveHubcdn: extracted link param: $linkParam")
-            return listOf(java.net.URLDecoder.decode(linkParam, "UTF-8"))
-        }
-
-        try {
-            val res = app.get(url, headers = headers, allowRedirects = false, timeout = 10000L)
-            val location = res.headers["Location"]
-            if (!location.isNullOrEmpty() && location.startsWith("http")) {
-                Log.d(TAG, "resolveHubcdn: redirect to $location")
-                return listOf(location)
-            }
-        } catch (_: Exception) {}
-
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 10000L).document
-            val results = mutableListOf<String>()
-            doc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("hubcdn", ignoreCase = true) &&
-                    !href.contains(mainUrl, ignoreCase = true) &&
-                    href !in results
-                ) {
-                    results.add(href)
-                }
-            }
-            Log.d(TAG, "resolveHubcdn: found ${results.size} link(s)")
-            results
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun resolveMclinks(url: String): List<String> {
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 15000L).document
-            val results = mutableListOf<String>()
-
-            val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")
-            if (metaRefresh != null) {
-                val content = metaRefresh.attr("content")
-                val urlMatch = Regex("""url=(https?://[^"']+)""", RegexOption.IGNORE_CASE)
-                    .find(content)?.groupValues?.get(1)
-                if (urlMatch != null) {
-                    results.add(urlMatch)
-                    Log.d(TAG, "resolveMclinks: meta-refresh to $urlMatch")
-                    return results
-                }
-            }
-
-            doc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("mclinks.xyz", ignoreCase = true) &&
-                    !href.contains(mainUrl, ignoreCase = true) &&
-                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                    href !in results
-                ) {
-                    results.add(href)
-                }
-            }
-
-            doc.select("script").forEach { script ->
-                val jsUrl = Regex("""(?:window\.)?location\s*[=:]\s*["']([^"']+)["']""")
-                    .find(script.data())?.groupValues?.get(1)
-                if (jsUrl != null && jsUrl.startsWith("http")) {
-                    results.add(jsUrl)
-                }
-            }
-
-            Log.d(TAG, "resolveMclinks: found ${results.size} link(s)")
-            results
-        } catch (e: Exception) {
-            Log.w(TAG, "resolveMclinks failed: ${e.message}")
-            emptyList()
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Utility functions
-    // ------------------------------------------------------------------
 
     /**
-     * v20: Validate a download link URL with defensive checks.
+     * Build a per-episode link label with Drive/Instant distinction.
+     * E.g. "720p x264 (Drive)" or "1080p HEVC (Instant)"
      */
+    private fun buildPerEpLinkLabel(headingText: String, anchor: Element): String {
+        val base = buildQualityLabel(headingText)
+        val linkType = detectLinkType(anchor.text().trim(), anchor.attr("href").trim())
+        return if (linkType.isNotBlank()) "$base ($linkType)" else base
+    }
+
+    /**
+     * Build a rich quality label from heading text.
+     * v23: FIXED duplicate labels (was showing "x264 X264").
+     * Now deduplicates extras against the base label.
+     */
+    private fun buildQualityLabel(text: String): String {
+        val base = extractQualityLabel(text)
+        val extras = mutableListOf<String>()
+        val baseUpper = base.uppercase()
+
+        // Extract source platform (AMZN, NF, DSNP etc.)
+        SOURCE_PLATFORM_REGEX.find(text)?.groupValues?.get(1)?.let { platform ->
+            val p = platform.uppercase()
+            if (p !in baseUpper) extras.add(p)
+        }
+
+        // Extract codec (HEVC, x264, 10Bit etc.) — skip if already in base
+        CODEC_REGEX.findAll(text).forEach { match ->
+            val codec = match.groupValues[1].uppercase()
+            if (codec !in baseUpper && codec !in extras) extras.add(codec)
+        }
+
+        // Extract audio metadata (DD5.1, ATMOS, ESub etc.)
+        AUDIO_META_REGEX.findAll(text).forEach { match ->
+            val meta = match.groupValues[1]
+            val normalized = when {
+                meta.equals("ESub", true) || meta.equals("ESubs", true) -> "ESub"
+                meta.equals("Dual Audio", true) -> "Dual Audio"
+                else -> meta.uppercase()
+            }
+            if (normalized !in baseUpper && normalized !in extras) extras.add(normalized)
+        }
+
+        return if (extras.isNotEmpty()) "$base ${extras.joinToString(" ")}" else base
+    }
+
+    private fun extractQualityLabel(text: String): String {
+        return when {
+            text.contains("2160p", ignoreCase = true) || text.contains("4K", ignoreCase = true) -> "4K"
+            text.contains("1080p", ignoreCase = true) && text.contains("HEVC", ignoreCase = true) -> "1080p HEVC"
+            text.contains("1080p", ignoreCase = true) && text.contains("x264", ignoreCase = true) -> "1080p x264"
+            text.contains("1080p", ignoreCase = true) && text.contains("10Bit", ignoreCase = true) -> "1080p 10Bit"
+            text.contains("1080p", ignoreCase = true) && text.contains("WEB-DL", ignoreCase = true) -> "1080p WEB-DL"
+            text.contains("1080p", ignoreCase = true) -> "1080p"
+            text.contains("720p", ignoreCase = true) && text.contains("HEVC", ignoreCase = true) -> "720p HEVC"
+            text.contains("720p", ignoreCase = true) && text.contains("x264", ignoreCase = true) -> "720p x264"
+            text.contains("720p", ignoreCase = true) && text.contains("10Bit", ignoreCase = true) -> "720p 10Bit"
+            text.contains("720p", ignoreCase = true) -> "720p"
+            text.contains("480p", ignoreCase = true) -> "480p"
+            text.contains("300MB", ignoreCase = true) -> "300MB"
+            else -> "HD"
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Helper utilities
+    // ------------------------------------------------------------------
+
     private fun isValidDownloadLink(href: String): Boolean {
         return href.startsWith("http") &&
             !IGNORE_HOST_REGEX.containsMatchIn(href) &&
@@ -1031,58 +847,20 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     /**
-     * v22: Detect link type from anchor text and URL pattern.
-     * Returns "Drive" for hubdrive (GD index) links, "Instant" for hubcdn
-     * (fast redirect) links, or empty string for unknown.
+     * Detect link type from anchor text and URL pattern.
+     * Returns "Drive" for hubdrive links, "Instant" for hubcdn links.
      */
     private fun detectLinkType(anchorText: String, href: String): String {
         val textLower = anchorText.lowercase()
         return when {
-            textLower.equals("drive", true) ||
-                textLower.contains("drive", true) -> "Drive"
-            textLower.equals("instant", true) ||
-                textLower.contains("instant", true) -> "Instant"
+            textLower.equals("drive", true) -> "Drive"
+            textLower.equals("instant", true) -> "Instant"
             href.contains("hubdrive.space", ignoreCase = true) ||
                 href.contains("hubdrive.link", ignoreCase = true) -> "Drive"
             href.contains("hubcdn.org", ignoreCase = true) ||
                 href.contains("hubcdn.sbs", ignoreCase = true) -> "Instant"
             else -> ""
         }
-    }
-
-    private suspend fun addDirectLink(
-        url: String,
-        callback: (ExtractorLink) -> Unit,
-        qualityLabel: String = "",
-        sourceName: String? = null
-    ) {
-        val quality = when {
-            qualityLabel.contains("4K", ignoreCase = true) ||
-                qualityLabel.contains("2160p", ignoreCase = true) -> Qualities.P2160.value
-            qualityLabel.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
-            qualityLabel.contains("720p", ignoreCase = true) -> Qualities.P720.value
-            qualityLabel.contains("480p", ignoreCase = true) -> Qualities.P480.value
-            url.contains("2160p", ignoreCase = true) -> Qualities.P2160.value
-            url.contains("4K", ignoreCase = true) -> Qualities.P2160.value
-            url.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
-            url.contains("720p", ignoreCase = true) -> Qualities.P720.value
-            url.contains("480p", ignoreCase = true) -> Qualities.P480.value
-            else -> Qualities.Unknown.value
-        }
-
-        val displayName = if (qualityLabel.isNotBlank()) qualityLabel else (sourceName ?: "Direct")
-
-        callback(
-            newExtractorLink(
-                sourceName ?: name,
-                displayName,
-                url,
-                INFER_TYPE
-            ) {
-                this.quality = quality
-                this.referer = mainUrl
-            }
-        )
     }
 
     private fun cleanTitle(raw: String): String {
@@ -1122,69 +900,275 @@ class MoviesCounterProvider : MainAPI() {
         return null
     }
 
+    // ------------------------------------------------------------------
+    // loadLinks — resolve URLs to playable streams
+    // ------------------------------------------------------------------
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (data.isBlank()) return false
+
+        // v23: Simple newline-split URL parsing (like KatMovieHD/MkvHub).
+        // Quality labels are encoded in URL fragments (#label=...).
+        // Also handles legacy pipe-delimited formats for backward compat.
+        val entries = data.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .map { line -> parseDataLine(line) }
+            .filterNotNull()
+
+        val urls = entries.map { it.second }
+        if (urls.isEmpty()) return false
+
+        Log.d(TAG, "loadLinks(): resolving ${urls.size} URL(s)")
+        var anySuccess = false
+
+        urls.amap { url ->
+            try {
+                val resolved = resolveRedirectorWithRetry(url)
+
+                if (resolved.isEmpty()) {
+                    if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
+                        val qualityLabel = entries.find { it.second == url }?.first ?: ""
+                        addDirectLink(url, callback, qualityLabel)
+                    }
+                    anySuccess = true
+                } else {
+                    resolved.amap { resolvedUrl ->
+                        try {
+                            if (!loadExtractor(resolvedUrl, mainUrl, subtitleCallback, callback)) {
+                                val qualityLabel = entries.find { it.second == url }?.first ?: ""
+                                addDirectLink(resolvedUrl, callback, qualityLabel)
+                            }
+                            anySuccess = true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Extraction failed for $resolvedUrl: ${e.message}")
+                            addDirectLink(resolvedUrl, callback)
+                            anySuccess = true
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to resolve $url: ${e.message}")
+                try {
+                    if (loadExtractor(url, mainUrl, subtitleCallback, callback)) {
+                        anySuccess = true
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        return anySuccess
+    }
+
     /**
-     * v17/v19: Build rich quality label with audio metadata and source platform.
-     * E.g. "1080p WEB-DL AMZN DD5.1" instead of just "1080p"
+     * Parse a single data line into (qualityLabel, url) pair.
+     * Supports:
+     *   1. URL with #label= fragment (v23 format)
+     *   2. URL|quality pipe format (v22 format)
+     *   3. quality|URL pipe format (v21 format)
+     *   4. Plain URL (no label)
      */
-    private fun buildRichQualityLabel(text: String): String {
-        val base = extractQualityLabel(text)
-        val extras = mutableListOf<String>()
-
-        // v19: Extract source platform (AMZN, NF, DSNP etc.)
-        SOURCE_PLATFORM_REGEX.find(text)?.groupValues?.get(1)?.let { platform ->
-            extras.add(platform.uppercase())
-        }
-
-        // v19: Extract codec (HEVC, x264, 10Bit etc.)
-        CODEC_REGEX.findAll(text).forEach { match ->
-            val codec = match.groupValues[1]
-            if (codec.uppercase() !in extras) {
-                extras.add(codec.uppercase())
+    private fun parseDataLine(line: String): Pair<String, String>? {
+        // Try pipe-delimited first (v21/v22 legacy)
+        val pipeIdx = line.indexOf('|')
+        if (pipeIdx > 0) {
+            val left = line.substring(0, pipeIdx).trim()
+            val right = line.substring(pipeIdx + 1).trim()
+            return when {
+                left.startsWith("http") -> {
+                    val cleanLabel = right
+                        .removePrefix(mainUrl.trimEnd('/') + "/")
+                        .removePrefix(mainUrl + "/").trim()
+                    Pair(cleanLabel.ifBlank { right }, left)
+                }
+                right.startsWith("http") -> {
+                    val cleanLabel = left
+                        .removePrefix(mainUrl.trimEnd('/') + "/")
+                        .removePrefix(mainUrl + "/").trim()
+                    Pair(cleanLabel.ifBlank { left }, right)
+                }
+                else -> null
             }
         }
 
-        // v17: Extract audio metadata (DD5.1, ATMOS, ESub etc.)
-        AUDIO_META_REGEX.findAll(text).forEach { match ->
-            val meta = match.groupValues[1]
-            val normalized = when {
-                meta.equals("ESub", true) -> "ESub"
-                meta.equals("Dual Audio", true) -> "Dual Audio"
-                else -> meta.uppercase()
+        // URL with #label= fragment (v23 format)
+        if (line.startsWith("http")) {
+            val hashIdx = line.indexOf("#label=")
+            if (hashIdx > 0) {
+                val url = line.substring(0, hashIdx)
+                val label = java.net.URLDecoder.decode(
+                    line.substring(hashIdx + 7), "UTF-8"
+                )
+                return Pair(label, url)
             }
-            if (normalized !in extras) {
-                extras.add(normalized)
+            return Pair("", line)
+        }
+
+        return null
+    }
+
+    // ------------------------------------------------------------------
+    // Redirector resolution
+    // ------------------------------------------------------------------
+
+    private suspend fun resolveRedirectorWithRetry(url: String): List<String> {
+        var lastException: Exception? = null
+
+        for (attempt in 0..MAX_RETRIES) {
+            try {
+                return resolveRedirector(url)
+            } catch (e: Exception) {
+                lastException = e
             }
         }
 
-        return if (extras.isNotEmpty()) {
-            // Remove duplicates that overlap with base label
-            val filtered = extras.filterNot { e ->
-                (base.contains("4K") && e == "2160P") ||
-                (base.contains("HEVC") && e == "HEVC") ||
-                (base.contains("X264") && e == "X264") ||
-                (base.contains("10BIT") && e == "10BIT")
+        Log.w(TAG, "All retries exhausted for $url: ${lastException?.message}")
+        return emptyList()
+    }
+
+    private suspend fun resolveRedirector(url: String): List<String> {
+        val isHubcdn = url.contains("hubcdn.org", ignoreCase = true) ||
+            url.contains("hubcdn.sbs", ignoreCase = true)
+        val isMclinks = url.contains("mclinks.xyz", ignoreCase = true)
+
+        // hubdrive / hubcloud — handled by CloudStream's built-in extractors.
+        // Do NOT try to resolve manually — causes crashes from 3-hop chain.
+        val isHubdrive = url.contains("hubdrive.space", ignoreCase = true) ||
+            url.contains("hubdrive.link", ignoreCase = true) ||
+            url.contains("hubcloud.foo", ignoreCase = true) ||
+            url.contains("hubcloud.cx", ignoreCase = true) ||
+            url.contains("hubcloud.fans", ignoreCase = true)
+
+        if (isHubdrive) return emptyList() // let loadExtractor handle it
+        if (!isHubcdn && !isMclinks) return emptyList()
+
+        return try {
+            when {
+                isHubcdn -> resolveHubcdn(url)
+                isMclinks -> resolveMclinks(url)
+                else -> emptyList()
             }
-            if (filtered.isNotEmpty()) "$base ${filtered.joinToString(" ")}" else base
-        } else {
-            base
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveRedirector failed for $url: ${e.message}")
+            emptyList()
         }
     }
 
-    private fun extractQualityLabel(text: String): String {
-        return when {
-            text.contains("2160p", ignoreCase = true) || text.contains("4K", ignoreCase = true) -> "4K"
-            text.contains("1080p", ignoreCase = true) && text.contains("HEVC", ignoreCase = true) -> "1080p HEVC"
-            text.contains("1080p", ignoreCase = true) && text.contains("x264", ignoreCase = true) -> "1080p x264"
-            text.contains("1080p", ignoreCase = true) && text.contains("10Bit", ignoreCase = true) -> "1080p 10Bit"
-            text.contains("1080p", ignoreCase = true) && text.contains("WEB-DL", ignoreCase = true) -> "1080p WEB-DL"
-            text.contains("1080p", ignoreCase = true) -> "1080p"
-            text.contains("720p", ignoreCase = true) && text.contains("HEVC", ignoreCase = true) -> "720p HEVC"
-            text.contains("720p", ignoreCase = true) && text.contains("x264", ignoreCase = true) -> "720p x264"
-            text.contains("720p", ignoreCase = true) && text.contains("10Bit", ignoreCase = true) -> "720p 10Bit"
-            text.contains("720p", ignoreCase = true) -> "720p"
-            text.contains("480p", ignoreCase = true) -> "480p"
-            text.contains("300MB", ignoreCase = true) -> "300MB"
-            else -> "HD"
+    private suspend fun resolveHubcdn(url: String): List<String> {
+        val linkParam = Regex("""[?&]link=(https?://[^&]+)""").find(url)?.groupValues?.get(1)
+        if (linkParam != null) {
+            return listOf(java.net.URLDecoder.decode(linkParam, "UTF-8"))
         }
+
+        try {
+            val res = app.get(url, headers = headers, allowRedirects = false, timeout = 10000L)
+            val location = res.headers["Location"]
+            if (!location.isNullOrEmpty() && location.startsWith("http")) {
+                return listOf(location)
+            }
+        } catch (_: Exception) {}
+
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 10000L).document
+            val results = mutableListOf<String>()
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("hubcdn", ignoreCase = true) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    href !in results
+                ) {
+                    results.add(href)
+                }
+            }
+            results
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun resolveMclinks(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000L).document
+            val results = mutableListOf<String>()
+
+            val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")
+            if (metaRefresh != null) {
+                val content = metaRefresh.attr("content")
+                val urlMatch = Regex("""url=(https?://[^"']+)""", RegexOption.IGNORE_CASE)
+                    .find(content)?.groupValues?.get(1)
+                if (urlMatch != null) {
+                    results.add(urlMatch)
+                    return results
+                }
+            }
+
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("mclinks.xyz", ignoreCase = true) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                    href !in results
+                ) {
+                    results.add(href)
+                }
+            }
+
+            doc.select("script").forEach { script ->
+                val jsUrl = Regex("""(?:window\.)?location\s*[=:]\s*["']([^"']+)["']""")
+                    .find(script.data())?.groupValues?.get(1)
+                if (jsUrl != null && jsUrl.startsWith("http") && jsUrl !in results) {
+                    results.add(jsUrl)
+                }
+            }
+
+            results
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Direct link fallback
+    // ------------------------------------------------------------------
+
+    private suspend fun addDirectLink(
+        url: String,
+        callback: (ExtractorLink) -> Unit,
+        qualityLabel: String = "",
+        sourceName: String? = null
+    ) {
+        val quality = when {
+            qualityLabel.contains("4K", ignoreCase = true) ||
+                qualityLabel.contains("2160p", ignoreCase = true) -> Qualities.P2160.value
+            qualityLabel.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
+            qualityLabel.contains("720p", ignoreCase = true) -> Qualities.P720.value
+            qualityLabel.contains("480p", ignoreCase = true) -> Qualities.P480.value
+            url.contains("2160p", ignoreCase = true) || url.contains("4K", ignoreCase = true) -> Qualities.P2160.value
+            url.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
+            url.contains("720p", ignoreCase = true) -> Qualities.P720.value
+            url.contains("480p", ignoreCase = true) -> Qualities.P480.value
+            else -> Qualities.Unknown.value
+        }
+
+        val displayName = if (qualityLabel.isNotBlank()) qualityLabel else (sourceName ?: "Direct")
+
+        callback(
+            newExtractorLink(
+                sourceName ?: name,
+                displayName,
+                url,
+                INFER_TYPE
+            ) {
+                this.quality = quality
+                this.referer = mainUrl
+            }
+        )
     }
 }
