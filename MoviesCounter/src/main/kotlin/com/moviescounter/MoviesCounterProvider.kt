@@ -198,7 +198,7 @@ class MoviesCounterProvider : MainAPI() {
             val img = anchor.selectFirst("img") ?: return@forEach
             val title = img.attr("alt").trim()
                 .ifBlank { img.attr("title").trim() }
-                .ifBlank { anchor.selectFirst("div.transition-all")?.text()?.trim() }
+                .ifBlank { anchor.selectFirst("div.transition-all")?.text()?.trim().orEmpty() }
                 .ifBlank { return@forEach }
 
             val src = img.attr("src").ifBlank { img.attr("data-src") }
