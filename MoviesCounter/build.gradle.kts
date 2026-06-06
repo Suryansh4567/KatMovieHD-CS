@@ -1,8 +1,8 @@
-version = 30
+version = 31
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v30: CRITICAL FIX — use List<String> generic overload for movie/episode data (fixes JSON double-serialization), fix HUBCDN mainUrl to hubcdn.sbs (was hubcdn.org), fix obsession.buzz as direct video file (not HTML), add Mclinks extractor, fix BuzzServer label check, proper PACK filtering"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v31: RESTORED from v26 working foundation — v27-v30 over-engineering broke both movies and series. Restored v26 extractors (3-arg newExtractorLink, hubcdn.fans), IGNORE_HOST_REGEX with moviescounter, simple isValidDownloadLink, proven Hubdrive selectors. Added Mclinks extractor, PACK URL filtering, more hubcdn/hubcloud domain variants."
     authors = listOf("Suryansh4567")
     status = 1
 

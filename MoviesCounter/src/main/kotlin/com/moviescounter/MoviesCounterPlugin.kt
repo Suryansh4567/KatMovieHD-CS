@@ -8,12 +8,12 @@ class MoviesCounterPlugin : Plugin() {
     override fun load() {
         registerMainAPI(MoviesCounterProvider())
 
-        // Register custom extractors — mainUrl MUST match actual URL domains
+        // Register custom extractors — mainUrl matches actual URL domains
         // so loadExtractor() can route URLs correctly
         registerExtractorAPI(Hubdrive())      // mainUrl = hubdrive.space
         registerExtractorAPI(HubCloud())      // mainUrl = hubcloud.foo
-        registerExtractorAPI(HUBCDN())        // mainUrl = hubcdn.sbs (was hubcdn.org — FIXED)
-        registerExtractorAPI(Mclinks())       // mainUrl = mclinks.xyz (NEW — for loadExtractor routing)
+        registerExtractorAPI(HUBCDN())        // mainUrl = hubcdn.fans
+        registerExtractorAPI(Mclinks())       // mainUrl = mclinks.xyz
         registerExtractorAPI(Hblinks())       // mainUrl = hblinks.dad
         registerExtractorAPI(HdStream4u())    // mainUrl = hdstream4u.com
     }
