@@ -1,8 +1,8 @@
-version = 8
+version = 9
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v8: Fixed missing 4K/pack links, pack quality tiers merged into episodes, all quality variants captured"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v9: Fixed series showing pack links inside episodes — episodes now show only their own quality links, full season packs shown separately and clearly labeled"
     authors = listOf("Suryansh4567")
     status = 1
 
