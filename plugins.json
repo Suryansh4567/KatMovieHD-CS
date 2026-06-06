@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 9,
+        "version": 20,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v9: Fixed series showing pack links inside episodes \u2014 episodes now show only their own quality links, full season packs shown separately and clearly labeled",
-        "fileSize": 34096,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v20: Complete professional overhaul \u2014 per-episode quality links, hubdrive redirector, retry logic, domain auto-fallback, rich quality labels with codec/audio metadata, search pagination, multi-tier poster resolution, defensive parsing",
+        "fileSize": 42676,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-1236967d025ca344a6cc9c6ae3dd819df4c87b36f7c4ad231affed133bbd6fdd",
-        "jarFileSize": 120530,
+        "fileHash": "sha256-b960f98f094d67bdf96fc36a0a25c9f6a275ba9d70e216de7449782fe6db3d54",
+        "jarFileSize": 150675,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-ce404500d0ade671235bab7854f3d2dbd4c5f6780a4074e86580ade12fa491f6"
+        "jarHash": "sha256-add11c0cb643c2a87f7d589e912f3a57bce1f15d2d551f82ac094c1ab534c9fa"
     }
 ]
