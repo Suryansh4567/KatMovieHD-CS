@@ -80,7 +80,7 @@
             "Suryansh4567"
         ],
         "description": "UHDMovies \u2014 Bollywood, Hollywood, Dual Audio, South Indian Hindi Dubbed Movies & Web Series in 480p/720p/1080p/2160p (4K)",
-        "fileSize": 16871,
+        "fileSize": 24118,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -89,9 +89,9 @@
         ],
         "iconUrl": "https://hdmovieplus4u.com/templates/uhdmovies/images/logo.png",
         "apiVersion": 1,
-        "fileHash": "sha256-fff797f62f2c2760232c5d9b8ab311be9dc8da4a3756898e2ec12f4d6ef0e70b",
-        "jarFileSize": 65896,
+        "fileHash": "sha256-ae957fcf911f177cfe465fc86f9dd0b23a421771bcae5e8ea11e0736eab8843f",
+        "jarFileSize": 88859,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/UHDMovies.jar",
-        "jarHash": "sha256-5594c8ac719e7b66584e7b18b3d74bd7fa41c452d0b314651ede1cbd25c85e0e"
+        "jarHash": "sha256-4935e02ebb67708836287e1950cfb306b8715998936323518f25aa95a52ea9ec"
     }
 ]
