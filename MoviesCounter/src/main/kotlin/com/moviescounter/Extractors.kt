@@ -19,9 +19,16 @@ import java.net.URI
  * Based on actual website structure analysis + phisher98 patterns.
  *
  * Chain: hubdrive.space -> hubcloud.foo -> gamerxyt.com -> actual hoster
- * Alt:   hblinks.dad / mclinks.xyz -> hubdrive/hubcloud/hubcdn
- * Alt:   hubcdn.org -> hub.obsession.buzz -> CDN direct
+ * Alt:   mclinks.xyz -> hubdrive/hubcloud/hubcdn
+ * Alt:   hubcdn.sbs/dl/?link=obsession.buzz -> CDN direct
+ * Alt:   hubcdn.sbs/file/{id} -> base64 reurl decode -> CDN
  * Alt:   hdstream4u.com -> VidHidePro extractor
+ *
+ * v30 fixes:
+ * - HUBCDN mainUrl changed from hubcdn.org to hubcdn.sbs (actual domain in URLs)
+ * - HUBCDN obsession.buzz handling: don't try to download 500MB+ video as HTML document
+ * - New Mclinks extractor with mainUrl=mclinks.xyz for proper loadExtractor routing
+ * - BuzzServer label check fixed: "buzz server" (with space) not "buzzserver"
  */
 
 // ======================================================================
@@ -30,6 +37,99 @@ import java.net.URI
 
 class HdStream4u : VidHidePro() {
     override var mainUrl = "https://hdstream4u.com"
+}
+
+// ======================================================================
+// Mclinks — extracts links from mclinks.xyz intermediary pages
+//
+// Actual page structure:
+//   <div class="entry-content">
+//     <p><a href="https://hubcloud.foo/drive/..."><img ...></a></p>
+//     <p><a href="https://hubdrive.space/file/..."><img ...></a></p>
+//   </div>
+// ======================================================================
+
+class Mclinks : ExtractorApi() {
+    override val name = "Mclinks"
+    override var mainUrl = "https://mclinks.xyz"
+    override val requiresReferer = true
+
+    companion object {
+        private const val TAG = "Mclinks"
+        private val LAZY_HUBDRIVE by lazy { Hubdrive() }
+        private val LAZY_HUBCLOUD by lazy { HubCloud() }
+        private val LAZY_HUBCDN by lazy { HUBCDN() }
+
+        private val HEADERS = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Referer" to "https://mclinks.xyz/"
+        )
+    }
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val doc = try {
+            app.get(url, headers = HEADERS, timeout = 15_000L).document
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to fetch $url: ${e.message}")
+            return
+        }
+
+        Log.d(TAG, "Mclinks fetched: $url")
+
+        // Primary selectors for mclinks.xyz pages
+        val selectors = "div.entry-content a[href], div.entry-content p a[href], " +
+                "h3 a[href], h5 a[href], article a[href], main a[href], " +
+                ".post-body a[href], .content a[href]"
+
+        val links = doc.select(selectors).mapNotNull { anchor ->
+            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
+            if (href.isBlank() || !href.startsWith("http")) null
+            else href
+        }.distinct()
+
+        Log.d(TAG, "Mclinks found ${links.size} link(s) on page")
+
+        for (href in links) {
+            val lower = href.lowercase()
+            try {
+                when {
+                    "hubdrive" in lower ->
+                        LAZY_HUBDRIVE.getUrl(href, name, subtitleCallback, callback)
+                    "hubcloud" in lower ->
+                        LAZY_HUBCLOUD.getUrl(href, name, subtitleCallback, callback)
+                    "hubcdn" in lower ->
+                        LAZY_HUBCDN.getUrl(href, name, subtitleCallback, callback)
+                    "obsession.buzz" in lower -> {
+                        // Direct CDN link — don't parse as HTML
+                        callback(newExtractorLink(name, "Direct [CDN]", href, INFER_TYPE) {
+                            this.quality = Qualities.Unknown.value
+                        })
+                    }
+                    "mclinks" in lower -> {
+                        // Skip self-referential mclinks links
+                        continue
+                    }
+                    // Skip obviously non-download links
+                    lower.contains("wordpress.org") || lower.contains("michaelvandenberg") -> continue
+                    else -> {
+                        if (!loadExtractor(href, name, subtitleCallback, callback)) {
+                            callback(newExtractorLink(name, name, href, INFER_TYPE) {
+                                this.quality = Qualities.Unknown.value
+                            })
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Mclinks failed for $href: ${e.message}")
+            }
+        }
+    }
 }
 
 // ======================================================================
@@ -42,9 +142,6 @@ class HdStream4u : VidHidePro() {
 //   <a class="btn btn-primary btn-user btn-success m-1" href="https://hubcloud.foo/tg/go?id=...">
 //     Telegram File
 //   </a>
-//   <button class="btn btn-primary btn-user1" onclick="myDirectDownload()">
-//     Direct/Instant Download
-//   </button>
 // ======================================================================
 
 class Hubdrive : ExtractorApi() {
@@ -97,10 +194,6 @@ class Hubdrive : ExtractorApi() {
 
         if (href.isNullOrBlank()) {
             Log.w(TAG, "No link found on hubdrive page: $url")
-            // Debug: log all links on the page
-            doc.select("a[href]").forEach { a ->
-                Log.d(TAG, "  hubdrive link: ${a.attr("href").take(80)} text='${a.text().take(30)}'")
-            }
             return
         }
 
@@ -126,10 +219,15 @@ class Hubdrive : ExtractorApi() {
 // ======================================================================
 // HubCloud — main download resolver
 //
-// Actual page structure:
-//   1. hubcloud.foo/drive/{id} page has a#download link
-//   2. a#download points to gamerxyt.com/hubcloud.php?host=hubcloud&id=...&token=...
-//   3. gamerxyt.com page has download buttons (FSL, BuzzServer, PixelDrain, etc.)
+// Chain: hubcloud.foo/drive/{id} -> a#download -> gamerxyt.com -> buttons
+//
+// gamerxyt.com page has buttons like:
+//   "Download [FSL Server]"     -> obsession.buzz CDN
+//   "Download [FSLv2 Server]"  -> cdn.fukggl.buzz
+//   "Download [Buzz Server]"   -> bzzhr.co
+//   "Download [PixelServer]"   -> pixel.hubcloud.cx
+//   "Download [PixelServer : 2]" -> pixeldrain.dev
+//   "Download [Server : 10Gbps]" -> pixel.hubcloud.cx
 // ======================================================================
 
 class HubCloud : ExtractorApi() {
@@ -178,14 +276,6 @@ class HubCloud : ExtractorApi() {
 
         if (href.isBlank()) {
             Log.w(TAG, "Empty href resolved from $url")
-            // Debug: log the page content for diagnosis
-            try {
-                val debugDoc = app.get(realUrl, headers = HEADERS, timeout = 15_000L).document
-                Log.d(TAG, "Page title: ${debugDoc.title()}")
-                debugDoc.select("a[href]").forEach { a ->
-                    Log.d(TAG, "  hubcloud link: ${a.attr("href").take(80)} id='${a.id()}' text='${a.text().take(30)}'")
-                }
-            } catch (_: Exception) {}
             return
         }
 
@@ -233,7 +323,7 @@ class HubCloud : ExtractorApi() {
                         ) { this.quality = quality })
                     }
 
-                    "buzzserver" in label -> {
+                    "buzz server" in label || "buzzserver" in label -> {
                         try {
                             val resp = app.get("$link/download", referer = link, allowRedirects = false)
                             val dlink = resp.headers["hx-redirect"]
@@ -242,8 +332,17 @@ class HubCloud : ExtractorApi() {
                                 callback(newExtractorLink(
                                     "$ref [Buzz]", "$ref [Buzz] $labelExtras", dlink, INFER_TYPE
                                 ) { this.quality = quality })
+                            } else {
+                                // If no hx-redirect, try the link directly
+                                callback(newExtractorLink(
+                                    "$ref [Buzz]", "$ref [Buzz] $labelExtras", link, INFER_TYPE
+                                ) { this.quality = quality })
                             }
-                        } catch (_: Exception) {}
+                        } catch (_: Exception) {
+                            callback(newExtractorLink(
+                                "$ref [Buzz]", "$ref [Buzz] $labelExtras", link, INFER_TYPE
+                            ) { this.quality = quality })
+                        }
                     }
 
                     "pixeldra" in label || "pixelserver" in label || "pixel server" in label -> {
@@ -295,7 +394,6 @@ class HubCloud : ExtractorApi() {
         }
     }
 
-    /** Extract quality value (720, 1080, 2160) from card header text */
     private fun extractQualityFromHeader(str: String?): Int {
         return Regex("(\\d{3,4})[pP]")
             .find(str.orEmpty())
@@ -309,7 +407,6 @@ class HubCloud : ExtractorApi() {
         catch (_: Exception) { "" }
     }
 
-    /** Clean header text to extract meaningful metadata tags */
     private fun cleanHeaderTitle(title: String): String {
         val name = title.replace(Regex("\\.[a-zA-Z0-9]{2,4}$"), "")
         val normalized = name
@@ -340,16 +437,19 @@ class HubCloud : ExtractorApi() {
 }
 
 // ======================================================================
-// HUBCDN — resolves hubcdn.org/dl/ and hubcdn.org/file/ URLs
+// HUBCDN — resolves hubcdn.sbs/dl/ and hubcdn.sbs/file/ URLs
+//
+// CRITICAL: mainUrl is hubcdn.sbs (actual domain), NOT hubcdn.org
 //
 // Two patterns:
 //   1. /dl/?link=https://hub.obsession.buzz/{hash}  -> CDN direct
+//      obsession.buzz returns HTTP 200 with content-disposition (VIDEO FILE, not redirect!)
 //   2. /file/{id} -> base64 encoded reurl -> decode -> CDN link
 // ======================================================================
 
 class HUBCDN : ExtractorApi() {
     override val name = "HUBCDN"
-    override var mainUrl = "https://hubcdn.org"
+    override var mainUrl = "https://hubcdn.sbs"  // FIX: was hubcdn.org, actual URLs use hubcdn.sbs
     override val requiresReferer = false
 
     companion object {
@@ -358,7 +458,7 @@ class HUBCDN : ExtractorApi() {
         private val HEADERS = mapOf(
             "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer" to "https://hubcdn.org/"
+            "Referer" to "https://hubcdn.sbs/"
         )
     }
 
@@ -376,9 +476,11 @@ class HUBCDN : ExtractorApi() {
             val decoded = java.net.URLDecoder.decode(linkParam, "UTF-8")
             Log.d(TAG, "HUBCDN ?link= -> $decoded")
 
-            // The link usually points to hub.obsession.buzz — try to follow it
+            // obsession.buzz is a DIRECT VIDEO FILE (HTTP 200, not redirect)
+            // Do NOT try to fetch it as HTML document (it's 500MB+ and would timeout)
+            // Check for redirect first (some URLs might redirect)
             try {
-                val resp = app.get(decoded, headers = HEADERS, allowRedirects = false, timeout = 15_000L)
+                val resp = app.get(decoded, headers = HEADERS, allowRedirects = false, timeout = 10_000L)
                 val location = resp.headers["Location"] ?: resp.headers["location"]
                 if (!location.isNullOrEmpty() && location.startsWith("http")) {
                     Log.d(TAG, "obsession.buzz redirect -> $location")
@@ -389,37 +491,45 @@ class HUBCDN : ExtractorApi() {
                 }
             } catch (_: Exception) {}
 
-            // Try fetching the page
-            try {
-                val doc = app.get(decoded, headers = HEADERS, timeout = 15_000L).document
-                // Look for download link or video source
-                val dlLink = doc.selectFirst("a[href][download]")
-                    ?: doc.selectFirst("a.btn[href*=http]")
-                    ?: doc.selectFirst("a#download[href]")
-                    ?: doc.selectFirst("a#vd[href]")
-                    ?: doc.selectFirst("video source[src]")
-                val href = dlLink?.attr("href")?.trim() ?: dlLink?.attr("src")?.trim()
-                if (!href.isNullOrEmpty() && href.startsWith("http")) {
-                    Log.d(TAG, "obsession.buzz page -> $href")
-                    callback(newExtractorLink(name, name, href, INFER_TYPE) {
-                        this.quality = Qualities.Unknown.value
-                    })
-                    return
-                }
-            } catch (_: Exception) {}
-
-            // Last resort for ?link=: use the decoded URL as direct link
-            callback(newExtractorLink(name, name, decoded, INFER_TYPE) {
+            // It's a direct video file — use URL as-is
+            callback(newExtractorLink(name, "Direct [CDN]", decoded, INFER_TYPE) {
                 this.quality = Qualities.Unknown.value
             })
             return
         }
 
-        // Strategy 2: Fetch page and decode reurl from script (/file/ URLs)
+        // Strategy 2: Fetch hubcdn.sbs page and look for a#vd link
         try {
             val doc = app.get(url, headers = HEADERS, timeout = 10_000L).document
 
-            // Try reurl variable in script
+            // hubcdn.sbs page has: <a id="vd" href='https://hub.obsession.buzz/...'>
+            val vdLink = doc.selectFirst("a#vd")?.attr("href")?.trim()
+            if (!vdLink.isNullOrEmpty() && vdLink.startsWith("http")) {
+                Log.d(TAG, "HUBCDN a#vd -> $vdLink")
+                // obsession.buzz is a direct video file
+                callback(newExtractorLink(name, "Direct [CDN]", vdLink, INFER_TYPE) {
+                    this.quality = Qualities.Unknown.value
+                })
+                return
+            }
+
+            // Also check for a[download] or a#download
+            val dlLink = doc.selectFirst("a[href][download]")
+                ?: doc.selectFirst("a#download[href]")
+            val dlHref = dlLink?.attr("href")?.trim()
+            if (!dlHref.isNullOrEmpty() && dlHref.startsWith("http")) {
+                Log.d(TAG, "HUBCDN download link -> $dlHref")
+                callback(newExtractorLink(name, name, dlHref, INFER_TYPE) {
+                    this.quality = Qualities.Unknown.value
+                })
+                return
+            }
+        } catch (_: Exception) {}
+
+        // Strategy 3: Try reurl variable in script (/file/ URLs)
+        try {
+            val doc = app.get(url, headers = HEADERS, timeout = 10_000L).document
+
             val scriptText = doc.selectFirst("script:containsData(var reurl)")?.data()
                 ?: doc.selectFirst("script:containsData(reurl)")?.data()
 
@@ -437,39 +547,22 @@ class HUBCDN : ExtractorApi() {
                 })
                 return
             }
+        } catch (_: Exception) {}
 
-            // Strategy 3: Try ?link= in page URL after potential redirects
-            val pageLinkParam = doc.selectFirst("a[href*=link=]")?.attr("href")
-            if (!pageLinkParam.isNullOrEmpty()) {
-                val resolved = if (pageLinkParam.startsWith("http")) pageLinkParam
-                else "${getBaseUrl(url)}/$pageLinkParam"
-                getUrl(resolved, referer, subtitleCallback, callback)
+        // Strategy 4: Try redirect header
+        try {
+            val res = app.get(url, allowRedirects = false, headers = HEADERS, timeout = 10_000L)
+            val location = res.headers["Location"]
+            if (!location.isNullOrEmpty() && location.startsWith("http")) {
+                Log.d(TAG, "HUBCDN redirect -> $location")
+                callback(newExtractorLink(name, name, location, INFER_TYPE) {
+                    this.quality = Qualities.Unknown.value
+                })
                 return
             }
+        } catch (_: Exception) {}
 
-            // Strategy 4: Try redirect header
-            try {
-                val res = app.get(url, allowRedirects = false, headers = HEADERS, timeout = 10_000L)
-                val location = res.headers["Location"]
-                if (!location.isNullOrEmpty() && location.startsWith("http")) {
-                    Log.d(TAG, "HUBCDN redirect -> $location")
-                    callback(newExtractorLink(name, name, location, INFER_TYPE) {
-                        this.quality = Qualities.Unknown.value
-                    })
-                    return
-                }
-            } catch (_: Exception) {}
-
-            Log.w(TAG, "HUBCDN: no link found for $url")
-
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to resolve $url: ${e.message}")
-        }
-    }
-
-    private fun getBaseUrl(url: String): String {
-        return try { URI(url).let { "${it.scheme}://${it.host}" } }
-        catch (_: Exception) { "" }
+        Log.w(TAG, "HUBCDN: no link found for $url")
     }
 }
 
@@ -479,7 +572,7 @@ class HUBCDN : ExtractorApi() {
 //
 // Actual mclinks.xyz page structure:
 //   <div class="entry-content">
-//     <p><a href="https://hubcdn.org/file/..."><img ... alt=""></a></p>
+//     <p><a href="https://hubcdn.sbs/file/..."><img ... alt=""></a></p>
 //     <hr>
 //     <p><a href="https://hubcloud.foo/drive/..."><img ... alt=""></a></p>
 //     <hr>
@@ -501,7 +594,7 @@ class Hblinks : ExtractorApi() {
         private val HEADERS = mapOf(
             "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
             "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer" to "https://mclinks.xyz/"
+            "Referer" to "https://hblinks.dad/"
         )
     }
 
@@ -518,9 +611,9 @@ class Hblinks : ExtractorApi() {
             return
         }
 
-        Log.d(TAG, "Hblinks fetched: $url, title: ${doc.title()}")
+        Log.d(TAG, "Hblinks fetched: $url")
 
-        // Primary selectors for mclinks.xyz pages (image-button links)
+        // Primary selectors for intermediary pages
         val selectors = "div.entry-content a[href], div.entry-content p a[href], " +
                 "h3 a[href], h5 a[href], article a[href], main a[href], " +
                 ".post-body a[href], .content a[href]"
@@ -533,13 +626,6 @@ class Hblinks : ExtractorApi() {
 
         Log.d(TAG, "Hblinks found ${links.size} link(s) on page")
 
-        if (links.isEmpty()) {
-            // Debug: log all links
-            doc.select("a[href]").forEach { a ->
-                Log.d(TAG, "  hblinks all: ${a.attr("href").take(80)}")
-            }
-        }
-
         for (href in links) {
             val lower = href.lowercase()
             try {
@@ -551,18 +637,15 @@ class Hblinks : ExtractorApi() {
                     "hubcdn" in lower ->
                         LAZY_HUBCDN.getUrl(href, name, subtitleCallback, callback)
                     "obsession.buzz" in lower -> {
-                        // Try to resolve obsession.buzz URL
-                        try {
-                            val resp = app.get(href, headers = HEADERS, allowRedirects = false, timeout = 15_000L)
-                            val location = resp.headers["Location"] ?: resp.headers["location"]
-                            if (!location.isNullOrEmpty() && location.startsWith("http")) {
-                                resolveAndLoadLink(location, subtitleCallback, callback)
-                            }
-                        } catch (_: Exception) {}
+                        // Direct CDN link — don't parse as HTML
+                        callback(newExtractorLink(name, "Direct [CDN]", href, INFER_TYPE) {
+                            this.quality = Qualities.Unknown.value
+                        })
                     }
+                    // Skip obviously non-download links
+                    lower.contains("wordpress.org") || lower.contains("michaelvandenberg") -> continue
                     else -> {
                         if (!loadExtractor(href, name, subtitleCallback, callback)) {
-                            // Try as direct link
                             callback(newExtractorLink(name, name, href, INFER_TYPE) {
                                 this.quality = Qualities.Unknown.value
                             })
@@ -572,22 +655,6 @@ class Hblinks : ExtractorApi() {
             } catch (e: Exception) {
                 Log.w(TAG, "Hblinks failed for $href: ${e.message}")
             }
-        }
-    }
-
-    private suspend fun resolveAndLoadLink(
-        url: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        val lower = url.lowercase()
-        when {
-            "hubdrive" in lower -> LAZY_HUBDRIVE.getUrl(url, name, subtitleCallback, callback)
-            "hubcloud" in lower -> LAZY_HUBCLOUD.getUrl(url, name, subtitleCallback, callback)
-            "hubcdn" in lower -> LAZY_HUBCDN.getUrl(url, name, subtitleCallback, callback)
-            else -> callback(newExtractorLink(name, name, url, INFER_TYPE) {
-                this.quality = Qualities.Unknown.value
-            })
         }
     }
 }

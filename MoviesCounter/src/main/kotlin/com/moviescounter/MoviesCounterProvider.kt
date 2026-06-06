@@ -30,24 +30,23 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter CloudStream Provider — v29
+ * MoviesCounter CloudStream Provider — v30
  *
- * Complete rewrite based on actual website HTML structure analysis.
- * Tested chain: MoviesCounter → hubdrive.space → hubcloud.foo → gamerxyt.com → download
+ * Chain: MoviesCounter → mclinks.xyz/hubdrive.space/hubcloud.foo → hubcloud.foo → gamerxyt.com → download
+ * Alt:   hubcdn.sbs/dl/?link=obsession.buzz → direct video file
+ * Alt:   hdstream4u.com → VidHidePro
  *
- * Key fixes from v28:
- * - Explicit JSON serialization for movie/episode data (no API version dependency)
- * - hubcdn.org domain handling (not hubcdn.fans/sbs)
- * - mclinks.xyz: proper div.entry-content a[href] selectors
- * - hubdrive.space: prioritize HubCloud Server link (a.btn-success1)
- * - hub.obsession.buzz resolution chain
- * - PACK link filtering via URL pattern (/packs/) AND text patterns
- * - Proper referer headers on all extractor requests
- * - Manual JSON fallback parsing in loadLinks()
+ * Key fixes from v29:
+ * - Use List<String> for movie/episode data (CloudStream generic overload handles serialization)
+ * - Fix HUBCDN mainUrl from hubcdn.org to hubcdn.sbs (actual domain in URLs)
+ * - Fix HUBCDN obsession.buzz handling (direct video file, not HTML page)
+ * - Add Mclinks extractor with correct mainUrl for loadExtractor routing
+ * - Fix BuzzServer label check ("buzz server" with space, not "buzzserver")
+ * - Fix resolveObsessionBuzz (HTTP 200 direct file, not redirect)
+ * - Proper PACK link filtering on both URL and text
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -57,8 +56,6 @@ class MoviesCounterProvider : MainAPI() {
     override var lang = "hi"
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    private val mapper = jacksonObjectMapper()
 
     companion object {
         private const val TAG = "MoviesCounter"
@@ -122,7 +119,8 @@ class MoviesCounterProvider : MainAPI() {
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|\.zip|""" +
                     """\.css|\.js|/feed/|/wp-|""" +
                     """doubleclick|popads|propeller|profitablecpm|""" +
-                    """adsboosters|admaven|winexch|a-ads|tinyurl|hdhub4u|inventoryidea""" +
+                    """adsboosters|admaven|winexch|a-ads|tinyurl|hdhub4u|inventoryidea|""" +
+                    """bonuscaf|snvhost|llvpn|adsboosters""" +
                     """)"""
         )
 
@@ -130,6 +128,7 @@ class MoviesCounterProvider : MainAPI() {
         private val hubcloud by lazy { HubCloud() }
         private val hubcdn by lazy { HUBCDN() }
         private val hblinks by lazy { Hblinks() }
+        private val mclinks by lazy { Mclinks() }
         private val hdstream4u by lazy { HdStream4u() }
     }
 
@@ -331,19 +330,12 @@ class MoviesCounterProvider : MainAPI() {
 
         Log.d(TAG, "title='$title' isSeries=$isSeries season=$seasonNum")
 
-        // Debug: log all headings and their links
-        postBody.select("h2, h3, h4, h5").forEach { h ->
-            val links = h.select("a[href]").map { it.attr("href").take(80) }
-            Log.d(TAG, "  ${h.tagName()}: '${h.text().take(80)}' links=${links.size}")
-        }
-
-        // Debug: log all external links
+        // Collect ALL external download links for fallback
         val allExternalLinks = postBody.select("a[href]")
             .map { it.attr("href").trim() }
             .filter { it.startsWith("http") && !IGNORE_HOST_REGEX.containsMatchIn(it) && !it.contains(mainUrl, true) }
             .distinct()
         Log.d(TAG, "Total external links in container: ${allExternalLinks.size}")
-        allExternalLinks.forEach { Log.d(TAG, "  EXT: $it") }
 
         if (isSeries) {
             val episodes = buildSeriesEpisodes(postBody, seasonNum)
@@ -354,8 +346,7 @@ class MoviesCounterProvider : MainAPI() {
                 val nonPackLinks = allExternalLinks.filter { !isPackUrl(it) }
                 if (nonPackLinks.isNotEmpty()) {
                     Log.d(TAG, "SUPER-FALLBACK: ${nonPackLinks.size} links -> Episode 1")
-                    val dataJson = mapper.writeValueAsString(nonPackLinks)
-                    listOf(newEpisode(dataJson) {
+                    listOf(newEpisode(nonPackLinks) {
                         name = "Episode 1"; season = seasonNum; episode = 1
                     })
                 } else emptyList()
@@ -384,11 +375,9 @@ class MoviesCounterProvider : MainAPI() {
 
             Log.d(TAG, "Movie: ${urlList.size} total URL(s) for playback")
 
-            // Explicit JSON serialization — no dependency on builder overloads
-            val dataJson = mapper.writeValueAsString(urlList)
-            Log.d(TAG, "Movie data JSON: ${dataJson.take(200)}")
-
-            return newMovieLoadResponse(title, url, TvType.Movie, dataJson) {
+            // Use List<String> generic overload — CloudStream handles serialization via toJson()
+            // This avoids any JSON double-serialization or fixUrl issues
+            return newMovieLoadResponse(title, url, TvType.Movie, urlList) {
                 this.posterUrl = posterUrl; this.plot = plot; this.year = year
                 this.tags = tags.ifEmpty { null }; this.score = score
                 imdbUrl?.let { addImdbUrl(it) }
@@ -497,16 +486,6 @@ class MoviesCounterProvider : MainAPI() {
         return emptyList()
     }
 
-    /**
-     * Pass 1: Element-by-element traversal of the container.
-     * Matches the actual HTML structure:
-     *   <h4><strong>EPiSODE 1</strong></h4>         <- episode header (no links)
-     *   <h4>720p - <a href="hubdrive">Drive</a>  <a href="hubcdn">Instant</a></h4>
-     *   <h4>1080p - <a href="hubdrive">Drive</a>  <a href="hubcdn">Instant</a></h4>
-     *   <hr>
-     *   <h4><strong>EPiSODE 2</strong></h4>
-     *   ...
-     */
     private fun parseEpisodesElementTraversal(
         container: Element, defaultSeason: Int, hasSingleEpSection: Boolean
     ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
@@ -515,7 +494,6 @@ class MoviesCounterProvider : MainAPI() {
         var currentEpisode: Int? = null
         var pastSingleEpisodeSection = false
 
-        // Select all relevant elements in document order
         val elements = container.select("h2, h3, h4, h5, h6")
 
         for (element in elements) {
@@ -587,10 +565,6 @@ class MoviesCounterProvider : MainAPI() {
         return episodeMap
     }
 
-    /**
-     * Pass 2: Heading + nextSibling traversal.
-     * For when EPiSODE headers and quality links are separate sibling elements.
-     */
     private fun parseEpisodesNextSibling(
         container: Element, defaultSeason: Int
     ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
@@ -606,7 +580,6 @@ class MoviesCounterProvider : MainAPI() {
             detectSeasonNumber(text)?.let { currentSeason = it }
 
             val links = mutableListOf<String>()
-            // Links within the heading itself
             heading.select("a[href]").forEach { a ->
                 val h = a.attr("href").trim()
                 if (isValidDownloadLink(h) && !isPackUrl(h) && h !in links) links.add(h)
@@ -644,9 +617,9 @@ class MoviesCounterProvider : MainAPI() {
             .map { (key, urls) ->
                 val (season, ep) = key
                 val distinctUrls = urls.distinct()
-                // Explicit JSON serialization — bypasses fixUrl() corruption
-                val dataJson = mapper.writeValueAsString(distinctUrls)
-                newEpisode(dataJson) {
+                // Use List<String> generic overload — CloudStream serializes via toJson()
+                // This avoids fixUrl() corruption and JSON double-serialization
+                newEpisode(distinctUrls) {
                     name = "Episode $ep"; this.season = season; this.episode = ep
                 }
             }
@@ -757,7 +730,7 @@ class MoviesCounterProvider : MainAPI() {
 
         if (data.isBlank()) { Log.w(TAG, "loadLinks: data is blank!"); return false }
 
-        // Try parsing as JSON List<String>
+        // Try parsing as JSON List<String> (CloudStream serializes List<String> via toJson())
         val linksList = tryParseJson<List<String>>(data)
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() && it.startsWith("http") }
@@ -771,7 +744,6 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         // Fallback: try to parse data manually
-        // Handle cases like: ["url1","url2"] or [url1, url2] or just url1\nurl2
         val manualLinks = data
             .removeSurrounding("[", "]")
             .split(Regex(""",\s*"""))
@@ -800,27 +772,34 @@ class MoviesCounterProvider : MainAPI() {
         try {
             Log.d(TAG, "resolveAndLoad: $url")
             when {
+                // mclinks.xyz — intermediary page that links to hubdrive/hubcloud/hubcdn
+                url.contains("mclinks", true) ->
+                    mclinks.getUrl(url, name, subtitleCallback, callback)
+                // hubdrive.space — resolves to hubcloud/hubcdn
                 url.contains("hubdrive", true) ->
                     hubdrive.getUrl(url, name, subtitleCallback, callback)
+                // hubcloud.foo — main download resolver
                 url.contains("hubcloud", true) ->
                     hubcloud.getUrl(url, name, subtitleCallback, callback)
+                // hubcdn.sbs — redirect to obsession.buzz CDN
                 url.contains("hubcdn", true) ->
                     hubcdn.getUrl(url, name, subtitleCallback, callback)
-                url.contains("hblinks", true) || url.contains("mclinks", true) ->
+                // hblinks.dad — aggregator
+                url.contains("hblinks", true) ->
                     hblinks.getUrl(url, name, subtitleCallback, callback)
+                // hdstream4u.com — VidHidePro
                 url.contains("hdstream4u", true) ->
                     hdstream4u.getUrl(url, name, subtitleCallback, callback)
-                url.contains("hubstream", true) ->
-                    loadExtractor(url, mainUrl, subtitleCallback, callback)
-                url.contains("gadgetsweb", true) ->
-                    hblinks.getUrl(url, name, subtitleCallback, callback)
+                // obsession.buzz — direct CDN link (video file)
                 url.contains("obsession.buzz", true) ->
                     resolveObsessionBuzz(url, subtitleCallback, callback)
+                // WordPress redirect
                 url.contains("?id=", true) -> {
                     val resolved = resolveWordPressRedirect(url)
                     if (resolved != null) resolveAndLoad(resolved, subtitleCallback, callback)
                     else loadExtractor(url, mainUrl, subtitleCallback, callback)
                 }
+                // Default: try loadExtractor, then direct link
                 else -> {
                     if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
                         addDirectLink(url, callback)
@@ -833,76 +812,73 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     /**
-     * Resolve hub.obsession.buzz URLs — these are CDN redirect pages.
-     * Try following the redirect first, then try scraping the page.
+     * Resolve hub.obsession.buzz URLs — these are direct CDN video files.
+     * They return HTTP 200 with content-disposition attachment header.
+     * Do NOT try to parse as HTML (it's a 500MB+ video file).
      */
     private suspend fun resolveObsessionBuzz(
         url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit
     ) {
-        Log.d(TAG, "Resolving obsession.buzz: $url")
         try {
-            // Try following the redirect (HTTP 302/301)
-            val resp = app.get(url, headers = headers, allowRedirects = false, timeout = 15_000L)
+            // First try: check if it's a redirect (some obsession.buzz URLs redirect)
+            val resp = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "https://hubcdn.sbs/"
+            ), allowRedirects = false, timeout = 10_000L)
+
             val location = resp.headers["Location"] ?: resp.headers["location"]
             if (!location.isNullOrEmpty() && location.startsWith("http")) {
                 Log.d(TAG, "obsession.buzz redirect -> $location")
                 resolveAndLoad(location, subtitleCallback, callback)
                 return
             }
-        } catch (_: Exception) {}
 
-        // Try fetching the page and looking for links
-        try {
-            val doc = app.get(url, headers = headers, timeout = 15_000L).document
-            val downloadLink = doc.selectFirst("a[href*=hubcdn], a[href*=hubcloud], a[href*=hubdrive], a[href*=gamerxyt], a#download")
-                ?: doc.selectFirst("a[href][download]")
-                ?: doc.selectFirst("a.btn[href]")
-
-            if (downloadLink != null) {
-                val href = downloadLink.attr("href").trim()
-                if (href.startsWith("http")) {
-                    Log.d(TAG, "obsession.buzz page link -> $href")
-                    resolveAndLoad(href, subtitleCallback, callback)
-                    return
-                }
+            // It's a direct video file (HTTP 200) — use as-is
+            // Extract quality from URL if possible
+            val quality = when {
+                url.contains("2160p", true) || url.contains("4K", true) -> Qualities.P2160.value
+                url.contains("1080p", true) -> Qualities.P1080.value
+                url.contains("720p", true) -> Qualities.P720.value
+                url.contains("480p", true) -> Qualities.P480.value
+                else -> Qualities.Unknown.value
             }
-
-            // Try to find video source in the page
-            val videoSrc = doc.selectFirst("video source[src]")?.attr("src")
-                ?: doc.selectFirst("source[src*=http]")?.attr("src")
-            if (!videoSrc.isNullOrEmpty() && videoSrc.startsWith("http")) {
-                Log.d(TAG, "obsession.buzz video source -> $videoSrc")
-                addDirectLink(videoSrc, callback)
-                return
-            }
-        } catch (_: Exception) {}
-
-        // Last resort: try as direct link
-        addDirectLink(url, callback)
+            callback(newExtractorLink("MoviesCounter", "Direct [CDN]", url, INFER_TYPE) {
+                this.quality = quality
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveObsessionBuzz failed: ${e.message}")
+            // Last resort: add as direct link
+            callback(newExtractorLink("MoviesCounter", "Direct [CDN]", url, INFER_TYPE) {
+                this.quality = Qualities.Unknown.value
+            })
+        }
     }
 
     private suspend fun resolveWordPressRedirect(url: String): String? {
         return try {
-            val doc = app.get(url, headers = headers, timeout = 15_000L).document
-            doc.select("a[href*=hubdrive], a[href*=hubcloud], a[href*=hubcdn], a[href*=mclinks], a[href*=gadgetsweb], a[href*=obsession.buzz]")
-                .firstOrNull()?.attr("href")?.trim()?.let { if (it.startsWith("http")) it else null }
+            val doc = app.get(url, headers = headers, timeout = 10_000L).document
+            val downloadDomains = listOf("hubdrive", "hubcloud", "hubcdn", "mclinks", "hblinks", "hdstream4u")
+            doc.select("a[href]").forEach { a ->
+                val href = a.attr("href").trim()
+                if (href.startsWith("http") && downloadDomains.any { href.contains(it, true) }) {
+                    return href
+                }
+            }
+            null
         } catch (_: Exception) { null }
     }
 
-    private suspend fun addDirectLink(url: String, callback: (ExtractorLink) -> Unit, qualityLabel: String = "") {
+    private fun addDirectLink(url: String, callback: (ExtractorLink) -> Unit, qualityLabel: String = "") {
         val quality = when {
-            qualityLabel.contains("4K", true) || qualityLabel.contains("2160p", true) -> Qualities.P2160.value
-            qualityLabel.contains("1080p", true) -> Qualities.P1080.value
-            qualityLabel.contains("720p", true) -> Qualities.P720.value
-            qualityLabel.contains("480p", true) -> Qualities.P480.value
             url.contains("2160p", true) || url.contains("4K", true) -> Qualities.P2160.value
             url.contains("1080p", true) -> Qualities.P1080.value
             url.contains("720p", true) -> Qualities.P720.value
             url.contains("480p", true) -> Qualities.P480.value
             else -> Qualities.Unknown.value
         }
-        callback(newExtractorLink(name, qualityLabel.ifBlank { "Direct" }, url, INFER_TYPE) {
-            this.quality = quality; this.referer = mainUrl
+        val label = if (qualityLabel.isNotBlank()) qualityLabel else "Direct"
+        callback(newExtractorLink("MoviesCounter", label, url, INFER_TYPE) {
+            this.quality = quality
         })
     }
 }

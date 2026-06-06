@@ -1,8 +1,8 @@
-version = 29
+version = 30
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v29: Explicit JSON serialization, hubcdn.org domain, proper extractor headers, PACK URL filtering, obsession.buzz resolution — 3-pass series parsing + PatternB + super-fallback, two-tier link validation, fixed IGNORE_HOST_REGEX (# removed), gadgetsweb/hubstream/obsession routing, extensive debug logging"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v30: CRITICAL FIX — use List<String> generic overload for movie/episode data (fixes JSON double-serialization), fix HUBCDN mainUrl to hubcdn.sbs (was hubcdn.org), fix obsession.buzz as direct video file (not HTML), add Mclinks extractor, fix BuzzServer label check, proper PACK filtering"
     authors = listOf("Suryansh4567")
     status = 1
 
