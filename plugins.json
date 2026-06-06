@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 29,
+        "version": 30,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v29: Explicit JSON serialization, hubcdn.org domain, proper extractor headers, PACK URL filtering, obsession.buzz resolution \u2014 3-pass series parsing + PatternB + super-fallback, two-tier link validation, fixed IGNORE_HOST_REGEX (# removed), gadgetsweb/hubstream/obsession routing, extensive debug logging",
-        "fileSize": 74534,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v30: CRITICAL FIX \u2014 use List<String> generic overload for movie/episode data (fixes JSON double-serialization), fix HUBCDN mainUrl to hubcdn.sbs (was hubcdn.org), fix obsession.buzz as direct video file (not HTML), add Mclinks extractor, fix BuzzServer label check, proper PACK filtering",
+        "fileSize": 76209,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-309f4fd8e2d70fe3023081cec71a793a8e34e6108d3108d6aafea08f1b28ba37",
-        "jarFileSize": 308437,
+        "fileHash": "sha256-4561c154e0bc525884de455ede2848d2d9188f54d6bce86ccce5573026e3fa6e",
+        "jarFileSize": 344459,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-37ddc08fc7b8e8fe9ec56a8a7f4a70b68be5e2b5911a51511ba9b13d5662d494"
+        "jarHash": "sha256-7f2c6ef2f6e5cf5f398fde96f8983685d51f8b4f7a7ed2fb687ee028e167b8c0"
     }
 ]
