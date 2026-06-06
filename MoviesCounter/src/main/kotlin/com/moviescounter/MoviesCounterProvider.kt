@@ -213,7 +213,7 @@ class MoviesCounterProvider : MainAPI() {
      */
     private suspend fun fetchWithFallback(
         url: String,
-        timeout: Int = 30
+        timeout: Long = 30_000L
     ): org.jsoup.nodes.Document {
         try {
             return app.get(url, headers = headers, timeout = timeout).document
@@ -882,7 +882,7 @@ class MoviesCounterProvider : MainAPI() {
      */
     private suspend fun resolveHubdrive(url: String): List<String> {
         return try {
-            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val doc = app.get(url, headers = headers, timeout = 15000L).document
             val results = mutableListOf<String>()
 
             // Strategy 1: Direct hubcloud.foo/drive links on the page
@@ -946,7 +946,7 @@ class MoviesCounterProvider : MainAPI() {
      */
     private suspend fun resolveHubcloud(url: String): List<String> {
         return try {
-            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val doc = app.get(url, headers = headers, timeout = 15000L).document
             val results = mutableListOf<String>()
 
             // Extract gamerxyt intermediary links
@@ -986,7 +986,7 @@ class MoviesCounterProvider : MainAPI() {
      */
     private suspend fun resolveGamerxyt(url: String): List<String> {
         return try {
-            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val doc = app.get(url, headers = headers, timeout = 15000L).document
             val results = mutableListOf<String>()
 
             doc.select("a[href]").forEach { anchor ->
@@ -1016,7 +1016,7 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         try {
-            val res = app.get(url, headers = headers, allowRedirects = false, timeout = 10000)
+            val res = app.get(url, headers = headers, allowRedirects = false, timeout = 10000L)
             val location = res.headers["Location"]
             if (!location.isNullOrEmpty() && location.startsWith("http")) {
                 Log.d(TAG, "resolveHubcdn: redirect to $location")
@@ -1025,7 +1025,7 @@ class MoviesCounterProvider : MainAPI() {
         } catch (_: Exception) {}
 
         return try {
-            val doc = app.get(url, headers = headers, timeout = 10000).document
+            val doc = app.get(url, headers = headers, timeout = 10000L).document
             val results = mutableListOf<String>()
             doc.select("a[href]").forEach { anchor ->
                 val href = anchor.attr("href").trim()
@@ -1046,7 +1046,7 @@ class MoviesCounterProvider : MainAPI() {
 
     private suspend fun resolveMclinks(url: String): List<String> {
         return try {
-            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val doc = app.get(url, headers = headers, timeout = 15000L).document
             val results = mutableListOf<String>()
 
             val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")
