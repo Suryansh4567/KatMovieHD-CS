@@ -959,7 +959,6 @@ class MoviesCounterProvider : MainAPI() {
             val headingText = heading.text().trim()
 
             if (EPISODE_HEADER_REGEX.containsMatchIn(headingText)) return@forEach
-            if (PACK_REGEX.containsMatchIn(headingText)) return@forEach
             if (SAMPLE_REGEX.containsMatchIn(headingText)) return@forEach
             if (TORRENT_REGEX.containsMatchIn(headingText)) return@forEach
 
@@ -993,19 +992,19 @@ class MoviesCounterProvider : MainAPI() {
 
         if (allCandidates.isEmpty()) return emptyList()
 
-        // Pass 1: Strict — only URLs matching our known host whitelist
-        val strict = allCandidates.filter { (_, url) ->
+        // Return ALL candidates, prioritizing known hosts first.
+        // NEVER drop links just because their host isn't in our whitelist —
+        // new hosts appear frequently and dropping them means missing
+        // quality variants (e.g., 4K on a new mirror).
+        val known = allCandidates.filter { (_, url) ->
             KNOWN_HOST_REGEX.containsMatchIn(url)
         }
-
-        if (strict.isNotEmpty()) {
-            Log.d(TAG, "collectAllDownloadLinks(): ${strict.size} strict-match links")
-            return strict
+        val unknown = allCandidates.filter { (_, url) ->
+            !KNOWN_HOST_REGEX.containsMatchIn(url)
         }
-
-        // Pass 2: Permissive — any URL not on the blacklist
-        Log.d(TAG, "collectAllDownloadLinks(): 0 strict, ${allCandidates.size} permissive links")
-        return allCandidates
+        val result = known + unknown
+        Log.d(TAG, "collectAllDownloadLinks(): ${known.size} known + ${unknown.size} other = ${result.size} total")
+        return result
     }
 
     // ------------------------------------------------------------------
@@ -1051,6 +1050,10 @@ class MoviesCounterProvider : MainAPI() {
         var currentEpisode: Int? = null
         var pastPackSection = false
 
+        // Collect pack/quality-tier links from the "DOWNLOAD LINKS" section
+        // These are full-season packs (e.g., 4K SDR PACK) that apply to ALL episodes
+        val packLinks = mutableListOf<Pair<String, String>>()
+
         val downloadElements = container.select("h2, h3, h4, hr, p")
 
         for (element in downloadElements) {
@@ -1067,13 +1070,31 @@ class MoviesCounterProvider : MainAPI() {
                 continue
             }
 
+            // Collect pack/quality-tier links from BEFORE the Single Episode section
+            if (!pastPackSection) {
+                element.select("a[href]").forEach { anchor ->
+                    val href = anchor.attr("href").trim()
+                    if (href.startsWith("http") &&
+                        !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                        !href.contains(mainUrl, ignoreCase = true) &&
+                        !SAMPLE_REGEX.containsMatchIn(text) &&
+                        !TORRENT_REGEX.containsMatchIn(text)
+                    ) {
+                        val qualityLabel = extractQualityLabelWithSize(text)
+                        if (packLinks.none { it.second == href }) {
+                            packLinks.add(Pair(qualityLabel, href))
+                        }
+                    }
+                }
+                continue
+            }
+
             val epMatch = EPISODE_HEADER_REGEX.find(text)
             if (epMatch != null && element.select("a[href]").isEmpty()) {
                 val epNum = (epMatch.groupValues[1].ifBlank { epMatch.groupValues[2] })
                     .toIntOrNull()
                 if (epNum != null) {
                     currentEpisode = epNum
-                    pastPackSection = true
                     SEASON_REGEX.find(text)?.let { m ->
                         (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
                             ?.let { currentSeason = it }
@@ -1082,8 +1103,6 @@ class MoviesCounterProvider : MainAPI() {
                 }
             }
 
-            if (!pastPackSection) continue
-
             if (currentEpisode != null) {
                 val qualityLabel = extractQualityLabelWithSize(text)
 
@@ -1091,8 +1110,7 @@ class MoviesCounterProvider : MainAPI() {
                     val href = anchor.attr("href").trim()
                     if (href.startsWith("http") &&
                         !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                        !href.contains(mainUrl, ignoreCase = true) &&
-                        !PACK_REGEX.containsMatchIn(text)
+                        !href.contains(mainUrl, ignoreCase = true)
                     ) {
                         val key = currentSeason to currentEpisode
                         val bucket = episodeMap.getOrPut(key) { mutableListOf() }
@@ -1102,6 +1120,19 @@ class MoviesCounterProvider : MainAPI() {
                     }
                 }
             }
+        }
+
+        // Merge pack links into EVERY episode so 4K PACK links are available
+        // for all episodes, not just the per-episode quality links
+        if (packLinks.isNotEmpty() && episodeMap.isNotEmpty()) {
+            for ((_, bucket) in episodeMap) {
+                for (pl in packLinks) {
+                    if (bucket.none { it.second == pl.second }) {
+                        bucket.add(pl)
+                    }
+                }
+            }
+            Log.d(TAG, "buildPerEpisodeLayout: merged ${packLinks.size} pack links into ${episodeMap.size} episodes")
         }
 
         if (episodeMap.isEmpty()) return emptyList()
@@ -1147,7 +1178,6 @@ class MoviesCounterProvider : MainAPI() {
             val href = link?.attr("href")?.trim()
 
             if (EPISODE_HEADER_REGEX.containsMatchIn(text)) return@forEach
-            if (PACK_REGEX.containsMatchIn(text)) return@forEach
             if (TORRENT_REGEX.containsMatchIn(text)) return@forEach
 
             if (href != null && href.startsWith("http") &&
