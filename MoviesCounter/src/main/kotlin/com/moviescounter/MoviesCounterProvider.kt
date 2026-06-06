@@ -692,17 +692,21 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         // Build per-episode Episode objects
-        // v22: CRITICAL FIX — use fix=false because pipe-delimited data like
-        // "720p x264|https://..." does NOT start with "http", and newEpisode()
-        // calls fixUrl() which would prepend mainUrl, corrupting the data.
+        // v22: CRITICAL FIX — pipe-delimited data uses URL-first format
+        // ("https://url|quality") instead of quality-first ("720p|https://url").
+        // CloudStream's newEpisode(url) calls fixUrl() which prepends mainUrl
+        // to any string not starting with "http" — quality-first format was
+        // getting corrupted. URL-first format starts with "http" so fixUrl
+        // passes it through unchanged.
         val episodes = mutableListOf<Episode>()
 
         for ((key, links) in episodeMap.entries.sortedWith(
             compareBy({ it.key.first }, { it.key.second })
         )) {
             val (season, ep) = key
-            val data = links.joinToString("\n") { (ql, url) -> "$ql|$url" }
-            episodes.add(newEpisode(data, fix = false) {
+            // v22: URL first, then quality label — prevents fixUrl corruption
+            val data = links.joinToString("\n") { (ql, url) -> "$url|$ql" }
+            episodes.add(newEpisode(data) {
                 name = "Episode $ep"
                 this.season = season
                 this.episode = ep
@@ -786,21 +790,44 @@ class MoviesCounterProvider : MainAPI() {
     ): Boolean {
         if (data.isBlank()) return false
 
-        // v22: Parse both pipe-delimited ("quality|url") and plain URL formats.
+        // v22: Parse pipe-delimited data supporting BOTH orderings:
+        //   New v22 format: "https://url|quality label"  (URL first)
+        //   Old v21 format: "quality label|https://url"  (quality first)
         // Also handles legacy v21 corrupted data where fixUrl prepended mainUrl
         // to quality labels (e.g. "https://moviescounter.boston/720p x264|...").
+        // Also handles plain URL lines (no pipe delimiter).
         val entries = data.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .map { line ->
-                val parts = line.split("|", limit = 2)
-                if (parts.size == 2 && parts[0].isNotBlank() && parts[1].startsWith("http")) {
-                    // Strip mainUrl prefix from quality label (v21 corruption fixup)
-                    val cleanLabel = parts[0].trim()
-                        .removePrefix(mainUrl.trimEnd('/') + "/")
-                        .removePrefix(mainUrl + "/")
-                        .trim()
-                    Pair(cleanLabel.ifBlank { parts[0].trim() }, parts[1].trim())
+                val pipeIdx = line.indexOf('|')
+                if (pipeIdx > 0) {
+                    val left = line.substring(0, pipeIdx).trim()
+                    val right = line.substring(pipeIdx + 1).trim()
+                    when {
+                        // v22 format: URL|quality  (left starts with http)
+                        left.startsWith("http") && right.isNotBlank() -> {
+                            // Strip mainUrl prefix from quality label (v21 corruption fixup)
+                            val cleanLabel = right
+                                .removePrefix(mainUrl.trimEnd('/') + "/")
+                                .removePrefix(mainUrl + "/")
+                                .trim()
+                            Pair(cleanLabel.ifBlank { right }, left)
+                        }
+                        // Old format: quality|URL  (right starts with http)
+                        right.startsWith("http") && left.isNotBlank() -> {
+                            // Strip mainUrl prefix from quality label (v21 corruption fixup)
+                            val cleanLabel = left
+                                .removePrefix(mainUrl.trimEnd('/') + "/")
+                                .removePrefix(mainUrl + "/")
+                                .trim()
+                            Pair(cleanLabel.ifBlank { left }, right)
+                        }
+                        // Both look like URLs? Take right as URL
+                        left.startsWith("http") -> Pair("", left)
+                        right.startsWith("http") -> Pair("", right)
+                        else -> null
+                    }
                 } else if (line.startsWith("http")) {
                     Pair("", line)
                 } else {
