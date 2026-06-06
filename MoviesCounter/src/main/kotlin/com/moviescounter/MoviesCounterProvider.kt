@@ -403,7 +403,7 @@ class MoviesCounterProvider : MainAPI() {
 
             heading.select("a[href]").forEach { link ->
                 val href = link.attr("href").trim()
-                if (!isDownloadLink(href) || href in seen) return@forEach
+                if (!isValidDownloadLink(href) || href in seen) return@forEach
                 seen.add(href)
                 results.add(Pair(buildQualityLabel(headingText), href))
             }
@@ -422,7 +422,7 @@ class MoviesCounterProvider : MainAPI() {
 
                 element.select("a[href]").forEach { link ->
                     val href = link.attr("href").trim()
-                    if (!isDownloadLink(href) || href in seen) return@forEach
+                    if (!isValidDownloadLink(href) || href in seen) return@forEach
                     seen.add(href)
                     results.add(Pair(buildQualityLabel(text), href))
                 }
@@ -433,7 +433,7 @@ class MoviesCounterProvider : MainAPI() {
         if (results.isEmpty()) {
             container.select("a[href]").forEach { anchor ->
                 val href = anchor.attr("href").trim()
-                if (!isDownloadLink(href) || href in seen) return@forEach
+                if (!isValidDownloadLink(href) || href in seen) return@forEach
                 seen.add(href)
                 val label = anchor.text().trim().ifBlank { "HD" }
                 results.add(Pair(label, href))
@@ -533,7 +533,7 @@ class MoviesCounterProvider : MainAPI() {
             if (currentEpisode != null) {
                 element.select("a[href]").forEach { anchor ->
                     val href = anchor.attr("href").trim()
-                    if (isDownloadLink(href)) {
+                    if (isValidDownloadLink(href)) {
                         val key = currentSeason to currentEpisode
                         val bucket = episodeMap.getOrPut(key) { mutableListOf() }
                         if (href !in bucket) bucket.add(href)
@@ -562,7 +562,7 @@ class MoviesCounterProvider : MainAPI() {
             detectSeasonNumber(text)?.let { currentSeason = it }
 
             val links = mutableListOf<String>()
-            heading.select("a[href]").forEach { a -> isDownloadLink(a.attr("href").trim())?.let { if (it !in links) links.add(it) } }
+            heading.select("a[href]").forEach { a -> val h = a.attr("href").trim(); if (isValidDownloadLink(h) && h !in links) links.add(h) }
 
             var sibling = heading.nextElementSibling()
             var attempts = 0
@@ -571,7 +571,7 @@ class MoviesCounterProvider : MainAPI() {
                 if (isPackReference(sibling.text())) break
                 if (EPISODE_HEADER_REGEX.containsMatchIn(sibling.text())) break
                 if (E_NUM_REGEX.containsMatchIn(sibling.text())) break
-                sibling.select("a[href]").forEach { a -> isDownloadLink(a.attr("href").trim())?.let { if (it !in links) links.add(it) } }
+                sibling.select("a[href]").forEach { a -> val h = a.attr("href").trim(); if (isValidDownloadLink(h) && h !in links) links.add(h) }
                 sibling = sibling.nextElementSibling()
                 attempts++
             }
@@ -605,7 +605,7 @@ class MoviesCounterProvider : MainAPI() {
                 detectSeasonNumber(linkText)?.let { currentSeason = it }
 
                 val href = link.attr("href").trim()
-                if (isDownloadLink(href)) {
+                if (isValidDownloadLink(href)) {
                     val key = currentSeason to epNum
                     val bucket = episodeMap.getOrPut(key) { mutableListOf() }
                     if (href !in bucket) bucket.add(href)
@@ -619,7 +619,7 @@ class MoviesCounterProvider : MainAPI() {
                 val bucket = episodeMap.getOrPut(key) { mutableListOf() }
                 for (link in links.drop(1)) {
                     val href = link.attr("href").trim()
-                    if (isDownloadLink(href) && href !in bucket) bucket.add(href)
+                    if (isValidDownloadLink(href) && href !in bucket) bucket.add(href)
                 }
             }
         }
@@ -643,28 +643,24 @@ class MoviesCounterProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     /**
-     * Returns the URL if it's a valid download link, null otherwise.
+     * Two-tier link validation:
      * Tier 1: Known download domains (always accept)
      * Tier 2: Any external http URL that's not ignored
      */
-    private fun isDownloadLink(href: String): String? {
-        if (href.isBlank() || !href.startsWith("http")) return null
-        if (IGNORE_HOST_REGEX.containsMatchIn(href)) return null
+    private fun isValidDownloadLink(href: String): Boolean {
+        if (href.isBlank() || !href.startsWith("http")) return false
+        if (IGNORE_HOST_REGEX.containsMatchIn(href)) return false
 
-        // Don't filter by mainUrl for known download domains
-        val isKnownDownloadDomain = DOWNLOAD_DOMAINS.any { href.contains(it, true) }
-        if (isKnownDownloadDomain) return href
+        // Known download domains always accepted
+        if (DOWNLOAD_DOMAINS.any { href.contains(it, true) }) return true
 
         // Skip self-domain links (unless they look like redirects)
         if (href.contains(mainUrl, true)) {
-            // Allow internal redirect URLs like ?id= or /go/ or /out/
-            if (href.contains("?id=", true) || href.contains("/go/", true) || href.contains("/out/", true)) {
-                return href
-            }
-            return null
+            // Allow internal redirect URLs
+            return href.contains("?id=", true) || href.contains("/go/", true) || href.contains("/out/", true)
         }
 
-        return href
+        return true
     }
 
     private fun detectEpisodeNumber(text: String): Int? {
