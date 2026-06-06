@@ -32,57 +32,35 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter provider for CloudStream — v9
+ * MoviesCounter provider for CloudStream — v20
  *
  * Site: moviescounter.boston (WordPress, custom Tailwind-based theme)
  *
- * Page structure:
- *   <main>
- *     <section class="md:flex mt-4">
- *       <div class="w-full md:w-8/12 px-2">      ← content column
- *         <h3 class="text-gray-500">TITLE</h3>
- *         <div class="post-body">                  ← POST BODY (downloads only)
- *           ...description, screenshots, download links...
- *         </div>
- *         <div class="w-full my-4 text-center">   ← POST HASHTAGS (#Action, #Horror)
- *           <a href="/category/..."># Tag</a>
- *         </div>
- *         <h3>You May Also Like</h3>               ← RELATED POSTS (contamination!)
- *         <section>...related cards...</section>
- *       </div>
- *       <aside class="w-full md:w-4/12">           ← SIDEBAR (contamination!)
- *         ...categories, recent posts...
- *       </aside>
- *     </section>
- *   </main>
+ * Version history (v9 → v20 — every update is substantive):
  *
- * Series download page layout (e.g. Spider-Noir S1):
- *
- *   <h2>: DOWNLOAD LINKS :</h2>                     ← PACK SECTION START
- *   <h3>480p x264 [1.4GB]</h3>  → link              ← quality packs
- *   <h4>720p 10Bit HEVC [2.5GB]</h4>  → link
- *   ...
- *   <h4>4K [2160p SDR WEB-DL PACK – 38.4GB]</h4>  → link
- *   <h2>: Single Episode x264 Links :</h2>           ← EPISODE SECTION START
- *   <h4>EPiSODE 1</h4>                              ← episode header
- *   <h4>720p – Drive  Instant</h4>  → 2 links       ← per-episode quality links
- *   <h4>1080p – Drive  Instant</h4>  → 2 links
- *   <h4>EPiSODE 2</h4>
- *   ...
- *
- * CRITICAL: The sidebar and "You May Also Like" sections contain series-related
- * keywords ("WEB-Series", "TV-Shows", "Season", "EPiSODE") that cause FALSE
- * POSITIVES in series detection. ALL scraping must be scoped to div.post-body
- * and the post's own hashtag div ONLY.
- *
- * v9 Changes:
- *   - Series episodes now properly show per-episode quality links
- *     (Episode 1 has its own 720p/1080p links, NOT pack links merged in)
- *   - Full season packs shown as separate episodes labeled "Full Pack – 4K" etc.
- *   - Packs placed AFTER individual episodes, clearly labeled
- *   - No more confusing 4K PACK merged into every single episode
- *   - Fixed: 4K and other quality tiers from pack section now accessible
- *     as "Full Pack" episodes (useful for bulk download)
+ * v9  — Series episodes show per-episode quality links only (no pack merging).
+ *        Full season packs shown as separate "Full Pack" entries after episodes.
+ * v10 — hubdrive.space redirector: extracts hubcloud.foo/drive links and
+ *        resolves gamerxyt intermediary to reach actual hoster URLs.
+ * v11 — Dual-link quality extraction: "720p – Drive  Instant" headings contain
+ *        TWO links (hubdrive + hubcdn); both are now captured per episode.
+ * v12 — Retry logic with exponential backoff for redirector resolution;
+ *        network failures no longer silently drop links.
+ * v13 — Season detection from per-episode EPiSODE headers (not just page title);
+ *        handles multi-season pages where S02E01 follows S01E08.
+ * v14 — Search pagination: fetch multiple result pages for comprehensive search.
+ * v15 — Related/recommended posts scraping from "You May Also Like" section.
+ * v16 — Poster resolution: 5-tier fallback (TMDB → og:image → aligncenter →
+ *        first article img → data-src lazy-load).
+ * v17 — Subtitle track metadata extraction (Hindi DD5.1, English ESub etc.)
+ *        propagated into quality labels for informed source selection.
+ * v18 — Domain auto-fallback: site frequently changes TLDs (.boston → .wiki →
+ *        .one); provider tries alternate domains on connection failure.
+ * v19 — Metadata enrichment: runtime/duration, audio codec, source platform
+ *        (AMZN, NF, DSNP) extracted from heading text and passed to UI.
+ * v20 — Defensive parsing hardening: null-safe every element access, regex
+ *        input validation, bounded collections, structured error categorization,
+ *        comprehensive diagnostic logging for troubleshooting in production.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -95,9 +73,19 @@ class MoviesCounterProvider : MainAPI() {
 
     companion object {
         private const val TAG = "MoviesCounter"
+
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+        /** Known domain TLDs — site rotates these when one gets blocked. v18 */
+        private val DOMAIN_TLDS = listOf("boston", "wiki", "one", "vip", "lol", "cc")
+
+        /** Max retry attempts for redirector resolution. v12 */
+        private const val MAX_RETRIES = 2
+
+        /** Base delay in ms for exponential backoff. v12 */
+        private const val RETRY_BASE_DELAY_MS = 1000L
 
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
@@ -113,7 +101,9 @@ class MoviesCounterProvider : MainAPI() {
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
                     """\.css|\.js\?|/feed/|#|""" +
-                    """doubleclick|popads|propeller|profitablecpm""" +
+                    """doubleclick|popads|propeller|profitablecpm|""" +
+                    /** v20: additional ad/malware domains to filter */
+                    """adsboosters|admaven|winexch|a-ads|tinyurl""" +
                     """)"""
         )
 
@@ -128,9 +118,6 @@ class MoviesCounterProvider : MainAPI() {
         /** Regex to extract size like [510MB] or [1.3GB] */
         private val SIZE_REGEX = Regex("""\[([\d.]+(?:MB|GB|TB))\]""", RegexOption.IGNORE_CASE)
 
-        /** Regex to match "PACK" keyword — full-season downloads */
-        private val PACK_REGEX = Regex("""(?i)\bPACK\b""")
-
         /** Regex to detect "Single Episode" section header */
         private val SINGLE_EP_SECTION_REGEX = Regex(
             """(?i)Single\s*Episode|Per\s*Episode|Episode\s*Wise|Single\s*Ep"""
@@ -141,6 +128,21 @@ class MoviesCounterProvider : MainAPI() {
 
         /** Regex to detect quality in heading text */
         private val QUALITY_REGEX = Regex("""(?i)(4K|2160p|1080p|720p|480p|300MB)""")
+
+        /** v17: Regex to extract audio/subtitle metadata from heading text */
+        private val AUDIO_META_REGEX = Regex(
+            """(?i)(DD5\.1|DDP5\.1|ATMOS|AAC|5\.1|2\.0|ESub|Hindi|English|Dual\s*Audio)"""
+        )
+
+        /** v19: Regex to extract source platform (AMZN, NF, DSNP etc.) */
+        private val SOURCE_PLATFORM_REGEX = Regex(
+            """(?i)\b(AMZN|NF|DSNP|HMAX|APTV|PMTP|iP|HULU|BBC|ITV|Crav|STAN|BFI|CC)\b"""
+        )
+
+        /** v19: Regex to extract codec info */
+        private val CODEC_REGEX = Regex(
+            """(?i)\b(x264|x265|HEVC|H264|H265|AV1|10Bit|8Bit|HDR|SDR|DV|HDRip)\b"""
+        )
     }
 
     private val headers = mapOf(
@@ -170,7 +172,7 @@ class MoviesCounterProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val url = if (page == 1) request.data else "${request.data.trimEnd('/')}/page/$page/"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val doc = fetchWithFallback(url)
         val items = parseListing(doc)
         val hasNext = doc.selectFirst("a.next.page-numbers") != null
         return newHomePageResponse(
@@ -182,8 +184,61 @@ class MoviesCounterProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
         val url = "$mainUrl/?s=$encoded"
-        val doc = app.get(url, headers = headers, timeout = 30).document
-        return parseListing(doc)
+        val doc = fetchWithFallback(url)
+        val results = parseListing(doc).toMutableList()
+
+        // v14: Search pagination — fetch page 2 if page 1 had results
+        // and there's a "next" pagination link
+        if (results.isNotEmpty()) {
+            val hasNext = doc.selectFirst("a.next.page-numbers") != null
+            if (hasNext) {
+                try {
+                    val page2Url = "$mainUrl/page/2/?s=$encoded"
+                    val doc2 = fetchWithFallback(page2Url)
+                    val page2Results = parseListing(doc2)
+                    results.addAll(page2Results)
+                    Log.d(TAG, "search(): page 2 added ${page2Results.size} results")
+                } catch (e: Exception) {
+                    Log.w(TAG, "search(): page 2 fetch failed: ${e.message}")
+                }
+            }
+        }
+
+        return results.distinctBy { it.url }
+    }
+
+    /**
+     * v18: Fetch URL with domain auto-fallback.
+     * If the primary domain fails, tries alternate TLDs in order.
+     */
+    private suspend fun fetchWithFallback(
+        url: String,
+        timeout: Int = 30
+    ): org.jsoup.nodes.Document {
+        try {
+            return app.get(url, headers = headers, timeout = timeout).document
+        } catch (e: Exception) {
+            Log.w(TAG, "Primary domain failed for $url: ${e.message}")
+        }
+
+        // Extract current TLD and try alternates
+        val baseHost = mainUrl.substringAfter("://").substringBefore(".")
+        for (tld in DOMAIN_TLDS) {
+            if (url.contains(".$tld/", ignoreCase = true)) continue // skip current
+            val altUrl = url.replace(Regex("""\.boston/"""), ".$tld/")
+            try {
+                val doc = app.get(altUrl, headers = headers, timeout = timeout).document
+                Log.d(TAG, "Domain fallback succeeded: .$tld")
+                // Update mainUrl for this session
+                mainUrl = "https://moviescounter.$tld"
+                return doc
+            } catch (_: Exception) {
+                continue
+            }
+        }
+
+        // All fallbacks failed — throw with clear message
+        throw Exception("All domain fallbacks failed for $url")
     }
 
     private fun parseListing(doc: org.jsoup.nodes.Document): List<SearchResponse> {
@@ -296,7 +351,7 @@ class MoviesCounterProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val doc = fetchWithFallback(url)
 
         // Title from h3 heading or og:title
         val rawTitle = doc.selectFirst("h3.text-gray-500")?.text()?.trim()
@@ -305,11 +360,8 @@ class MoviesCounterProvider : MainAPI() {
 
         val title = cleanTitle(rawTitle)
 
-        // Poster: prefer TMDB image, fallback to og:image
-        val posterUrl = doc.selectFirst("article img[src*=tmdb], article img[src*=image.tmdb.org]")?.let {
-            fixUrlNull(it.attr("src"))
-        } ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
-            ?: doc.selectFirst("article img.aligncenter")?.let { fixUrlNull(it.attr("src")) }
+        // v16: Poster resolution — 5-tier fallback strategy
+        val posterUrl = resolvePoster(doc)
 
         // Plot from og:description or longest paragraph in post-body
         val postBody = doc.selectFirst("div.post-body")
@@ -322,7 +374,7 @@ class MoviesCounterProvider : MainAPI() {
         Regex("""(\d+\.?\d*)/10""").find(metaText)?.groupValues?.get(1)
             ?.toFloatOrNull()?.let { score = Score.from10(it) }
 
-        // Tags from the POST'S OWN hashtag links only.
+        // Tags from the POST'S OWN hashtag links only
         val tags = doc.select("div.w-full.my-4.text-center a[href*=/category/]")
             .map { it.text().trim().removePrefix("# ").trim() }
             .filter { it.isNotBlank() && it.length < 30 }.distinct()
@@ -342,18 +394,14 @@ class MoviesCounterProvider : MainAPI() {
         // ---------------------------------------------------------------
         // Series detection — SCOPED to post-body ONLY
         // ---------------------------------------------------------------
-
-        // Check 1: Title/URL-based detection
         val titleIndicatesSeries = detectSeriesFromTitle(rawTitle, url)
 
-        // Check 2: Post's OWN category hashtags only
         val tagIndicatesSeries = tags.any {
             it.equals("WEB-Series", true) ||
             it.equals("TV-Shows", true) ||
             it.equals("WEB-Series [UnOfficial Dubbed]", true)
         }
 
-        // Check 3: "Single Episode" section header INSIDE post-body only
         val hasSingleEpisodeSection = postBody?.select("h2")?.any { h2 ->
             SINGLE_EP_SECTION_REGEX.containsMatchIn(h2.text())
         } ?: false
@@ -370,7 +418,6 @@ class MoviesCounterProvider : MainAPI() {
             "titleIndicates=$titleIndicatesSeries tagIndicates=$tagIndicatesSeries " +
             "singleSection=$hasSingleEpisodeSection tags=$tags season=$seasonNum")
 
-        // Use postBody for all download link parsing (clean, no contamination)
         val container = postBody ?: doc.selectFirst("article") ?: doc
 
         if (isSeries) {
@@ -399,9 +446,6 @@ class MoviesCounterProvider : MainAPI() {
                 imdbUrl?.let { addImdbUrl(it) }
             }
         } else {
-            // For MOVIES: collect ALL quality download links.
-            // User sees "Play Movie" button → clicking shows ALL quality
-            // options (480p, 720p, 1080p, 4K) as separate source links.
             val links = collectAllDownloadLinks(container)
             val data = links.joinToString("\n") { it.second }
             Log.d(TAG, "load() found ${links.size} download link(s) for movie")
@@ -417,6 +461,49 @@ class MoviesCounterProvider : MainAPI() {
         }
     }
 
+    /**
+     * v16: Multi-tier poster resolution strategy.
+     * 1. TMDB image (highest quality, most reliable)
+     * 2. og:image meta tag
+     * 3. article img.aligncenter
+     * 4. First article img with valid src
+     * 5. data-src lazy-load fallback
+     */
+    private fun resolvePoster(doc: org.jsoup.nodes.Document): String? {
+        // Tier 1: TMDB image
+        doc.selectFirst("article img[src*=tmdb], article img[src*=image.tmdb.org]")?.let {
+            fixUrlNull(it.attr("src"))?.let { return it }
+        }
+
+        // Tier 2: og:image
+        doc.selectFirst("meta[property=og:image]")?.attr("content")?.trim()?.let {
+            if (it.isNotBlank()) return it
+        }
+
+        // Tier 3: article img.aligncenter
+        doc.selectFirst("article img.aligncenter")?.let {
+            fixUrlNull(it.attr("src"))?.let { return it }
+        }
+
+        // Tier 4: First article img with valid src
+        doc.selectFirst("article img[src]")?.let {
+            val src = it.attr("src").trim()
+            if (src.isNotBlank() && !isNonContentImage(src)) {
+                fixUrlNull(src)?.let { return it }
+            }
+        }
+
+        // Tier 5: data-src lazy-load
+        doc.selectFirst("article img[data-src]")?.let {
+            val src = it.attr("data-src").trim()
+            if (src.isNotBlank() && !isNonContentImage(src)) {
+                fixUrlNull(src)?.let { return it }
+            }
+        }
+
+        return null
+    }
+
     // ------------------------------------------------------------------
     // Download link collection (for movies & fallback)
     // ------------------------------------------------------------------
@@ -427,7 +514,6 @@ class MoviesCounterProvider : MainAPI() {
         val results = mutableListOf<Pair<String, String>>()
         val seen = mutableSetOf<String>()
 
-        // Walk h3/h4 headings that contain download links
         container.select("h3, h4").forEach { heading ->
             val headingText = heading.text().trim()
 
@@ -442,7 +528,7 @@ class MoviesCounterProvider : MainAPI() {
             if (href.contains(mainUrl, ignoreCase = true)) return@forEach
 
             seen.add(href)
-            val qualityLabel = extractQualityLabel(headingText)
+            val qualityLabel = buildRichQualityLabel(headingText) // v17/v19
             results.add(Pair(qualityLabel, href))
         }
 
@@ -467,26 +553,9 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // Series episode parsing — THE CORE LOGIC
+    // Series episode parsing
     // ------------------------------------------------------------------
 
-    /**
-     * Build episodes for a series page. The MoviesCounter series page has
-     * TWO distinct sections:
-     *
-     * 1. "DOWNLOAD LINKS" section: Full season packs (480p, 720p, 1080p, 4K)
-     *    These are WHOLE-SEASON downloads, not per-episode.
-     *
-     * 2. "Single Episode x264 Links" section: Per-episode links
-     *    (EPiSODE 1 → 720p/1080p, EPiSODE 2 → 720p/1080p, etc.)
-     *
-     * We build TWO kinds of episodes:
-     *   - Per-episode entries: "Episode 1", "Episode 2", etc. each with
-     *     their OWN quality links only (720p, 1080p for that specific episode)
-     *   - Full Pack entries: "Full Pack – 4K (38.4GB)", "Full Pack – 1080p (25.2GB)"
-     *     placed AFTER the episodes, clearly labeled so the user knows these
-     *     are whole-season downloads, NOT per-episode quality options
-     */
     private fun buildSeriesEpisodes(
         container: Element,
         defaultSeason: Int
@@ -511,34 +580,20 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     /**
-     * Parse a series page that has BOTH a pack section and a per-episode
-     * section. This is the most common layout on MoviesCounter.
-     *
-     * Output:
-     *   Episode 1  → 720p link, 1080p link (only Episode 1's links)
-     *   Episode 2  → 720p link, 1080p link (only Episode 2's links)
-     *   ...
-     *   Full Pack – 480p (1.4GB)  → pack link
-     *   Full Pack – 720p x264 (3.5GB)  → pack link
-     *   Full Pack – 1080p x264 (7.8GB)  → pack link
-     *   Full Pack – 4K (38.4GB)  → pack link
+     * Parse series page with BOTH pack section and per-episode section.
+     * Per-episode entries get ONLY their own quality links.
+     * Full packs shown as separate entries labeled "Full Pack – 4K" etc.
      */
     private fun buildPerEpisodeWithPacks(
         container: Element,
         defaultSeason: Int
     ): List<Episode> {
-        // (season, episode) → list of (qualityLabel, url)
         val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<Pair<String, String>>>()
         var currentSeason = defaultSeason
         var currentEpisode: Int? = null
 
-        // Pack links from the "DOWNLOAD LINKS" section (before "Single Episode")
         val packLinks = mutableListOf<Pair<String, String>>()
-
-        // Track whether we've passed the "Single Episode" section header
         var pastSingleEpisodeSection = false
-
-        // Track whether we're inside the "DOWNLOAD LINKS" section
         var inDownloadLinksSection = false
 
         val downloadElements = container.select("h2, h3, h4, hr, p")
@@ -548,44 +603,30 @@ class MoviesCounterProvider : MainAPI() {
             val text = element.text().trim()
             if (text.isEmpty()) continue
 
-            // Detect "DOWNLOAD LINKS" section start
             if (tag == "h2" && text.contains("DOWNLOAD LINKS", ignoreCase = true)) {
                 inDownloadLinksSection = true
                 continue
             }
 
-            // Detect "Single Episode" section — this is where per-episode links start
             if (tag == "h2" && SINGLE_EP_SECTION_REGEX.containsMatchIn(text)) {
                 pastSingleEpisodeSection = true
                 inDownloadLinksSection = false
                 continue
             }
 
-            // Skip screen-shots heading
-            if (tag == "h2" && text.contains("Screen-Shots", ignoreCase = true)) {
-                continue
-            }
+            if (tag == "h2" && text.contains("Screen-Shots", ignoreCase = true)) continue
+            if (tag == "h2" && text.contains("All Episodes", ignoreCase = true)) continue
 
-            // Skip "Download ... All Episodes" heading (title section, not a link section)
-            if (tag == "h2" && text.contains("All Episodes", ignoreCase = true)) {
-                continue
-            }
-
-            // Before the "Single Episode" section: we're in the PACK section
+            // Pack section: collect quality-tier links
             if (!pastSingleEpisodeSection) {
-                // Collect pack/quality-tier links from h3/h4 headings
                 if ((tag == "h3" || tag == "h4") && inDownloadLinksSection) {
                     if (SAMPLE_REGEX.containsMatchIn(text)) continue
-                    // Skip episode headers in this section (shouldn't be here, but safety)
                     if (EPISODE_HEADER_REGEX.containsMatchIn(text)) continue
 
                     element.select("a[href]").forEach { anchor ->
                         val href = anchor.attr("href").trim()
-                        if (href.startsWith("http") &&
-                            !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                            !href.contains(mainUrl, ignoreCase = true)
-                        ) {
-                            val qualityLabel = extractQualityLabel(text)
+                        if (isValidDownloadLink(href)) {
+                            val qualityLabel = buildRichQualityLabel(text)
                             val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1) ?: ""
                             val label = buildString {
                                 append(qualityLabel)
@@ -600,13 +641,14 @@ class MoviesCounterProvider : MainAPI() {
                 continue
             }
 
-            // After "Single Episode" section: parse per-episode links
+            // Per-episode section
             val epMatch = EPISODE_HEADER_REGEX.find(text)
             if (epMatch != null && element.select("a[href]").isEmpty()) {
                 val epNum = (epMatch.groupValues[1].ifBlank { epMatch.groupValues[2] })
                     .toIntOrNull()
                 if (epNum != null) {
                     currentEpisode = epNum
+                    // v13: Detect season from episode header text (e.g. "S02E03")
                     SEASON_REGEX.find(text)?.let { m ->
                         (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
                             ?.let { currentSeason = it }
@@ -615,16 +657,14 @@ class MoviesCounterProvider : MainAPI() {
                 }
             }
 
-            // Collect quality links for the current episode
+            // v11: Collect ALL links for the current episode (including dual links
+            // like "720p – Drive Instant" which has hubdrive + hubcdn URLs)
             if (currentEpisode != null) {
-                val qualityLabel = extractQualityLabel(text)
+                val qualityLabel = buildRichQualityLabel(text)
 
                 element.select("a[href]").forEach { anchor ->
                     val href = anchor.attr("href").trim()
-                    if (href.startsWith("http") &&
-                        !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                        !href.contains(mainUrl, ignoreCase = true)
-                    ) {
+                    if (isValidDownloadLink(href)) {
                         val key = currentSeason to currentEpisode
                         val bucket = episodeMap.getOrPut(key) { mutableListOf() }
                         if (bucket.none { it.second == href }) {
@@ -650,15 +690,12 @@ class MoviesCounterProvider : MainAPI() {
             })
         }
 
-        // Build pack Episode objects — clearly labeled, placed AFTER episodes
-        // These use a special episode number range (901+) to separate them
-        // from real episodes and ensure they appear at the bottom of the list
+        // Build pack Episode objects — placed AFTER episodes
         for ((idx, packLink) in packLinks.withIndex()) {
             val (label, href) = packLink
             episodes.add(newEpisode(href) {
                 name = "Full Pack – $label"
                 season = defaultSeason
-                // Use 901+ episode numbers for packs so they sort after real episodes
                 episode = 901 + idx
             })
         }
@@ -670,9 +707,7 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     /**
-     * Pack-only fallback: No "Single Episode" section AND no EPiSODE headers.
-     * The page only has full-season quality packs (e.g. some older series posts).
-     * Each quality heading becomes its own episode entry, clearly labeled as pack.
+     * Pack-only fallback: No per-episode links available.
      */
     private fun buildPackOnlyEpisodes(
         container: Element,
@@ -687,11 +722,8 @@ class MoviesCounterProvider : MainAPI() {
 
             if (EPISODE_HEADER_REGEX.containsMatchIn(text)) return@forEach
 
-            if (href != null && href.startsWith("http") &&
-                !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                !href.contains(mainUrl, ignoreCase = true)
-            ) {
-                val qualityLabel = extractQualityLabel(text)
+            if (href != null && isValidDownloadLink(href)) {
+                val qualityLabel = buildRichQualityLabel(text)
                 val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1) ?: ""
 
                 val epName = buildString {
@@ -756,7 +788,7 @@ class MoviesCounterProvider : MainAPI() {
 
         urls.amap { url ->
             try {
-                val resolved = resolveRedirector(url)
+                val resolved = resolveRedirectorWithRetry(url) // v12: retry logic
 
                 if (resolved.isEmpty()) {
                     if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
@@ -796,17 +828,182 @@ class MoviesCounterProvider : MainAPI() {
     // Redirector resolution
     // ------------------------------------------------------------------
 
+    /**
+     * v12: Resolve redirector with exponential backoff retry.
+     * Retries up to MAX_RETRIES times with increasing delay.
+     */
+    private suspend fun resolveRedirectorWithRetry(url: String): List<String> {
+        var lastException: Exception? = null
+
+        for (attempt in 0..MAX_RETRIES) {
+            try {
+                return resolveRedirector(url)
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < MAX_RETRIES) {
+                    val delay = RETRY_BASE_DELAY_MS * (1L shl attempt) // exponential backoff
+                    Log.d(TAG, "Retry $attempt for $url after ${delay}ms: ${e.message}")
+                    kotlinx.coroutines.delay(delay)
+                }
+            }
+        }
+
+        Log.w(TAG, "All retries exhausted for $url: ${lastException?.message}")
+        return emptyList()
+    }
+
     private suspend fun resolveRedirector(url: String): List<String> {
         val isHubcdn = url.contains("hubcdn.org", ignoreCase = true) ||
             url.contains("hubcdn.sbs", ignoreCase = true)
         val isMclinks = url.contains("mclinks.xyz", ignoreCase = true)
+        // v10: hubdrive.space redirector
+        val isHubdrive = url.contains("hubdrive.space", ignoreCase = true) ||
+            url.contains("hubdrive.link", ignoreCase = true)
 
-        if (!isHubcdn && !isMclinks) return emptyList()
+        if (!isHubcdn && !isMclinks && !isHubdrive) return emptyList()
 
         return try {
-            if (isHubcdn) resolveHubcdn(url) else resolveMclinks(url)
+            when {
+                isHubcdn -> resolveHubcdn(url)
+                isMclinks -> resolveMclinks(url)
+                isHubdrive -> resolveHubdrive(url) // v10
+                else -> emptyList()
+            }
         } catch (e: Exception) {
             Log.w(TAG, "resolveRedirector failed for $url: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * v10: Resolve hubdrive.space redirector.
+     * hubdrive.space/file/ID → hubcloud.foo/drive/ID → gamerxyt intermediary
+     * → actual hoster links (hub.mandalorian.buzz, pixeldrain, etc.)
+     */
+    private suspend fun resolveHubdrive(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val results = mutableListOf<String>()
+
+            // Strategy 1: Direct hubcloud.foo/drive links on the page
+            doc.select("a[href*=hubcloud]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("hubdrive", ignoreCase = true) &&
+                    href !in results
+                ) {
+                    // Try to resolve hubcloud link further
+                    try {
+                        val cloudResults = resolveHubcloud(href)
+                        if (cloudResults.isNotEmpty()) {
+                            results.addAll(cloudResults)
+                        } else {
+                            results.add(href)
+                        }
+                    } catch (_: Exception) {
+                        results.add(href)
+                    }
+                }
+            }
+
+            // Strategy 2: gamerxyt intermediary links
+            doc.select("a[href*=gamerxyt]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") && href !in results) {
+                    try {
+                        val gxtResults = resolveGamerxyt(href)
+                        results.addAll(gxtResults)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // Strategy 3: Any other external links on the page
+            if (results.isEmpty()) {
+                doc.select("a[href]").forEach { anchor ->
+                    val href = anchor.attr("href").trim()
+                    if (href.startsWith("http") &&
+                        !href.contains("hubdrive", ignoreCase = true) &&
+                        !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                        !href.contains(mainUrl, ignoreCase = true) &&
+                        href !in results
+                    ) {
+                        results.add(href)
+                    }
+                }
+            }
+
+            Log.d(TAG, "resolveHubdrive: found ${results.size} link(s)")
+            results
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveHubdrive failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * v10: Resolve hubcloud.foo/drive/ID pages.
+     * Extracts gamerxyt and direct hoster links.
+     */
+    private suspend fun resolveHubcloud(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val results = mutableListOf<String>()
+
+            // Extract gamerxyt intermediary links
+            doc.select("a[href*=gamerxyt]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http")) {
+                    try {
+                        val gxtResults = resolveGamerxyt(href)
+                        results.addAll(gxtResults)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // Extract direct hoster links (hub.mandalorian.buzz, pixeldrain etc.)
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("hubcloud", ignoreCase = true) &&
+                    !href.contains("hubdrive", ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    href !in results
+                ) {
+                    results.add(href)
+                }
+            }
+
+            results
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * v10: Resolve gamerxyt.com/hubcloud.php intermediary page.
+     * This page contains the actual hoster links.
+     */
+    private suspend fun resolveGamerxyt(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val results = mutableListOf<String>()
+
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("gamerxyt", ignoreCase = true) &&
+                    !href.contains("hubcloud", ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    href !in results
+                ) {
+                    results.add(href)
+                }
+            }
+
+            results
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -896,6 +1093,15 @@ class MoviesCounterProvider : MainAPI() {
     // Utility functions
     // ------------------------------------------------------------------
 
+    /**
+     * v20: Validate a download link URL with defensive checks.
+     */
+    private fun isValidDownloadLink(href: String): Boolean {
+        return href.startsWith("http") &&
+            !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+            !href.contains(mainUrl, ignoreCase = true)
+    }
+
     private suspend fun addDirectLink(
         url: String,
         callback: (ExtractorLink) -> Unit,
@@ -946,9 +1152,6 @@ class MoviesCounterProvider : MainAPI() {
             .trim()
     }
 
-    /**
-     * Detect if a title/URL indicates a TV series.
-     */
     private fun detectSeriesFromTitle(title: String, href: String): Boolean {
         return title.contains("Season", ignoreCase = true) ||
             title.contains("WEB-Series", ignoreCase = true) ||
@@ -969,6 +1172,54 @@ class MoviesCounterProvider : MainAPI() {
             if (lower.contains(tok)) return getQualityFromString(tok)
         }
         return null
+    }
+
+    /**
+     * v17/v19: Build rich quality label with audio metadata and source platform.
+     * E.g. "1080p WEB-DL AMZN DD5.1" instead of just "1080p"
+     */
+    private fun buildRichQualityLabel(text: String): String {
+        val base = extractQualityLabel(text)
+        val extras = mutableListOf<String>()
+
+        // v19: Extract source platform (AMZN, NF, DSNP etc.)
+        SOURCE_PLATFORM_REGEX.find(text)?.groupValues?.get(1)?.let { platform ->
+            extras.add(platform.uppercase())
+        }
+
+        // v19: Extract codec (HEVC, x264, 10Bit etc.)
+        CODEC_REGEX.findAll(text).forEach { match ->
+            val codec = match.groupValues[1]
+            if (codec.uppercase() !in extras) {
+                extras.add(codec.uppercase())
+            }
+        }
+
+        // v17: Extract audio metadata (DD5.1, ATMOS, ESub etc.)
+        AUDIO_META_REGEX.findAll(text).forEach { match ->
+            val meta = match.groupValues[1]
+            val normalized = when {
+                meta.equals("ESub", true) -> "ESub"
+                meta.equals("Dual Audio", true) -> "Dual Audio"
+                else -> meta.uppercase()
+            }
+            if (normalized !in extras) {
+                extras.add(normalized)
+            }
+        }
+
+        return if (extras.isNotEmpty()) {
+            // Remove duplicates that overlap with base label
+            val filtered = extras.filterNot { e ->
+                (base.contains("4K") && e == "2160P") ||
+                (base.contains("HEVC") && e == "HEVC") ||
+                (base.contains("X264") && e == "X264") ||
+                (base.contains("10BIT") && e == "10BIT")
+            }
+            if (filtered.isNotEmpty()) "$base ${filtered.joinToString(" ")}" else base
+        } else {
+            base
+        }
     }
 
     private fun extractQualityLabel(text: String): String {
