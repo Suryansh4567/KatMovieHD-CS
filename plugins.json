@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 26,
+        "version": 27,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v26: Professional rewrite \u2014 custom ExtractorApi classes (Hubdrive, HubCloud, HUBCDN, Hblinks), newEpisode(List<String>) JSON pattern, HubCloud chain (FSL/BuzzServer/PixelDrain/S3), mclinks via Hblinks aggregator",
-        "fileSize": 53102,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v27: Professional rewrite \u2014 two-pass series parsing (element traversal + nextSibling fallback), comprehensive PACK filtering, lazy mainPage for domain fallback, WordPress redirect bypass, lazy extractor caching",
+        "fileSize": 62724,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-e3218196a1b077fc310a14bfc650740b7debb995a961762f5bfea1b96e026226",
-        "jarFileSize": 224210,
+        "fileHash": "sha256-c91f26a507fc497ffc191684c764e3c26c0464a67f7267988a65d70e36e9f3cd",
+        "jarFileSize": 260034,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-f46e24ea35fc2f42607f7b178ba7a74af5e2c1f74c84905a8b0c7204732b16c0"
+        "jarHash": "sha256-e842ddd8639036fd882b4a8d46ba40e3e0fa6d1950df6e0c74bf9bd874f24461"
     }
 ]
