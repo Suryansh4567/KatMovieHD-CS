@@ -1,8 +1,8 @@
-version = 24
+version = 25
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v24: Series rewrite — no packs in episodes, per-episode individual links only, JSON data pattern (EpLink), fixUrl-safe, auto-detect JSON vs URL in loadLinks"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v25: Dual-format series parsing — S4 (E01+Drive|Instant combined) and S5 (EPiSODE N+quality lines), E-num regex, PACK filter, hubcdn.fans support, h5 tag scanning"
     authors = listOf("Suryansh4567")
     status = 1
 
