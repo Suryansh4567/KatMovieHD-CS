@@ -6,12 +6,9 @@ import com.lagradost.cloudstream3.plugins.Plugin
 @CloudstreamPlugin
 class MoviesCounterPlugin : Plugin() {
     override fun load() {
-        // Register the main provider
         registerMainAPI(MoviesCounterProvider())
 
-        // Register custom extractors — same pattern as phisher98/HDhub4u
-        // These integrate with CloudStream's extractor framework for proper
-        // error handling, timeouts, and playback support.
+        // Register custom extractors for the Hubdrive → HubCloud → CDN chain
         registerExtractorAPI(Hubdrive())
         registerExtractorAPI(HubCloud())
         registerExtractorAPI(HUBCDN())

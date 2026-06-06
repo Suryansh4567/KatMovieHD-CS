@@ -1,8 +1,8 @@
-version = 26
+version = 27
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v26: Professional rewrite — custom ExtractorApi classes (Hubdrive, HubCloud, HUBCDN, Hblinks), newEpisode(List<String>) JSON pattern, HubCloud chain (FSL/BuzzServer/PixelDrain/S3), mclinks via Hblinks aggregator"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v27: Professional rewrite — two-pass series parsing (element traversal + nextSibling fallback), comprehensive PACK filtering, lazy mainPage for domain fallback, WordPress redirect bypass, lazy extractor caching"
     authors = listOf("Suryansh4567")
     status = 1
 

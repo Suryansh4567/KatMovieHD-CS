@@ -16,25 +16,36 @@ import java.net.URI
 
 /**
  * Custom ExtractorApi classes for the Hubdrive → HubCloud → Server chain.
- * Copied from phisher98/HDhub4u — the professional standard for Hindi
- * movie/series CloudStream extensions.
+ * Based on patterns from phisher98/HDhub4u and FourKHDHub extensions.
  *
- * Chain: hubdrive.space → hubcloud.foo → FSL/BuzzServer/PixelDrain/S3/Mega
+ * Chain: hubdrive.space → hubcloud.foo → FSL/BuzzServer/PixelDrain/S3/Mega/GoFile
+ * Alt:   hblinks.dad → hubdrive/hubcloud/hubcdn
+ * Alt:   hubcdn.fans → base64 decoded URL
+ * Alt:   hdstream4u.com → VidHidePro extractor
  */
+
+// ======================================================================
+// HdStream4u — delegates to CloudStream's built-in VidHidePro
+// ======================================================================
 
 class HdStream4u : VidHidePro() {
     override var mainUrl = "https://hdstream4u.com"
 }
 
-/**
- * Hubdrive extractor — follows hubdrive.space/file/XXX → hubcloud link.
- * This replaces the crash-prone 3-hop HTTP chain from v20 and earlier.
- * CloudStream's ExtractorApi framework handles timeouts and errors properly.
- */
+// ======================================================================
+// Hubdrive — resolves hubdrive.space link → hubcloud/hubcdn/direct
+// ======================================================================
+
 class Hubdrive : ExtractorApi() {
     override val name = "HubDrive"
     override var mainUrl = "https://hubdrive.space"
     override val requiresReferer = false
+
+    companion object {
+        private const val TAG = "HubDrive"
+        private val LAZY_HUBCLOUD by lazy { HubCloud() }
+        private val LAZY_HUBCDN by lazy { HUBCDN() }
+    }
 
     override suspend fun getUrl(
         url: String,
@@ -43,46 +54,60 @@ class Hubdrive : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         val doc = try {
-            app.get(url, timeout = 15000L).document
+            app.get(url, timeout = 15_000L).document
         } catch (e: Exception) {
-            Log.w("HubDrive", "Failed to fetch $url: ${e.message}")
+            Log.w(TAG, "Failed to fetch $url: ${e.message}")
             return
         }
 
+        // Multiple button selectors — hubdrive changes these frequently
         val href = doc.selectFirst(".btn.btn-primary.btn-user.btn-success1.m-1")?.attr("href")
             ?: doc.selectFirst("a.btn[href*=hubcloud]")?.attr("href")
             ?: doc.selectFirst("a.btn[href*=hubcdn]")?.attr("href")
+            ?: doc.selectFirst("a.btn[href*=hubdrive]")?.attr("href")
+            ?: doc.selectFirst("a.btn-primary[href]")?.attr("href")
+            ?: doc.selectFirst("a.btn-success[href]")?.attr("href")
             ?: doc.selectFirst("a[href].btn")?.attr("href")
+            ?: doc.selectFirst("a[href*=http]")?.attr("href")
 
         if (href.isNullOrBlank()) {
-            Log.w("HubDrive", "No link found on hubdrive page: $url")
+            Log.w(TAG, "No link found on hubdrive page: $url")
             return
         }
 
-        val fullHref = if (href.startsWith("http")) href else {
-            val base = URI(url)
-            "${base.scheme}://${base.host}${if (href.startsWith("/")) href else "/$href"}"
-        }
+        val fullHref = resolveRelativeUrl(url, href)
+
+        Log.d(TAG, "Resolved: $url → $fullHref")
 
         when {
-            fullHref.contains("hubcloud", ignoreCase = true) ->
-                HubCloud().getUrl(fullHref, name, subtitleCallback, callback)
-            fullHref.contains("hubcdn", ignoreCase = true) ->
-                HUBCDN().getUrl(fullHref, name, subtitleCallback, callback)
+            fullHref.contains("hubcloud", true) ->
+                LAZY_HUBCLOUD.getUrl(fullHref, name, subtitleCallback, callback)
+            fullHref.contains("hubcdn", true) ->
+                LAZY_HUBCDN.getUrl(fullHref, name, subtitleCallback, callback)
             else -> loadExtractor(fullHref, name, subtitleCallback, callback)
         }
     }
+
+    private fun resolveRelativeUrl(baseUrl: String, href: String): String {
+        if (href.startsWith("http")) return href
+        val base = try { URI(baseUrl) } catch (_: Exception) { return href }
+        return "${base.scheme}://${base.host}${if (href.startsWith("/")) href else "/$href"}"
+    }
 }
 
-/**
- * HubCloud extractor — the main download resolver.
- * Extracts quality/size from card header, then resolves server buttons:
- * FSL Server, Download File, BuzzServer, PixelDrain, S3 Server, FSLv2, Mega Server.
- */
+// ======================================================================
+// HubCloud — main download resolver
+// Extracts quality/size from card header, then resolves server buttons
+// ======================================================================
+
 class HubCloud : ExtractorApi() {
     override val name = "Hub-Cloud"
     override var mainUrl = "https://hubcloud.foo"
     override val requiresReferer = false
+
+    companion object {
+        private const val TAG = "HubCloud"
+    }
 
     override suspend fun getUrl(
         url: String,
@@ -90,152 +115,135 @@ class HubCloud : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val tag = "HubCloud"
         val ref = referer.orEmpty().ifBlank { name }
 
         val uri = try { URI(url) } catch (e: Exception) {
-            Log.e(tag, "Invalid URL: ${e.message}")
-            return
+            Log.e(TAG, "Invalid URL: ${e.message}"); return
         }
         val realUrl = uri.toString()
         val baseUrl = "${uri.scheme}://${uri.host}"
 
-        // Resolve the #download href from hubcloud page
+        // Step 1: Resolve the #download href from hubcloud page
         val href = try {
             if ("hubcloud.php" in realUrl) {
                 realUrl
             } else {
-                val raw = app.get(realUrl, timeout = 15000L).document
+                val raw = app.get(realUrl, timeout = 15_000L).document
                     .selectFirst("#download")?.attr("href").orEmpty()
 
                 if (raw.startsWith("http", true)) raw
                 else baseUrl.trimEnd('/') + "/" + raw.trimStart('/')
             }
         } catch (e: Exception) {
-            Log.e(tag, "Failed to extract href: ${e.message}")
-            return
+            Log.e(TAG, "Failed to extract href: ${e.message}"); return
         }
 
-        if (href.isBlank()) return
+        if (href.isBlank()) {
+            Log.w(TAG, "Empty href resolved from $url"); return
+        }
 
+        // Step 2: Fetch the download page
         val document = try {
-            app.get(href, timeout = 15000L).document
+            app.get(href, timeout = 15_000L).document
         } catch (e: Exception) {
-            Log.e(tag, "Failed to fetch download page: ${e.message}")
-            return
+            Log.e(TAG, "Failed to fetch download page: ${e.message}"); return
         }
 
         val size = document.selectFirst("i#size")?.text().orEmpty()
         val header = document.selectFirst("div.card-header")?.text().orEmpty()
 
-        val headerDetails = cleanTitle(header)
-        val quality = getIndexQuality(header)
+        val headerDetails = cleanHeaderTitle(header)
+        val quality = extractQualityFromHeader(header)
 
         val labelExtras = buildString {
             if (headerDetails.isNotEmpty()) append("[$headerDetails]")
             if (size.isNotEmpty()) append("[$size]")
         }
 
+        // Step 3: Process each download button
         document.select("a.btn").forEach { element ->
             val link = element.attr("href")
             val text = element.ownText()
             val label = text.lowercase()
 
-            when {
-                "fsl server" in label -> {
-                    callback(
-                        newExtractorLink(
-                            "$ref [FSL Server]",
-                            "$ref [FSL Server] $labelExtras",
-                            link
-                        ) { this.quality = quality }
-                    )
-                }
+            try {
+                when {
+                    "fsl server" in label || "fsl server" in link.lowercase() -> {
+                        callback(newExtractorLink(
+                            "$ref [FSL]", "$ref [FSL] $labelExtras", link, INFER_TYPE
+                        ) { this.quality = quality })
+                    }
 
-                "download file" in label -> {
-                    callback(
-                        newExtractorLink(
-                            ref,
-                            "$ref $labelExtras",
-                            link
-                        ) { this.quality = quality }
-                    )
-                }
+                    "download file" in label -> {
+                        callback(newExtractorLink(
+                            ref, "$ref $labelExtras", link, INFER_TYPE
+                        ) { this.quality = quality })
+                    }
 
-                "buzzserver" in label -> {
-                    try {
-                        val resp = app.get("$link/download", referer = link, allowRedirects = false)
-                        val dlink = resp.headers["hx-redirect"]
-                            ?: resp.headers["HX-Redirect"].orEmpty()
+                    "buzzserver" in label -> {
+                        try {
+                            val resp = app.get("$link/download", referer = link, allowRedirects = false)
+                            val dlink = resp.headers["hx-redirect"]
+                                ?: resp.headers["HX-Redirect"].orEmpty()
+                            if (dlink.isNotBlank()) {
+                                callback(newExtractorLink(
+                                    "$ref [Buzz]", "$ref [Buzz] $labelExtras", dlink, INFER_TYPE
+                                ) { this.quality = quality })
+                            }
+                        } catch (_: Exception) {}
+                    }
 
-                        if (dlink.isNotBlank()) {
-                            callback(
-                                newExtractorLink(
-                                    "$ref [BuzzServer]",
-                                    "$ref [BuzzServer] $labelExtras",
-                                    dlink
-                                ) { this.quality = quality }
-                            )
+                    "pixeldra" in label || "pixelserver" in label || "pixel server" in label -> {
+                        val base = getBaseUrl(link)
+                        val finalUrl = if ("download" in link) link
+                        else "$base/api/file/${link.substringAfterLast("/")}?download"
+                        callback(newExtractorLink(
+                            "$ref [Pixel]", "$ref [Pixel] $labelExtras", finalUrl, INFER_TYPE
+                        ) { this.quality = quality })
+                    }
+
+                    "s3 server" in label -> {
+                        callback(newExtractorLink(
+                            "$ref [S3]", "$ref [S3] $labelExtras", link, INFER_TYPE
+                        ) { this.quality = quality })
+                    }
+
+                    "fslv2" in label -> {
+                        callback(newExtractorLink(
+                            "$ref [FSLv2]", "$ref [FSLv2] $labelExtras", link, INFER_TYPE
+                        ) { this.quality = quality })
+                    }
+
+                    "mega server" in label -> {
+                        callback(newExtractorLink(
+                            "$ref [Mega]", "$ref [Mega] $labelExtras", link, INFER_TYPE
+                        ) { this.quality = quality })
+                    }
+
+                    "gofile" in label -> {
+                        loadExtractor(link, ref, subtitleCallback, callback)
+                    }
+
+                    "hubcdn" in link.lowercase() -> {
+                        HUBCDN().getUrl(link, ref, subtitleCallback, callback)
+                    }
+
+                    else -> {
+                        if (!loadExtractor(link, ref, subtitleCallback, callback)) {
+                            callback(newExtractorLink(
+                                ref, "$ref $labelExtras", link, INFER_TYPE
+                            ) { this.quality = quality })
                         }
-                    } catch (_: Exception) {}
+                    }
                 }
-
-                "pixeldra" in label || "pixelserver" in label || "pixel server" in label -> {
-                    val base = getBaseUrl(link)
-                    val finalUrl = if ("download" in link) link
-                    else "$base/api/file/${link.substringAfterLast("/")}?download"
-
-                    callback(
-                        newExtractorLink(
-                            "$ref Pixeldrain",
-                            "$ref Pixeldrain $labelExtras",
-                            finalUrl
-                        ) { this.quality = quality }
-                    )
-                }
-
-                "s3 server" in label -> {
-                    callback(
-                        newExtractorLink(
-                            "$ref [S3 Server]",
-                            "$ref [S3 Server] $labelExtras",
-                            link
-                        ) { this.quality = quality }
-                    )
-                }
-
-                "fslv2" in label -> {
-                    callback(
-                        newExtractorLink(
-                            "$ref [FSLv2]",
-                            "$ref [FSLv2] $labelExtras",
-                            link
-                        ) { this.quality = quality }
-                    )
-                }
-
-                "mega server" in label -> {
-                    callback(
-                        newExtractorLink(
-                            "$ref [Mega Server]",
-                            "$ref [Mega Server] $labelExtras",
-                            link
-                        ) { this.quality = quality }
-                    )
-                }
-
-                "gofile" in label -> {
-                    loadExtractor(link, ref, subtitleCallback, callback)
-                }
-
-                else -> {
-                    loadExtractor(link, "", subtitleCallback, callback)
-                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to resolve button '$label': ${e.message}")
             }
         }
     }
 
-    private fun getIndexQuality(str: String?): Int {
+    /** Extract quality value (720, 1080, 2160) from card header text */
+    private fun extractQualityFromHeader(str: String?): Int {
         return Regex("(\\d{3,4})[pP]")
             .find(str.orEmpty())
             ?.groupValues?.getOrNull(1)
@@ -244,12 +252,12 @@ class HubCloud : ExtractorApi() {
     }
 
     private fun getBaseUrl(url: String): String {
-        return try {
-            URI(url).let { "${it.scheme}://${it.host}" }
-        } catch (_: Exception) { "" }
+        return try { URI(url).let { "${it.scheme}://${it.host}" } }
+        catch (_: Exception) { "" }
     }
 
-    private fun cleanTitle(title: String): String {
+    /** Clean header text to extract meaningful metadata tags */
+    private fun cleanHeaderTitle(title: String): String {
         val name = title.replace(Regex("\\.[a-zA-Z0-9]{2,4}$"), "")
         val normalized = name
             .replace(Regex("WEB[-_. ]?DL", RegexOption.IGNORE_CASE), "WEB-DL")
@@ -264,7 +272,7 @@ class HubCloud : ExtractorApi() {
         val hdrTags = setOf("SDR", "HDR", "HDR10", "DV", "DOLBYVISION")
         val platformTags = setOf("NF", "AMZN", "DSNP", "HMAX", "APTV", "HULU", "CC")
 
-        val filtered = parts.mapNotNull { part ->
+        return parts.mapNotNull { part ->
             val p = part.uppercase()
             when {
                 sourceTags.contains(p) -> p
@@ -274,19 +282,22 @@ class HubCloud : ExtractorApi() {
                 platformTags.contains(p) -> p
                 else -> null
             }
-        }
-
-        return filtered.distinct().joinToString(" ")
+        }.distinct().joinToString(" ")
     }
 }
 
-/**
- * HUBCDN extractor — decodes base64 reurl parameter to get actual URL.
- */
+// ======================================================================
+// HUBCDN — decodes base64 reurl parameter or ?link= param
+// ======================================================================
+
 class HUBCDN : ExtractorApi() {
     override val name = "HUBCDN"
     override var mainUrl = "https://hubcdn.fans"
     override val requiresReferer = false
+
+    companion object {
+        private const val TAG = "HUBCDN"
+    }
 
     override suspend fun getUrl(
         url: String,
@@ -294,21 +305,21 @@ class HUBCDN : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        // First try: extract from ?link= parameter (instant CDN)
+        // Strategy 1: Extract from ?link= parameter (instant CDN)
         val linkParam = Regex("""[?&]link=(https?://[^&]+)""").find(url)?.groupValues?.get(1)
         if (linkParam != null) {
             val decoded = java.net.URLDecoder.decode(linkParam, "UTF-8")
-            callback(
-                newExtractorLink(name, name, decoded, INFER_TYPE) {
-                    this.quality = Qualities.Unknown.value
-                }
-            )
+            callback(newExtractorLink(name, name, decoded, INFER_TYPE) {
+                this.quality = Qualities.Unknown.value
+            })
             return
         }
 
-        // Second try: fetch page and decode reurl from script
+        // Strategy 2: Fetch page and decode reurl from script
         try {
-            val doc = app.get(url, timeout = 10000L).document
+            val doc = app.get(url, timeout = 10_000L).document
+
+            // Try reurl variable in script
             val scriptText = doc.selectFirst("script:containsData(var reurl)")?.data()
                 ?: doc.selectFirst("script:containsData(reurl)")?.data()
 
@@ -320,42 +331,60 @@ class HUBCDN : ExtractorApi() {
             val decodedUrl = encodedUrl?.let { base64Decode(it) }?.substringAfterLast("link=")
 
             if (decodedUrl != null) {
-                callback(
-                    newExtractorLink(name, name, decodedUrl, INFER_TYPE) {
-                        this.quality = Qualities.Unknown.value
-                    }
-                )
+                callback(newExtractorLink(name, name, decodedUrl, INFER_TYPE) {
+                    this.quality = Qualities.Unknown.value
+                })
                 return
             }
 
-            // Fallback: try redirect header
+            // Strategy 3: Try ?link= in page URL after potential redirects
+            val pageLinkParam = doc.selectFirst("a[href*=link=]")?.attr("href")
+            if (!pageLinkParam.isNullOrEmpty()) {
+                val resolved = if (pageLinkParam.startsWith("http")) pageLinkParam
+                else "${getBaseUrl(url)}/$pageLinkParam"
+                getUrl(resolved, referer, subtitleCallback, callback)
+                return
+            }
+
+            // Strategy 4: Try redirect header
             try {
-                val res = app.get(url, allowRedirects = false, timeout = 10000L)
+                val res = app.get(url, allowRedirects = false, timeout = 10_000L)
                 val location = res.headers["Location"]
                 if (!location.isNullOrEmpty() && location.startsWith("http")) {
-                    callback(
-                        newExtractorLink(name, name, location, INFER_TYPE) {
-                            this.quality = Qualities.Unknown.value
-                        }
-                    )
+                    callback(newExtractorLink(name, name, location, INFER_TYPE) {
+                        this.quality = Qualities.Unknown.value
+                    })
                     return
                 }
             } catch (_: Exception) {}
 
         } catch (e: Exception) {
-            Log.w("HUBCDN", "Failed to resolve $url: ${e.message}")
+            Log.w(TAG, "Failed to resolve $url: ${e.message}")
         }
+    }
+
+    private fun getBaseUrl(url: String): String {
+        return try { URI(url).let { "${it.scheme}://${it.host}" } }
+        catch (_: Exception) { "" }
     }
 }
 
-/**
- * Hblinks aggregator — extracts links from intermediary pages and routes
- * them to the correct extractor (Hubdrive/HubCloud/HUBCDN).
- */
+// ======================================================================
+// Hblinks — aggregator that extracts links from intermediary pages
+// Routes to Hubdrive/HubCloud/HUBCDN based on domain
+// ======================================================================
+
 class Hblinks : ExtractorApi() {
     override val name = "Hblinks"
     override var mainUrl = "https://hblinks.dad"
     override val requiresReferer = true
+
+    companion object {
+        private const val TAG = "Hblinks"
+        private val LAZY_HUBDRIVE by lazy { Hubdrive() }
+        private val LAZY_HUBCLOUD by lazy { HubCloud() }
+        private val LAZY_HUBCDN by lazy { HUBCDN() }
+    }
 
     override suspend fun getUrl(
         url: String,
@@ -364,22 +393,40 @@ class Hblinks : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         val doc = try {
-            app.get(url, timeout = 15000L).document
+            app.get(url, timeout = 15_000L).document
         } catch (e: Exception) {
-            Log.w("Hblinks", "Failed to fetch $url: ${e.message}")
+            Log.w(TAG, "Failed to fetch $url: ${e.message}")
             return
         }
 
-        doc.select("h3 a, h5 a, div.entry-content p a, div.entry-content a").forEach { anchor ->
-            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+        // Broad selector coverage — intermediary pages have varied structures
+        val selectors = "h3 a, h5 a, div.entry-content p a, div.entry-content a, " +
+                "article a, main a, .post-body a, .content a"
+
+        doc.select(selectors).forEach { anchor ->
+            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
             if (href.isBlank() || !href.startsWith("http")) return@forEach
 
             val lower = href.lowercase()
-            when {
-                "hubdrive" in lower -> Hubdrive().getUrl(href, name, subtitleCallback, callback)
-                "hubcloud" in lower -> HubCloud().getUrl(href, name, subtitleCallback, callback)
-                "hubcdn" in lower -> HUBCDN().getUrl(href, name, subtitleCallback, callback)
-                else -> loadExtractor(href, name, subtitleCallback, callback)
+            try {
+                when {
+                    "hubdrive" in lower ->
+                        LAZY_HUBDRIVE.getUrl(href, name, subtitleCallback, callback)
+                    "hubcloud" in lower ->
+                        LAZY_HUBCLOUD.getUrl(href, name, subtitleCallback, callback)
+                    "hubcdn" in lower ->
+                        LAZY_HUBCDN.getUrl(href, name, subtitleCallback, callback)
+                    else -> {
+                        if (!loadExtractor(href, name, subtitleCallback, callback)) {
+                            // Try as direct link
+                            callback(newExtractorLink(name, name, href, INFER_TYPE) {
+                                this.quality = Qualities.Unknown.value
+                            })
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Hblinks failed for $href: ${e.message}")
             }
         }
     }
