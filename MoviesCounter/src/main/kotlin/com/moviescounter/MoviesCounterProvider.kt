@@ -386,7 +386,7 @@ class MoviesCounterProvider : MainAPI() {
 
         Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries " +
             "titleIndicates=$titleIndicatesSeries tagIndicates=$tagIndicatesSeries " +
-            "epHeaders=$hasActualEpisodeSection singleSection=$hasSingleEpisodeSection " +
+            "epHeaders=$hasActualEpisodeHeaders singleSection=$hasSingleEpisodeSection " +
             "season=$seasonNum")
 
         if (isSeries) {
