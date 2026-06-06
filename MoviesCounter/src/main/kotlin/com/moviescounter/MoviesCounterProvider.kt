@@ -32,11 +32,11 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter provider for CloudStream — v21
+ * MoviesCounter provider for CloudStream — v22
  *
  * Site: moviescounter.boston (WordPress, custom Tailwind-based theme)
  *
- * Version history (v9 → v21 — every update is substantive):
+ * Version history (v9 → v22 — every update is substantive):
  *
  * v9  — Series episodes show per-episode quality links only (no pack merging).
  *        Full season packs shown as separate "Full Pack" entries after episodes.
@@ -63,6 +63,12 @@ import org.jsoup.nodes.Element
  *        hubdrive.space now handled by CloudStream's native loadExtractor
  *        instead of crash-prone 3-hop HTTP chain, Full Pack episodes use
  *        episode=-1 to avoid ugly "901." numbers in UI.
+ * v22 — CRASH FIX: newEpisode(data) pipe-delimited data corrupted by fixUrl()
+ *        auto-prepending mainUrl to non-http-starting strings — now uses
+ *        fix=false to pass raw data through. episode=-1 changed to null
+ *        (CloudStream showed literal "-1" in episode list). Domain fallback
+ *        regex now dynamic (was hardcoded to .boston). Drive vs Instant
+ *        link distinction in quality labels.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -220,11 +226,14 @@ class MoviesCounterProvider : MainAPI() {
             Log.w(TAG, "Primary domain failed for $url: ${e.message}")
         }
 
-        // Extract current TLD and try alternates
-        val baseHost = mainUrl.substringAfter("://").substringBefore(".")
+        // v22: Dynamic TLD extraction — regex was hardcoded to .boston which
+        // breaks when mainUrl has already fallen back to another domain.
+        val currentTld = mainUrl.substringAfterLast(".").trimEnd('/')
+        val tldRegex = Regex("""\.$currentTld/""")
+
         for (tld in DOMAIN_TLDS) {
-            if (url.contains(".$tld/", ignoreCase = true)) continue // skip current
-            val altUrl = url.replace(Regex("""\.boston/"""), ".$tld/")
+            if (tld.equals(currentTld, ignoreCase = true)) continue // skip current
+            val altUrl = url.replace(tldRegex, ".$tld/")
             try {
                 val doc = app.get(altUrl, headers = headers, timeout = timeout).document
                 Log.d(TAG, "Domain fallback succeeded: .$tld")
@@ -656,14 +665,22 @@ class MoviesCounterProvider : MainAPI() {
                 }
             }
 
-            // v11: Collect ALL links for the current episode (including dual links
-            // like "720p – Drive Instant" which has hubdrive + hubcdn URLs)
+            // v11/v22: Collect ALL links for the current episode (including dual links
+            // like "720p – Drive Instant" which has hubdrive + hubcdn URLs).
+            // v22: Append (Drive)/(Instant) to quality label so user can distinguish
+            // between the two link types for the same quality tier.
             if (currentEpisode != null) {
-                val qualityLabel = buildRichQualityLabel(text)
+                val baseQualityLabel = buildRichQualityLabel(text)
 
                 element.select("a[href]").forEach { anchor ->
                     val href = anchor.attr("href").trim()
                     if (isValidDownloadLink(href)) {
+                        val linkType = detectLinkType(anchor.text().trim(), href)
+                        val qualityLabel = if (linkType.isNotBlank()) {
+                            "$baseQualityLabel ($linkType)"
+                        } else {
+                            baseQualityLabel
+                        }
                         val key = currentSeason to currentEpisode
                         val bucket = episodeMap.getOrPut(key) { mutableListOf() }
                         if (bucket.none { it.second == href }) {
@@ -675,6 +692,9 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         // Build per-episode Episode objects
+        // v22: CRITICAL FIX — use fix=false because pipe-delimited data like
+        // "720p x264|https://..." does NOT start with "http", and newEpisode()
+        // calls fixUrl() which would prepend mainUrl, corrupting the data.
         val episodes = mutableListOf<Episode>()
 
         for ((key, links) in episodeMap.entries.sortedWith(
@@ -682,24 +702,22 @@ class MoviesCounterProvider : MainAPI() {
         )) {
             val (season, ep) = key
             val data = links.joinToString("\n") { (ql, url) -> "$ql|$url" }
-            episodes.add(newEpisode(data) {
+            episodes.add(newEpisode(data, fix = false) {
                 name = "Episode $ep"
                 this.season = season
                 this.episode = ep
             })
         }
 
-        // Build pack Episode objects — placed AFTER episodes
-        // Use high episode numbers (901+) so packs sort after real episodes,
-        // but CloudStream may display these numbers. To avoid ugly "901." labels,
-        // we don't set episode number for packs — CloudStream will use the
-        // episode list index automatically.
+        // Build pack Episode objects — placed AFTER real episodes.
+        // v22: episode=null instead of -1 — CloudStream displays "-1" literally
+        // in the episode list, which is ugly. With null, CS auto-assigns index.
         for ((idx, packLink) in packLinks.withIndex()) {
             val (label, href) = packLink
             episodes.add(newEpisode(href) {
                 name = "Full Pack – $label"
                 season = defaultSeason
-                episode = -1  // -1 = no specific episode number, avoids ugly "901." display
+                episode = null  // v22: null = CS auto-assigns, no ugly "-1" or "901"
             })
         }
 
@@ -768,13 +786,21 @@ class MoviesCounterProvider : MainAPI() {
     ): Boolean {
         if (data.isBlank()) return false
 
+        // v22: Parse both pipe-delimited ("quality|url") and plain URL formats.
+        // Also handles legacy v21 corrupted data where fixUrl prepended mainUrl
+        // to quality labels (e.g. "https://moviescounter.boston/720p x264|...").
         val entries = data.lines()
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .map { line ->
                 val parts = line.split("|", limit = 2)
                 if (parts.size == 2 && parts[0].isNotBlank() && parts[1].startsWith("http")) {
-                    Pair(parts[0].trim(), parts[1].trim())
+                    // Strip mainUrl prefix from quality label (v21 corruption fixup)
+                    val cleanLabel = parts[0].trim()
+                        .removePrefix(mainUrl.trimEnd('/') + "/")
+                        .removePrefix(mainUrl + "/")
+                        .trim()
+                    Pair(cleanLabel.ifBlank { parts[0].trim() }, parts[1].trim())
                 } else if (line.startsWith("http")) {
                     Pair("", line)
                 } else {
@@ -975,6 +1001,26 @@ class MoviesCounterProvider : MainAPI() {
         return href.startsWith("http") &&
             !IGNORE_HOST_REGEX.containsMatchIn(href) &&
             !href.contains(mainUrl, ignoreCase = true)
+    }
+
+    /**
+     * v22: Detect link type from anchor text and URL pattern.
+     * Returns "Drive" for hubdrive (GD index) links, "Instant" for hubcdn
+     * (fast redirect) links, or empty string for unknown.
+     */
+    private fun detectLinkType(anchorText: String, href: String): String {
+        val textLower = anchorText.lowercase()
+        return when {
+            textLower.equals("drive", true) ||
+                textLower.contains("drive", true) -> "Drive"
+            textLower.equals("instant", true) ||
+                textLower.contains("instant", true) -> "Instant"
+            href.contains("hubdrive.space", ignoreCase = true) ||
+                href.contains("hubdrive.link", ignoreCase = true) -> "Drive"
+            href.contains("hubcdn.org", ignoreCase = true) ||
+                href.contains("hubcdn.sbs", ignoreCase = true) -> "Instant"
+            else -> ""
+        }
     }
 
     private suspend fun addDirectLink(

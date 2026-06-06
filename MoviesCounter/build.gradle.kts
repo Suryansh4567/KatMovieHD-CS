@@ -1,8 +1,8 @@
-version = 21
+version = 22
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v21: Fix crash from kotlinx.coroutines.delay, fix hubdrive 3-hop chain crash (now uses native loadExtractor), fix Full Pack showing ugly 901 episode numbers, safer redirector resolution"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v22: CRASH FIX — fixUrl corrupting pipe-delimited episode data (now uses fix=false), episode=-1 changed to null (was showing literal -1 in UI), dynamic domain fallback regex, Drive/Instant link label distinction"
     authors = listOf("Suryansh4567")
     status = 1
 
