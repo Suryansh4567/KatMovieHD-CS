@@ -868,7 +868,7 @@ class MoviesCounterProvider : MainAPI() {
         } catch (_: Exception) { null }
     }
 
-    private fun addDirectLink(url: String, callback: (ExtractorLink) -> Unit, qualityLabel: String = "") {
+    private suspend fun addDirectLink(url: String, callback: (ExtractorLink) -> Unit, qualityLabel: String = "") {
         val quality = when {
             url.contains("2160p", true) || url.contains("4K", true) -> Qualities.P2160.value
             url.contains("1080p", true) -> Qualities.P1080.value
