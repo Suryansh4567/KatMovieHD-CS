@@ -49,25 +49,27 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 2,
+        "version": 8,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies & Web Series in 480p/720p/1080p/2160p 4K with HEVC & x264 variants",
-        "fileSize": 33057,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v8: Fixed missing 4K/pack links, pack quality tiers merged into episodes, all quality variants captured",
+        "fileSize": 33805,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
             "Movie",
-            "TvSeries"
+            "TvSeries",
+            "AsianDrama",
+            "Anime"
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-a22f198218b64d8caffd2e39a86f34d2ed77f97f05f77bd32039147151f780a8",
-        "jarFileSize": 117982,
+        "fileHash": "sha256-7dbf4e0ed72730e034af3a7994851d4ae4f3d28ba5f20968cb8386757dad72bb",
+        "jarFileSize": 119706,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-8b8f0b9df018b1e30810e3c533b36562633fa1a23e5256aadb77c0fdb8dea554"
+        "jarHash": "sha256-8a331ed27d4521e141f38868290dd4521ac7fe8dd4c9440beda18be9a3d9563f"
     }
 ]
