@@ -56,7 +56,7 @@
             "Suryansh4567"
         ],
         "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies & Web Series in 480p/720p/1080p/2160p 4K with HEVC & x264 variants",
-        "fileSize": 29131,
+        "fileSize": 31082,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -65,33 +65,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-314e553aa366f5248d9527e7c1948f9c68631d9c6b3800a0ba687a64498e2ac0",
-        "jarFileSize": 104664,
+        "fileHash": "sha256-ffb2ea0f8c5eada44195012ae94aa35c82a1603e1da6fb2fde53eeba65ee0d62",
+        "jarFileSize": 109575,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-9c2afce9812603aa713472facbd3449cdae977af17bf197b82cc14bda41d9754"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/UHDMovies.cs3",
-        "status": 1,
-        "version": 1,
-        "name": "UHDMovies",
-        "internalName": "UHDMovies",
-        "authors": [
-            "Suryansh4567"
-        ],
-        "description": "UHDMovies \u2014 Bollywood, Hollywood, Dual Audio, South Indian Hindi Dubbed Movies & Web Series in 480p/720p/1080p/2160p (4K)",
-        "fileSize": 24118,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "hi",
-        "tvTypes": [
-            "Movie",
-            "TvSeries"
-        ],
-        "iconUrl": "https://hdmovieplus4u.com/templates/uhdmovies/images/logo.png",
-        "apiVersion": 1,
-        "fileHash": "sha256-ae957fcf911f177cfe465fc86f9dd0b23a421771bcae5e8ea11e0736eab8843f",
-        "jarFileSize": 88859,
-        "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/UHDMovies.jar",
-        "jarHash": "sha256-4935e02ebb67708836287e1950cfb306b8715998936323518f25aa95a52ea9ec"
+        "jarHash": "sha256-09d4add8c2765e19f228a48712af91aaf1390aa5c50d667756d5fa4b86782c23"
     }
 ]
