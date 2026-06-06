@@ -344,13 +344,18 @@ class MoviesCounterProvider : MainAPI() {
         // ---------------------------------------------------------------
         // CRITICAL FIX: Series detection
         //
-        // We use THREE indicators — but NOT the broad "EPiSODE in text" check
-        // that was causing movies to be misdetected as series:
+        // MoviesCounter movie pages contain "You May Also Like" sections
+        // that reference series with EPiSODE headers — so checking for
+        // EPiSODE headers in the whole article causes FALSE POSITIVES.
         //
-        //   1. Title/URL pattern (Season, WEB-Series, etc.)
+        // Only THREE checks are reliable:
+        //   1. Title/URL pattern (Season, S01, WEB-Series, etc.)
         //   2. Category tags (WEB-Series, TV-Shows)
-        //   3. ACTUAL EPiSODE headers in the download section
-        //      (not just the word "episode" appearing in description text)
+        //   3. "Single Episode" h2 section header — this ONLY exists
+        //      on series pages, never on movie pages
+        //
+        // EPiSODE h4 headers are NOT used for detection because they
+        // appear in "You May Also Like" related posts on movie pages.
         // ---------------------------------------------------------------
 
         // Check 1: Title/URL-based detection
@@ -363,24 +368,19 @@ class MoviesCounterProvider : MainAPI() {
             it.equals("WEB-Series [UnOfficial Dubbed]", true)
         }
 
-        // Check 3: Actual EPiSODE headers in the download section
-        // This is the KEY fix — we look for <h4><strong>EPiSODE N</strong></h4>
-        // NOT just the word "episode" anywhere in the page text
+        // Check 3: "Single Episode" section header exists
+        // This is the DEFINITIVE marker — it ONLY appears on series pages
         val container = doc.selectFirst("article, .post-body") ?: doc
-        val hasActualEpisodeHeaders = container.select("h4, h3").any { el ->
-            EPISODE_HEADER_REGEX.containsMatchIn(el.text()) &&
-                // The header must NOT also contain a download link (to distinguish
-                // from quality lines like "720p – Episode 1 Drive")
-                el.select("a[href]").isEmpty()
-        }
-
-        // Check 4: "Single Episode" section header exists
         val hasSingleEpisodeSection = container.select("h2").any { h2 ->
             SINGLE_EP_SECTION_REGEX.containsMatchIn(h2.text())
         }
 
+        // DO NOT use EPiSODE h4 headers for detection — they appear in
+        // "You May Also Like" related posts on movie pages, causing false
+        // positives. EPiSODE headers are only used inside buildSeriesEpisodes()
+        // for layout decisions (per-episode vs pack).
         val isSeries = titleIndicatesSeries || tagIndicatesSeries ||
-            hasActualEpisodeHeaders || hasSingleEpisodeSection
+            hasSingleEpisodeSection
 
         // Season number from title
         val seasonNum = SEASON_REGEX.find(rawTitle)?.let { m ->
@@ -389,8 +389,7 @@ class MoviesCounterProvider : MainAPI() {
 
         Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries " +
             "titleIndicates=$titleIndicatesSeries tagIndicates=$tagIndicatesSeries " +
-            "epHeaders=$hasActualEpisodeHeaders singleSection=$hasSingleEpisodeSection " +
-            "season=$seasonNum")
+            "singleSection=$hasSingleEpisodeSection season=$seasonNum")
 
         if (isSeries) {
             val episodes = buildSeriesEpisodes(container, seasonNum)
