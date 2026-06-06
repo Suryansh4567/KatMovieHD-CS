@@ -135,6 +135,9 @@ class MoviesCounterProvider : MainAPI() {
         private val SINGLE_EP_SECTION_REGEX = Regex(
             """(?i)Single\s*Episode|Per\s*Episode|Episode\s*Wise"""
         )
+
+        /** Regex to skip SAMPLE/trailer links in download section */
+        private val SAMPLE_REGEX = Regex("""(?i)\bSAMPLE\b|\bTRAILER\b""")
     }
 
     private val headers = mapOf(
@@ -470,6 +473,9 @@ class MoviesCounterProvider : MainAPI() {
 
             // Skip PACK links — these are full-season downloads, not per-episode
             if (PACK_REGEX.containsMatchIn(headingText)) return@forEach
+
+            // Skip SAMPLE/trailer links
+            if (SAMPLE_REGEX.containsMatchIn(headingText)) return@forEach
 
             val link = heading.selectFirst("a[href]")
             val href = link?.attr("href")?.trim()
