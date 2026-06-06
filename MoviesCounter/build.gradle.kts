@@ -1,8 +1,8 @@
-version = 23
+version = 24
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v23: Series overhaul — newline-joined URLs (like KatMovieHD/MkvHub), fixed duplicate quality labels (x264 X264), Complete Pack naming, quality labels via URL fragment, simplified loadLinks"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v24: Series rewrite — no packs in episodes, per-episode individual links only, JSON data pattern (EpLink), fixUrl-safe, auto-detect JSON vs URL in loadLinks"
     authors = listOf("Suryansh4567")
     status = 1
 
