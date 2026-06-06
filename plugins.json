@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 30,
+        "version": 31,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v30: CRITICAL FIX \u2014 use List<String> generic overload for movie/episode data (fixes JSON double-serialization), fix HUBCDN mainUrl to hubcdn.sbs (was hubcdn.org), fix obsession.buzz as direct video file (not HTML), add Mclinks extractor, fix BuzzServer label check, proper PACK filtering",
-        "fileSize": 76209,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v31: RESTORED from v26 working foundation \u2014 v27-v30 over-engineering broke both movies and series. Restored v26 extractors (3-arg newExtractorLink, hubcdn.fans), IGNORE_HOST_REGEX with moviescounter, simple isValidDownloadLink, proven Hubdrive selectors. Added Mclinks extractor, PACK URL filtering, more hubcdn/hubcloud domain variants.",
+        "fileSize": 65312,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-4561c154e0bc525884de455ede2848d2d9188f54d6bce86ccce5573026e3fa6e",
-        "jarFileSize": 344459,
+        "fileHash": "sha256-78b96ad0d28d65f62c60686b87fa863b75e1519b1777560be37766bc6807c7f7",
+        "jarFileSize": 274915,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-7f2c6ef2f6e5cf5f398fde96f8983685d51f8b4f7a7ed2fb687ee028e167b8c0"
+        "jarHash": "sha256-882cabda4580bac9b41f2ef26b2800d2b8994bee6907214d2ee6670eca83da0b"
     }
 ]
