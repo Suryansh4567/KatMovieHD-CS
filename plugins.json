@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 31,
+        "version": 32,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v31: RESTORED from v26 working foundation \u2014 v27-v30 over-engineering broke both movies and series. Restored v26 extractors (3-arg newExtractorLink, hubcdn.fans), IGNORE_HOST_REGEX with moviescounter, simple isValidDownloadLink, proven Hubdrive selectors. Added Mclinks extractor, PACK URL filtering, more hubcdn/hubcloud domain variants.",
-        "fileSize": 65312,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v32: Fix no-link-found \u2014 use String data format (newline-joined URLs) instead of List<String> to avoid JSON serialization issues. Improved Hubdrive selectors, HubCloud 10gbps handling, direct hubcdn CDN resolution, Mclinks broader selectors.",
+        "fileSize": 64393,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-78b96ad0d28d65f62c60686b87fa863b75e1519b1777560be37766bc6807c7f7",
-        "jarFileSize": 274915,
+        "fileHash": "sha256-efabce99d2fe99b05c7aca0baf3876f86506598fb393c32eb2e40f02b605630a",
+        "jarFileSize": 282370,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-882cabda4580bac9b41f2ef26b2800d2b8994bee6907214d2ee6670eca83da0b"
+        "jarHash": "sha256-43f1f6b75bb89da4529faed7eaf04ad40526dd2dc8a053819e0364365d93195f"
     }
 ]
