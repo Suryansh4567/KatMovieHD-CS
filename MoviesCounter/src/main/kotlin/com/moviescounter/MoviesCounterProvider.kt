@@ -60,6 +60,15 @@ import org.jsoup.nodes.Element
  * keywords ("WEB-Series", "TV-Shows", "Season", "EPiSODE") that cause FALSE
  * POSITIVES in series detection. ALL scraping must be scoped to div.post-body
  * and the post's own hashtag div ONLY.
+ *
+ * ── v4 — Reliability & Robustness ──
+ *   • Domain rotation fallback: site frequently changes TLDs (.boston, .one,
+ *     .win, .vip, .ink). On network failure, each alternative is tried in order.
+ *   • Dead page detection: WordPress redirects non-existent pages to the
+ *     homepage/category instead of 404. Detected via canonical URL check.
+ *   • Search pagination: WordPress /page/N/?s=query format for deep results.
+ *   • Retry with timeout tuning: transient failures don't kill the entire load.
+ *   • Canonical URL validation: catches silent redirects to wrong pages.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -75,6 +84,25 @@ class MoviesCounterProvider : MainAPI() {
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+        /**
+         * Known MoviesCounter domain TLDs — the site frequently changes domains.
+         * On domain failure, each alternative is tried in order until one works.
+         * The first successful domain becomes the active mainUrl.
+         */
+        private val DOMAIN_TLDS = listOf("boston", "one", "win", "vip", "ink", "lol", "cc")
+
+        /**
+         * WordPress redirects non-existent pages to this category
+         * instead of returning 404. Used to detect invalid page loads.
+         */
+        private const val FALLBACK_CATEGORY = "/category/latest"
+
+        /** Request timeout in seconds. */
+        private const val TIMEOUT = 30
+
+        /** Maximum retry attempts for network requests. */
+        private const val MAX_RETRIES = 2
 
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
@@ -115,12 +143,108 @@ class MoviesCounterProvider : MainAPI() {
 
         /** Regex to skip SAMPLE/trailer links */
         private val SAMPLE_REGEX = Regex("""(?i)\bSAMPLE\b|\bTRAILER\b""")
+
+        /**
+         * Regex to skip torrent/magnet links — CloudStream can't play them.
+         * These appear on some pages as alternative download options.
+         */
+        private val TORRENT_REGEX = Regex(
+            """(?i)\btorrent\b|\bmagnet\b|\b\.torrent\b|\bmagnet:\?"""
+        )
     }
 
     private val headers = mapOf(
         "User-Agent" to USER_AGENT,
         "Accept-Language" to "en-US,en;q=0.9"
     )
+
+    // ------------------------------------------------------------------
+    // Domain rotation & network resilience
+    // ------------------------------------------------------------------
+
+    /**
+     * Attempt an HTTP GET with domain rotation fallback.
+     * If the primary domain fails (timeout, DNS error, 5xx), each
+     * alternative TLD from DOMAIN_TLDS is tried in order.
+     * On success, [mainUrl] is updated to the working domain so
+     * subsequent requests don't have to retry.
+     */
+    private suspend fun resilientGet(
+        url: String,
+        customHeaders: Map<String, String> = headers,
+        timeout: Int = TIMEOUT
+    ): com.lagradost.cloudstream3.mvvm.Resource<com.lagradost.cloudstream3.network.WebPage> {
+        // First attempt: use the URL as-is
+        var lastException: Exception? = null
+        for (attempt in 1..MAX_RETRIES) {
+            try {
+                val res = app.get(url, headers = customHeaders, timeout = timeout)
+                if (res.code < 500) return res
+                lastException = Exception("HTTP ${res.code}")
+            } catch (e: Exception) {
+                lastException = e
+                Log.w(TAG, "resilientGet attempt $attempt failed for $url: ${e.message}")
+            }
+        }
+
+        // Domain rotation: try each alternative TLD
+        val currentHost = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1)
+        if (currentHost != null) {
+            for (tld in DOMAIN_TLDS) {
+                val altHost = "https://moviescounter.$tld"
+                if (altHost == currentHost) continue
+                val altUrl = url.replace(currentHost, altHost)
+                try {
+                    val res = app.get(altUrl, headers = customHeaders, timeout = timeout)
+                    if (res.code < 500) {
+                        // Domain works! Update mainUrl for future requests
+                        Log.d(TAG, "Domain rotation: switching from $currentHost to $altHost")
+                        mainUrl = altHost
+                        return res
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Domain rotation: $altHost failed: ${e.message}")
+                }
+            }
+        }
+
+        // All attempts failed — throw the last exception
+        throw lastException ?: Exception("All domain attempts failed for $url")
+    }
+
+    /**
+     * Check if a document represents a dead/invalid page.
+     * WordPress often redirects non-existent pages to a category
+     * listing (200 OK) instead of returning 404.
+     */
+    private fun isDeadPage(doc: org.jsoup.nodes.Document, originalUrl: String): Boolean {
+        // Check 1: canonical URL points to a fallback category
+        val canonical = doc.selectFirst("link[rel=canonical]")?.attr("href")
+        if (canonical != null && canonical.contains(FALLBACK_CATEGORY)) {
+            Log.d(TAG, "Dead page detected: canonical redirects to $canonical")
+            return true
+        }
+
+        // Check 2: body class indicates 404
+        val bodyClass = doc.selectFirst("body")?.className() ?: ""
+        if (bodyClass.contains("error404", ignoreCase = true) ||
+            bodyClass.contains("page-not-found", ignoreCase = true)
+        ) {
+            Log.d(TAG, "Dead page detected: body class indicates 404")
+            return true
+        }
+
+        // Check 3: page title contains "Not Found" or "Page not found"
+        val pageTitle = doc.title().lowercase()
+        if (pageTitle.contains("page not found") || pageTitle.contains("not found") &&
+            !pageTitle.contains("moviescounter")
+        ) {
+            Log.d(TAG, "Dead page detected: title '$pageTitle'")
+            return true
+        }
+
+        return false
+    }
 
     // ------------------------------------------------------------------
     // Main page & search
@@ -144,7 +268,7 @@ class MoviesCounterProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val url = if (page == 1) request.data else "${request.data.trimEnd('/')}/page/$page/"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val doc = resilientGet(url).document
         val items = parseListing(doc)
         val hasNext = doc.selectFirst("a.next.page-numbers") != null
         return newHomePageResponse(
@@ -156,7 +280,22 @@ class MoviesCounterProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
         val url = "$mainUrl/?s=$encoded"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val doc = resilientGet(url).document
+        return parseListing(doc)
+    }
+
+    /**
+     * Paginated search — enables deep result browsing.
+     * WordPress uses /page/N/?s=query format for search pagination.
+     */
+    override suspend fun search(query: String, page: Int): List<SearchResponse> {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val url = if (page <= 1) {
+            "$mainUrl/?s=$encoded"
+        } else {
+            "$mainUrl/page/$page/?s=$encoded"
+        }
+        val doc = resilientGet(url).document
         return parseListing(doc)
     }
 
@@ -270,7 +409,14 @@ class MoviesCounterProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val response = resilientGet(url)
+        val doc = response.document
+
+        // Dead page detection: WordPress redirects non-existent pages
+        // to a category listing instead of 404
+        if (isDeadPage(doc, url)) {
+            throw Exception("Page not found (dead/redirected): $url")
+        }
 
         // Title from h3 heading or og:title
         val rawTitle = doc.selectFirst("h3.text-gray-500")?.text()?.trim()
