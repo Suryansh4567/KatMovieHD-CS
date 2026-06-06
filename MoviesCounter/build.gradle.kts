@@ -1,8 +1,8 @@
-version = 27
+version = 28
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v27: Professional rewrite — two-pass series parsing (element traversal + nextSibling fallback), comprehensive PACK filtering, lazy mainPage for domain fallback, WordPress redirect bypass, lazy extractor caching"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v28: Extreme defensive rewrite — 3-pass series parsing + PatternB + super-fallback, two-tier link validation, fixed IGNORE_HOST_REGEX (# removed), gadgetsweb/hubstream/obsession routing, extensive debug logging"
     authors = listOf("Suryansh4567")
     status = 1
 
