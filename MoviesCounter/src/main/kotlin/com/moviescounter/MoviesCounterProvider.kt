@@ -23,64 +23,48 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.newTvSeriesSearchResponse
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter provider for CloudStream — v25
+ * MoviesCounter provider for CloudStream — v26
  *
  * Site: moviescounter.boston (WordPress, custom Tailwind-based theme)
  *
- * Version history (v9 → v25 — every update is substantive):
+ * Version history (v9 → v26 — every update is substantive):
  *
  * v9  — Series episodes show per-episode quality links only (no pack merging).
- *        Full season packs shown as separate "Full Pack" entries after episodes.
- * v10 — hubdrive.space redirector: initially custom resolution, later removed
- *        due to crash risk from 3-hop HTTP chain.
- * v11 — Dual-link quality extraction: "720p – Drive  Instant" headings contain
- *        TWO links (hubdrive + hubcdn); both are now captured per episode.
- * v12 — Retry logic for redirector resolution; network failures no longer
- *        silently drop links.
- * v13 — Season detection from per-episode EPiSODE headers (not just page title).
- * v14 — Search pagination: fetch multiple result pages for comprehensive search.
- * v15 — Related/recommended posts scraping from "You May Also Like" section.
- * v16 — Poster resolution: 5-tier fallback (TMDB → og:image → aligncenter →
- *        first article img → data-src lazy-load).
- * v17 — Subtitle track metadata extraction (Hindi DD5.1, English ESub etc.)
- *        propagated into quality labels for informed source selection.
- * v18 — Domain auto-fallback: site frequently changes TLDs (.boston → .wiki →
- *        .one); provider tries alternate domains on connection failure.
- * v19 — Metadata enrichment: runtime/duration, audio codec, source platform
- *        (AMZN, NF, DSNP) extracted from heading text and passed to UI.
- * v20 — Defensive parsing hardening: null-safe every element access, regex
- *        input validation, bounded collections, structured error categorization.
- * v21 — CRASH FIX: Removed kotlinx.coroutines.delay (not in plugin classpath),
- *        hubdrive.space now handled by CloudStream's native loadExtractor
- *        instead of crash-prone 3-hop HTTP chain.
- * v22 — CRASH FIX: pipe-delimited data format swapped to URL-first to avoid
- *        fixUrl corruption. episode=-1 changed to null. Dynamic domain
- *        fallback regex. Drive/Instant link label distinction.
+ * v10 — hubdrive.space redirector: initially custom resolution, later removed.
+ * v11 — Dual-link quality extraction: "720p – Drive  Instant" headings.
+ * v12 — Retry logic for redirector resolution.
+ * v13 — Season detection from per-episode EPiSODE headers.
+ * v14 — Search pagination.
+ * v15 — Related/recommended posts scraping.
+ * v16 — Poster resolution: 5-tier fallback.
+ * v17 — Subtitle track metadata in quality labels.
+ * v18 — Domain auto-fallback.
+ * v19 — Metadata enrichment: runtime, audio codec, source platform.
+ * v20 — Defensive parsing hardening.
+ * v21 — CRASH FIX: hubdrive.space delegated to native loadExtractor.
+ * v22 — CRASH FIX: pipe-delimited data format swapped to URL-first.
  * v23 — SERIES OVERHAUL: Simplified episode data to newline-joined URLs.
- *        Fixed duplicate quality labels. Pack-only series naming. Quality
- *        labels via URL fragment (#label=...). loadLinks simplified.
  * v24 — SERIES REWRITE: Complete removal of pack entries from episodes.
- *        Each episode shows ONLY its own individual quality links.
- *        No "pack" or "Complete Pack" entries at all. Pack-only series
- *        show quality-labeled entries without "pack" word.
- *        Clean episode names: "Episode 1", "Episode 2" etc.
- * v25 — SERIES FIX: Dual-format series parsing — handles BOTH S4 format
- *        (E01 – Drive | Instant combined on one line) AND S5 format
- *        (EPiSODE N header + quality lines). Added E-num regex pattern.
- *        No longer requires "Single Episode" section marker. PACK links
- *        explicitly filtered everywhere. hubcdn.fans domain support.
- *        PACK links cannot be split into per-episode (they're single
- *        bundled files) — only per-episode links from the main page
- *        are shown. h5 tags now included in element scanning.
+ * v25 — SERIES FIX: Dual-format series parsing (S4 E01 + S5 EPiSODE N).
+ * v26 — PROFESSIONAL REWRITE: Copied patterns from phisher98/HDhub4u and
+ *        FourKHDHub (professional CloudStream Hindi extensions).
+ *        - newEpisode(List<String>) for JSON-serialized episode data
+ *        - Custom ExtractorApi classes: Hubdrive, HubCloud, HUBCDN, Hblinks
+ *          (proper CloudStream extractor framework integration, no crashes)
+ *        - HubCloud chain: hubdrive → hubcloud → FSL/BuzzServer/PixelDrain/S3
+ *        - loadLinks() uses tryParseJson<List<String>> + explicit extractor routing
+ *        - mclinks.xyz resolved via Hblinks aggregator
+ *        - No more custom resolveHubcdn/resolveMclinks — replaced by ExtractorApi
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -101,8 +85,27 @@ class MoviesCounterProvider : MainAPI() {
         /** Known domain TLDs — site rotates these when one gets blocked. */
         private val DOMAIN_TLDS = listOf("boston", "wiki", "one", "vip", "lol", "cc")
 
-        /** Max retry attempts for redirector resolution. */
-        private const val MAX_RETRIES = 2
+        /** Match "EPiSODE N" / "Episode N" headers (standalone, no links). */
+        private val EPISODE_HEADER_REGEX = Regex(
+            """(?i)\bEPiSODE\s*[-–:#]?\s*(\d{1,3})\b|\bEpisode\s*[-–:#]?\s*(\d{1,3})\b"""
+        )
+
+        /** Match "E01", "E02" etc. — used in S4 format combined with links. */
+        private val E_NUM_REGEX = Regex("""\bE(\d{1,3})\b(?!\d)""")
+
+        /** Match "Season N" / "S0N" in titles. */
+        private val SEASON_REGEX = Regex("""(?i)\bSeason\s*(\d{1,2})\b|\bS(\d{1,2})\b(?!\d)""")
+
+        /** Regex to detect "Single Episode" section header */
+        private val SINGLE_EP_SECTION_REGEX = Regex(
+            """(?i)Single\s*Episode|Per\s*Episode|Episode\s*Wise|Single\s*Ep"""
+        )
+
+        /** Regex to detect PACK links — must be skipped in per-episode section. */
+        private val PACK_REGEX = Regex("""(?i)\bPACK\b|\bPack\s|Pack\s*\[""")
+
+        /** Regex to skip SAMPLE/trailer links */
+        private val SAMPLE_REGEX = Regex("""(?i)\bSAMPLE\b|\bTRAILER\b""")
 
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
@@ -123,45 +126,13 @@ class MoviesCounterProvider : MainAPI() {
                     """)"""
         )
 
-        /** Match "EPiSODE N" / "Episode N" headers (standalone, no links). */
-        private val EPISODE_HEADER_REGEX = Regex(
-            """(?i)\bEPiSODE\s*[-–:#]?\s*(\d{1,3})\b|\bEpisode\s*[-–:#]?\s*(\d{1,3})\b"""
-        )
-
-        /** Match "E01", "E02" etc. — used in S4 format combined with links. */
-        private val E_NUM_REGEX = Regex("""\bE(\d{1,3})\b(?!\d)""")
-
-        /** Match "Season N" / "S0N" in titles. */
-        private val SEASON_REGEX = Regex("""(?i)\bSeason\s*(\d{1,2})\b|\bS(\d{1,2})\b(?!\d)""")
-
-        /** Regex to extract size like [510MB] or [1.3GB] */
-        private val SIZE_REGEX = Regex("""\[([\d.]+(?:MB|GB|TB))\]""", RegexOption.IGNORE_CASE)
-
-        /** Regex to detect "Single Episode" section header */
-        private val SINGLE_EP_SECTION_REGEX = Regex(
-            """(?i)Single\s*Episode|Per\s*Episode|Episode\s*Wise|Single\s*Ep"""
-        )
-
-        /** Regex to detect PACK links — must be skipped in per-episode section. */
-        private val PACK_REGEX = Regex("""(?i)\bPACK\b|\bPack\s|Pack\s*\[""")
-
-        /** Regex to skip SAMPLE/trailer links */
-        private val SAMPLE_REGEX = Regex("""(?i)\bSAMPLE\b|\bTRAILER\b""")
-
-        /** Regex to detect quality in heading text */
         private val QUALITY_REGEX = Regex("""(?i)(4K|2160p|1080p|720p|480p|300MB)""")
-
-        /** Regex to extract audio/subtitle metadata */
         private val AUDIO_META_REGEX = Regex(
             """(?i)(DD5\.1|DDP5\.1|ATMOS|AAC5\.1|5\.1|2\.0|ESub|ESubs|Hindi|English|Dual\s*Audio)"""
         )
-
-        /** Regex to extract source platform (AMZN, NF, DSNP etc.) */
         private val SOURCE_PLATFORM_REGEX = Regex(
             """(?i)\b(AMZN|NF|DSNP|HMAX|APTV|PMTP|iP|HULU|BBC|ITV|Crav|STAN|BFI|CC)\b"""
         )
-
-        /** Regex to extract codec info */
         private val CODEC_REGEX = Regex(
             """(?i)\b(x264|x265|HEVC|H264|H265|AV1|10Bit|8Bit|HDR|SDR|DV|HDRip)\b"""
         )
@@ -224,10 +195,6 @@ class MoviesCounterProvider : MainAPI() {
         return results.distinctBy { it.url }
     }
 
-    /**
-     * Fetch URL with domain auto-fallback.
-     * If the primary domain fails, tries alternate TLDs in order.
-     */
     private suspend fun fetchWithFallback(
         url: String,
         timeout: Long = 30_000L
@@ -368,28 +335,21 @@ class MoviesCounterProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val doc = fetchWithFallback(url)
 
-        // Title from h3 heading or og:title
         val rawTitle = doc.selectFirst("h3.text-gray-500")?.text()?.trim()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")?.trim()
             ?: doc.title().trim()
 
         val title = cleanTitle(rawTitle)
-
-        // Poster resolution — 5-tier fallback strategy
         val posterUrl = resolvePoster(doc)
-
-        // Plot from og:description or longest paragraph in post-body
         val postBody = doc.selectFirst("div.post-body")
         val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
             ?: postBody?.select("p")?.firstOrNull { it.text().length > 100 }?.text()?.trim()
 
-        // Score from post-body only
         var score: Score? = null
         val metaText = postBody?.text() ?: ""
         Regex("""(\d+\.?\d*)/10""").find(metaText)?.groupValues?.get(1)
             ?.toFloatOrNull()?.let { score = Score.from10(it) }
 
-        // Tags from the POST'S OWN hashtag links only
         val tags = doc.select("div.w-full.my-4.text-center a[href*=/category/]")
             .map { it.text().trim().removePrefix("# ").trim() }
             .filter { it.isNotBlank() && it.length < 30 }.distinct()
@@ -399,32 +359,25 @@ class MoviesCounterProvider : MainAPI() {
                     ?: emptyList()
             }
 
-        // Year from title
         val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(rawTitle)
             ?.groupValues?.get(1)?.toIntOrNull()
-
-        // IMDB link
         val imdbUrl = doc.selectFirst("a[href*=imdb.com/title]")?.attr("href")
 
         // ---------------------------------------------------------------
         // Series detection
         // ---------------------------------------------------------------
         val titleIndicatesSeries = detectSeriesFromTitle(rawTitle, url)
-
         val tagIndicatesSeries = tags.any {
             it.equals("WEB-Series", true) ||
             it.equals("TV-Shows", true) ||
             it.equals("WEB-Series [UnOfficial Dubbed]", true)
         }
-
         val hasSingleEpisodeSection = postBody?.select("h2")?.any { h2 ->
             SINGLE_EP_SECTION_REGEX.containsMatchIn(h2.text())
         } ?: false
 
-        val isSeries = titleIndicatesSeries || tagIndicatesSeries ||
-            hasSingleEpisodeSection
+        val isSeries = titleIndicatesSeries || tagIndicatesSeries || hasSingleEpisodeSection
 
-        // Season number from title
         val seasonNum = SEASON_REGEX.find(rawTitle)?.let { m ->
             (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
         } ?: 1
@@ -438,10 +391,9 @@ class MoviesCounterProvider : MainAPI() {
             Log.d(TAG, "load() built ${episodes.size} episode(s)")
 
             val finalEpisodes = if (episodes.isEmpty()) {
-                // Ultimate fallback: single episode with all links
                 val links = collectDownloadLinks(container)
                 if (links.isNotEmpty()) {
-                    listOf(newEpisode(links.joinToString("\n") { it.second }) {
+                    listOf(newEpisode(links.map { it.second }) {
                         name = "Episode 1"
                         season = seasonNum
                         episode = 1
@@ -460,11 +412,12 @@ class MoviesCounterProvider : MainAPI() {
                 imdbUrl?.let { addImdbUrl(it) }
             }
         } else {
+            // Movie: pass List<String> of URLs — same professional pattern
             val links = collectDownloadLinks(container)
-            val data = links.joinToString("\n") { it.second }
-            Log.d(TAG, "load() found ${links.size} download link(s) for movie")
+            val urlList = links.map { it.second }
+            Log.d(TAG, "load() found ${urlList.size} download link(s) for movie")
 
-            return newMovieLoadResponse(title, url, TvType.Movie, data) {
+            return newMovieLoadResponse(title, url, TvType.Movie, urlList) {
                 this.posterUrl = posterUrl
                 this.plot = plot
                 this.year = year
@@ -480,37 +433,27 @@ class MoviesCounterProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     private fun resolvePoster(doc: org.jsoup.nodes.Document): String? {
-        // Tier 1: TMDB image
         doc.selectFirst("article img[src*=tmdb], article img[src*=image.tmdb.org]")?.let {
             fixUrlNull(it.attr("src"))?.let { return it }
         }
-
-        // Tier 2: og:image
         doc.selectFirst("meta[property=og:image]")?.attr("content")?.trim()?.let {
             if (it.isNotBlank()) return it
         }
-
-        // Tier 3: article img.aligncenter
         doc.selectFirst("article img.aligncenter")?.let {
             fixUrlNull(it.attr("src"))?.let { return it }
         }
-
-        // Tier 4: First article img with valid src
         doc.selectFirst("article img[src]")?.let {
             val src = it.attr("src").trim()
             if (src.isNotBlank() && !isNonContentImage(src)) {
                 fixUrlNull(src)?.let { return it }
             }
         }
-
-        // Tier 5: data-src lazy-load
         doc.selectFirst("article img[data-src]")?.let {
             val src = it.attr("data-src").trim()
             if (src.isNotBlank() && !isNonContentImage(src)) {
                 fixUrlNull(src)?.let { return it }
             }
         }
-
         return null
     }
 
@@ -518,14 +461,7 @@ class MoviesCounterProvider : MainAPI() {
     // Download link collection (for movies & fallback)
     // ------------------------------------------------------------------
 
-    /**
-     * Collect ALL download links from the container.
-     * Returns list of (qualityLabel, url) pairs.
-     * Skips episode headers, SAMPLE links, PACK links, and non-content URLs.
-     */
-    private fun collectDownloadLinks(
-        container: Element
-    ): List<Pair<String, String>> {
+    private fun collectDownloadLinks(container: Element): List<Pair<String, String>> {
         val results = mutableListOf<Pair<String, String>>()
         val seen = mutableSetOf<String>()
 
@@ -537,19 +473,19 @@ class MoviesCounterProvider : MainAPI() {
             if (SAMPLE_REGEX.containsMatchIn(headingText)) return@forEach
             if (PACK_REGEX.containsMatchIn(headingText)) return@forEach
 
-            val link = heading.selectFirst("a[href]")
-            val href = link?.attr("href")?.trim()
-            if (href == null || !href.startsWith("http")) return@forEach
-            if (href in seen) return@forEach
-            if (IGNORE_HOST_REGEX.containsMatchIn(href)) return@forEach
-            if (href.contains(mainUrl, ignoreCase = true)) return@forEach
+            heading.select("a[href]").forEach { link ->
+                val href = link.attr("href").trim()
+                if (href.isBlank() || !href.startsWith("http")) return@forEach
+                if (href in seen) return@forEach
+                if (IGNORE_HOST_REGEX.containsMatchIn(href)) return@forEach
+                if (href.contains(mainUrl, ignoreCase = true)) return@forEach
 
-            seen.add(href)
-            val qualityLabel = buildQualityLabel(headingText)
-            results.add(Pair(qualityLabel, href))
+                seen.add(href)
+                val qualityLabel = buildQualityLabel(headingText)
+                results.add(Pair(qualityLabel, href))
+            }
         }
 
-        // Fallback: if no heading links found, try all <a> in the container
         if (results.isEmpty()) {
             container.select("a[href]").forEach { anchor ->
                 val href = anchor.attr("href").trim()
@@ -559,8 +495,7 @@ class MoviesCounterProvider : MainAPI() {
                 if (href.contains(mainUrl, ignoreCase = true)) return@forEach
 
                 seen.add(href)
-                val text = anchor.text().trim()
-                val qualityLabel = extractQualityLabel(text)
+                val qualityLabel = extractQualityLabel(anchor.text().trim())
                 results.add(Pair(qualityLabel, href))
             }
         }
@@ -569,18 +504,9 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // Series episode parsing — v25: Dual-format (S4 + S5)
+    // Series episode parsing — v26: Professional pattern
     // ------------------------------------------------------------------
 
-    /**
-     * Detect which series format the page uses and route accordingly.
-     *
-     * S5 format: "Single Episode" section marker, then EPiSODE N headers
-     *            followed by quality lines with Drive/Instant links.
-     * S4 format: No section marker. E01 – Drive | Instant on same line.
-     *            Episode number AND links combined in one element.
-     * Pack-only: No per-episode structure at all — just quality/PACK links.
-     */
     private fun buildSeriesEpisodes(
         container: Element,
         defaultSeason: Int
@@ -588,69 +514,34 @@ class MoviesCounterProvider : MainAPI() {
         val hasSingleEpisodeSection = container.select("h2").any { h2 ->
             SINGLE_EP_SECTION_REGEX.containsMatchIn(h2.text())
         }
-
-        // S5 format: standalone EPiSODE headers (no links in same element)
         val hasStandaloneEpisodeHeaders = container.select("h4, h3").any { el ->
             EPISODE_HEADER_REGEX.containsMatchIn(el.text()) &&
                 el.select("a[href]").isEmpty()
         }
-
-        // S4 format: E01/E02 patterns in h4/h3 elements (with or without links)
         val hasENumPatterns = container.select("h4, h3, h5").any { el ->
             E_NUM_REGEX.containsMatchIn(el.text()) &&
                 !PACK_REGEX.containsMatchIn(el.text())
         }
 
-        // S4 format: combined "E01 – Drive | Instant" (episode+links same element)
-        val hasCombinedEpLinks = container.select("h4, h3").any { el ->
-            E_NUM_REGEX.containsMatchIn(el.text()) &&
-                el.select("a[href]").isNotEmpty() &&
-                !PACK_REGEX.containsMatchIn(el.text())
-        }
-
         Log.d(TAG, "buildSeriesEpisodes: singleEpSection=$hasSingleEpisodeSection " +
-            "standaloneEpHeaders=$hasStandaloneEpisodeHeaders " +
-            "eNumPatterns=$hasENumPatterns combinedEpLinks=$hasCombinedEpLinks")
+            "standaloneEpHeaders=$hasStandaloneEpisodeHeaders eNumPatterns=$hasENumPatterns")
 
-        return when {
-            hasSingleEpisodeSection || hasStandaloneEpisodeHeaders -> {
-                // S5 format: section marker or standalone episode headers
-                buildPerEpisodeLinks(container, defaultSeason)
-            }
-            hasENumPatterns -> {
-                // S4 format: E01/E02 patterns detected
-                buildPerEpisodeLinks(container, defaultSeason)
-            }
-            else -> {
-                // Pack-only: no per-episode structure at all
-                buildQualityEntries(container, defaultSeason)
-            }
+        return if (hasSingleEpisodeSection || hasStandaloneEpisodeHeaders || hasENumPatterns) {
+            buildPerEpisodeLinks(container, defaultSeason)
+        } else {
+            buildQualityEntries(container, defaultSeason)
         }
     }
 
     /**
-     * v25: Parse series page with per-episode sections.
-     * Handles BOTH formats:
-     *
-     * S5 format (sectioned):
-     *   : Single Episode x264 Links :
-     *   EPiSODE 5
-     *   720p – Drive | Instant | Watch
-     *   1080p – Drive | Instant
-     *
-     * S4 format (combined, no section marker):
-     *   E01 – Drive | Instant | Watch
-     *   E02 – Drive | Instant | Watch
-     *
-     * Each episode gets ONLY its own individual quality links.
-     * NO PACK links are included in any episode.
-     * PACK links cannot be split into per-episode (they're single bundled files).
+     * v26: Parse series page with per-episode sections.
+     * Uses newEpisode(List<String>) — same pattern as HDhub4u/FourKHDHub.
+     * Each episode gets a JSON-serialized list of URLs.
      */
     private fun buildPerEpisodeLinks(
         container: Element,
         defaultSeason: Int
     ): List<Episode> {
-        // Map: (season, episodeNum) → list of URL strings with quality labels
         val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
         var currentSeason = defaultSeason
         var currentEpisode: Int? = null
@@ -658,7 +549,6 @@ class MoviesCounterProvider : MainAPI() {
         var pastSingleEpisodeSection = false
         var foundAnyEpisode = false
 
-        // Scan h2, h3, h4, h5 for section markers and episode data
         val downloadElements = container.select("h2, h3, h4, h5, hr, p")
 
         for (element in downloadElements) {
@@ -667,32 +557,19 @@ class MoviesCounterProvider : MainAPI() {
             if (text.isEmpty()) continue
 
             // ---- Section markers ----
-
-            // "DOWNLOAD LINKS" section header
-            if (tag == "h2" && text.contains("DOWNLOAD LINKS", ignoreCase = true)) {
-                continue
-            }
-
-            // "Single Episode" section marker — everything after this is per-episode
+            if (tag == "h2" && text.contains("DOWNLOAD LINKS", ignoreCase = true)) continue
             if (tag == "h2" && SINGLE_EP_SECTION_REGEX.containsMatchIn(text)) {
                 pastSingleEpisodeSection = true
                 continue
             }
-
-            // Skip irrelevant h2 sections
             if (tag == "h2" && text.contains("Screen-Shots", ignoreCase = true)) continue
             if (tag == "h2" && text.contains("All Episodes", ignoreCase = true)) continue
-
-            // "EPiSODE 1-8 Packs !" section header — skip and stay in pack zone
             if (tag == "h2" && PACK_REGEX.containsMatchIn(text)) continue
 
             // ---- PACK link filtering ----
-            // Skip ANY element that contains "PACK" or "Pack" text
             if (PACK_REGEX.containsMatchIn(text)) continue
 
             // ---- Detect episode number ----
-
-            // Strategy 1: Standalone EPiSODE N header (S5 format — no links in same element)
             val epHeaderMatch = EPISODE_HEADER_REGEX.find(text)
             if (epHeaderMatch != null && element.select("a[href]").isEmpty()) {
                 val epNum = (epHeaderMatch.groupValues[1].ifBlank { epHeaderMatch.groupValues[2] })
@@ -708,59 +585,36 @@ class MoviesCounterProvider : MainAPI() {
                 }
             }
 
-            // Strategy 2: E01/E02 pattern — could be standalone OR combined with links
             val eNumMatch = E_NUM_REGEX.find(text)
             if (eNumMatch != null) {
                 val epNum = eNumMatch.groupValues[1].toIntOrNull()
                 if (epNum != null) {
                     currentEpisode = epNum
                     foundAnyEpisode = true
-
-                    // Also check for season in the same text
                     SEASON_REGEX.find(text)?.let { m ->
                         (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
                             ?.let { currentSeason = it }
                     }
-
-                    // S4 format: E01 – Drive | Instant (links in SAME element)
-                    // Don't continue — fall through to link collection below
+                    // S4 format: E01 – Drive | Instant — fall through to collect links
                 }
             }
 
             // ---- Collect quality links for the current episode ----
-            if (currentEpisode != null) {
-                // Only collect if:
-                // 1. We're past the "Single Episode" section marker, OR
-                // 2. We found E-num patterns (S4 format — no section marker needed), OR
-                // 3. We found standalone EPiSODE headers (no section marker needed)
-                val shouldCollect = pastSingleEpisodeSection || foundAnyEpisode
-
-                if (shouldCollect) {
-                    element.select("a[href]").forEach { anchor ->
-                        val href = anchor.attr("href").trim()
-                        if (isValidDownloadLink(href)) {
-                            val key = currentSeason to currentEpisode
-                            val bucket = episodeMap.getOrPut(key) { mutableListOf() }
-
-                            // Avoid duplicate URLs
-                            val rawUrl = href.substringBefore("#label=")
-                            val isDup = bucket.any { it.substringBefore("#label=") == rawUrl }
-                            if (!isDup) {
-                                val qualityLabel = buildPerEpLinkLabel(text, anchor)
-                                val urlWithLabel = if (qualityLabel.isNotBlank()) {
-                                    "$href#label=${java.net.URLEncoder.encode(qualityLabel, "UTF-8")}"
-                                } else {
-                                    href
-                                }
-                                bucket.add(urlWithLabel)
-                            }
+            if (currentEpisode != null && (pastSingleEpisodeSection || foundAnyEpisode)) {
+                element.select("a[href]").forEach { anchor ->
+                    val href = anchor.attr("href").trim()
+                    if (isValidDownloadLink(href)) {
+                        val key = currentSeason to currentEpisode
+                        val bucket = episodeMap.getOrPut(key) { mutableListOf() }
+                        if (href !in bucket) {
+                            bucket.add(href)
                         }
                     }
                 }
             }
         }
 
-        // Build Episode objects — each with its own newline-joined URLs
+        // Build Episode objects using newEpisode(List<String>) — professional pattern
         val episodes = mutableListOf<Episode>()
 
         for ((key, urls) in episodeMap.entries.sortedWith(
@@ -769,9 +623,8 @@ class MoviesCounterProvider : MainAPI() {
             val (season, ep) = key
             if (urls.isEmpty()) continue
 
-            val data = urls.joinToString("\n")
-            // data starts with "http" → fixUrl() passes it through unchanged
-            episodes.add(newEpisode(data) {
+            // newEpisode(List<String>) auto-serializes to JSON via .toJson()
+            episodes.add(newEpisode(urls.distinct()) {
                 name = "Episode $ep"
                 this.season = season
                 this.episode = ep
@@ -785,59 +638,53 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     /**
-     * v25: Pack-only fallback — series with NO per-episode breakdown.
-     * Creates one entry per quality tier, labeled by quality only.
-     * No "pack" or "Complete Pack" wording — just clean quality labels.
-     * PACK word is removed from display names for clean UI.
+     * v26: Pack-only fallback — series with NO per-episode breakdown.
+     * Each quality tier gets its own entry with its URL list.
      */
     private fun buildQualityEntries(
         container: Element,
         defaultSeason: Int
     ): List<Episode> {
         val episodes = mutableListOf<Episode>()
+        val qualityMap = linkedMapOf<String, MutableList<String>>()
 
         container.select("h3, h4, h5").forEach { heading ->
             val text = heading.text().trim()
-            val link = heading.selectFirst("a[href]")
-            val href = link?.attr("href")?.trim()
 
             if (EPISODE_HEADER_REGEX.containsMatchIn(text)) return@forEach
             if (E_NUM_REGEX.containsMatchIn(text)) return@forEach
             if (SAMPLE_REGEX.containsMatchIn(text)) return@forEach
 
-            if (href != null && isValidDownloadLink(href)) {
-                // Build clean quality label, strip "PACK" wording
-                var qualityLabel = buildQualityLabel(text)
-                    .replace(Regex("""(?i)\s*PACK\s*"""), " ")
-                    .replace(Regex("""\s+"""), " ")
-                    .trim()
+            heading.select("a[href]").forEach { link ->
+                val href = link.attr("href").trim()
+                if (href.isBlank() || !href.startsWith("http")) return@forEach
+                if (!isValidDownloadLink(href)) return@forEach
 
-                val linkType = detectLinkType(link.text().trim(), href)
-                val displayName = if (linkType.isNotBlank()) {
-                    "$qualityLabel ($linkType)"
-                } else {
-                    qualityLabel
+                val qualityLabel = buildQualityLabel(text)
+                    .replace(Regex("""(?i)\s*PACK\s*"""), " ")
+                    .replace(Regex("""\s+"""), " ").trim()
+
+                qualityMap.getOrPut(qualityLabel) { mutableListOf() }
+                if (href !in qualityMap[qualityLabel]!!) {
+                    qualityMap[qualityLabel]!!.add(href)
                 }
-                val urlWithLabel = "$href#label=${java.net.URLEncoder.encode(displayName, "UTF-8")}"
-                episodes.add(newEpisode(urlWithLabel) {
-                    name = qualityLabel
-                    season = defaultSeason
-                    episode = episodes.size + 1
-                })
             }
         }
 
-        // Fallback: if no heading links found
-        if (episodes.isEmpty()) {
+        // Fallback
+        if (qualityMap.isEmpty()) {
             val allLinks = collectDownloadLinks(container)
-            allLinks.forEachIndexed { idx, (ql, link) ->
-                val urlWithLabel = "$link#label=${java.net.URLEncoder.encode(ql, "UTF-8")}"
-                episodes.add(newEpisode(urlWithLabel) {
-                    name = ql
-                    season = defaultSeason
-                    episode = idx + 1
-                })
+            allLinks.forEach { (ql, link) ->
+                qualityMap.getOrPut(ql) { mutableListOf() }.add(link)
             }
+        }
+
+        qualityMap.entries.forEachIndexed { idx, (ql, urls) ->
+            episodes.add(newEpisode(urls.distinct()) {
+                name = ql
+                season = defaultSeason
+                episode = idx + 1
+            })
         }
 
         return episodes
@@ -847,38 +694,19 @@ class MoviesCounterProvider : MainAPI() {
     // Quality label builders
     // ------------------------------------------------------------------
 
-    /**
-     * Build a per-episode link label with Drive/Instant distinction.
-     * E.g. "720p x264 (Drive)" or "1080p HEVC (Instant)"
-     */
-    private fun buildPerEpLinkLabel(headingText: String, anchor: Element): String {
-        val base = buildQualityLabel(headingText)
-        val linkType = detectLinkType(anchor.text().trim(), anchor.attr("href").trim())
-        return if (linkType.isNotBlank()) "$base ($linkType)" else base
-    }
-
-    /**
-     * Build a rich quality label from heading text.
-     * v25: Deduplicates extras against the base label. Strips PACK wording.
-     */
     private fun buildQualityLabel(text: String): String {
         val base = extractQualityLabel(text)
         val extras = mutableListOf<String>()
         val baseUpper = base.uppercase()
 
-        // Extract source platform (AMZN, NF, DSNP etc.)
         SOURCE_PLATFORM_REGEX.find(text)?.groupValues?.get(1)?.let { platform ->
             val p = platform.uppercase()
             if (p !in baseUpper) extras.add(p)
         }
-
-        // Extract codec (HEVC, x264, 10Bit etc.) — skip if already in base
         CODEC_REGEX.findAll(text).forEach { match ->
             val codec = match.groupValues[1].uppercase()
             if (codec !in baseUpper && codec !in extras) extras.add(codec)
         }
-
-        // Extract audio metadata (DD5.1, ATMOS, ESub etc.)
         AUDIO_META_REGEX.findAll(text).forEach { match ->
             val meta = match.groupValues[1]
             val normalized = when {
@@ -920,33 +748,6 @@ class MoviesCounterProvider : MainAPI() {
             !href.contains(mainUrl, ignoreCase = true)
     }
 
-    /**
-     * Detect link type from anchor text and URL pattern.
-     * Returns "Drive" for hubdrive links, "Instant" for hubcdn links.
-     */
-    private fun detectLinkType(anchorText: String, href: String): String {
-        val textLower = anchorText.lowercase()
-        return when {
-            textLower.equals("drive", true) -> "Drive"
-            textLower.equals("instant", true) -> "Instant"
-            textLower.equals("watch", true) -> "Watch"
-            textLower.equals("direct", true) -> "Direct"
-            href.contains("hubdrive.space", ignoreCase = true) ||
-                href.contains("hubdrive.link", ignoreCase = true) ||
-                href.contains("hubdrive.me", ignoreCase = true) -> "Drive"
-            href.contains("hubcdn.org", ignoreCase = true) ||
-                href.contains("hubcdn.sbs", ignoreCase = true) ||
-                href.contains("hubcdn.fans", ignoreCase = true) -> "Instant"
-            href.contains("streamtape", ignoreCase = true) ||
-                href.contains("hdstream4u", ignoreCase = true) -> "Watch"
-            href.contains("hubcloud.foo", ignoreCase = true) ||
-                href.contains("hubcloud.cx", ignoreCase = true) ||
-                href.contains("hubcloud.fans", ignoreCase = true) ||
-                href.contains("hubcloud.lol", ignoreCase = true) -> "Direct"
-            else -> ""
-        }
-    }
-
     private fun cleanTitle(raw: String): String {
         return raw
             .replace(Regex("""\s*\|\s*Full Movie\s*$"""), "")
@@ -985,7 +786,7 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // loadLinks — resolve URLs to playable streams
+    // loadLinks — Professional pattern from HDhub4u/FourKHDHub
     // ------------------------------------------------------------------
 
     override suspend fun loadLinks(
@@ -996,225 +797,93 @@ class MoviesCounterProvider : MainAPI() {
     ): Boolean {
         if (data.isBlank()) return false
 
-        // v25: Parse data lines — handles #label= fragments, pipe delimiters, plain URLs
-        val entries = data.lines()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .map { line -> parseDataLine(line) }
-            .filterNotNull()
+        // v26: Parse JSON list of URLs — same as HDhub4u/FourKHDHub
+        val linksList = tryParseJson<List<String>>(data)
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
 
-        if (entries.isEmpty()) return false
+        if (linksList.isEmpty()) {
+            // Legacy fallback: try newline-separated URLs
+            val legacyLinks = data.lines()
+                .map { it.trim() }
+                .filter { it.startsWith("http") }
 
-        Log.d(TAG, "loadLinks(): resolving ${entries.size} link(s)")
-        var anySuccess = false
+            if (legacyLinks.isEmpty()) return false
 
-        entries.amap { (qualityLabel, url) ->
-            try {
-                val resolved = resolveRedirectorWithRetry(url)
-
-                if (resolved.isEmpty()) {
-                    // No redirector resolved — try CloudStream's native extractors
-                    if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
-                        addDirectLink(url, callback, qualityLabel)
-                    }
-                    anySuccess = true
-                } else {
-                    for (resolvedUrl in resolved) {
-                        if (!loadExtractor(resolvedUrl, mainUrl, subtitleCallback, callback)) {
-                            addDirectLink(resolvedUrl, callback, qualityLabel)
-                        }
-                    }
-                    anySuccess = true
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "loadLinks failed for $url: ${e.message}")
-            }
+            legacyLinks.amap { link -> resolveAndLoad(link, subtitleCallback, callback) }
+            return true
         }
 
-        return anySuccess
+        Log.d(TAG, "loadLinks(): resolving ${linksList.size} link(s)")
+        linksList.amap { link -> resolveAndLoad(link, subtitleCallback, callback) }
+
+        return linksList.isNotEmpty()
     }
 
     /**
-     * Parse a single data line into (qualityLabel, url) pair.
-     * Supports:
-     *   1. URL with #label= fragment (v23+ format)
-     *   2. URL|quality pipe format (v22 format)
-     *   3. quality|URL pipe format (v21 format)
-     *   4. Plain URL (no label)
+     * Resolve a single URL and route to the correct extractor.
+     * Follows the professional HDhub4u pattern:
+     *   hubdrive → Hubdrive extractor
+     *   hubcloud → HubCloud extractor
+     *   hubcdn   → HUBCDN extractor
+     *   mclinks  → Hblinks aggregator (extracts hubdrive/hubcloud/hubcdn links)
+     *   other    → CloudStream's native loadExtractor
      */
-    private fun parseDataLine(line: String): Pair<String, String>? {
-        // Try pipe-delimited first (v21/v22 legacy)
-        val pipeIdx = line.indexOf('|')
-        if (pipeIdx > 0) {
-            val left = line.substring(0, pipeIdx).trim()
-            val right = line.substring(pipeIdx + 1).trim()
-            return when {
-                left.startsWith("http") -> {
-                    val cleanLabel = right
-                        .removePrefix(mainUrl.trimEnd('/') + "/")
-                        .removePrefix(mainUrl + "/").trim()
-                    Pair(cleanLabel.ifBlank { right }, left)
-                }
-                right.startsWith("http") -> {
-                    val cleanLabel = left
-                        .removePrefix(mainUrl.trimEnd('/') + "/")
-                        .removePrefix(mainUrl + "/").trim()
-                    Pair(cleanLabel.ifBlank { left }, right)
-                }
-                else -> null
-            }
-        }
-
-        // URL with #label= fragment (v23+ format)
-        if (line.startsWith("http")) {
-            val hashIdx = line.indexOf("#label=")
-            if (hashIdx > 0) {
-                val url = line.substring(0, hashIdx)
-                val label = java.net.URLDecoder.decode(
-                    line.substring(hashIdx + 7), "UTF-8"
-                )
-                return Pair(label, url)
-            }
-            return Pair("", line)
-        }
-
-        return null
-    }
-
-    // ------------------------------------------------------------------
-    // Redirector resolution
-    // ------------------------------------------------------------------
-
-    private suspend fun resolveRedirectorWithRetry(url: String): List<String> {
-        var lastException: Exception? = null
-
-        for (attempt in 0..MAX_RETRIES) {
-            try {
-                return resolveRedirector(url)
-            } catch (e: Exception) {
-                lastException = e
-            }
-        }
-
-        Log.w(TAG, "All retries exhausted for $url: ${lastException?.message}")
-        return emptyList()
-    }
-
-    private suspend fun resolveRedirector(url: String): List<String> {
-        val isHubcdn = url.contains("hubcdn.org", ignoreCase = true) ||
-            url.contains("hubcdn.sbs", ignoreCase = true) ||
-            url.contains("hubcdn.fans", ignoreCase = true)
-        val isMclinks = url.contains("mclinks.xyz", ignoreCase = true)
-
-        // hubdrive / hubcloud — handled by CloudStream's built-in extractors.
-        // Do NOT try to resolve manually — causes crashes from 3-hop chain.
-        val isHubdrive = url.contains("hubdrive.space", ignoreCase = true) ||
-            url.contains("hubdrive.link", ignoreCase = true) ||
-            url.contains("hubdrive.me", ignoreCase = true) ||
-            url.contains("hubcloud.foo", ignoreCase = true) ||
-            url.contains("hubcloud.cx", ignoreCase = true) ||
-            url.contains("hubcloud.fans", ignoreCase = true) ||
-            url.contains("hubcloud.lol", ignoreCase = true)
-
-        if (isHubdrive) return emptyList() // let loadExtractor handle it
-        if (!isHubcdn && !isMclinks) return emptyList()
-
-        return try {
+    private suspend fun resolveAndLoad(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        try {
             when {
-                isHubcdn -> resolveHubcdn(url)
-                isMclinks -> resolveMclinks(url)
-                else -> emptyList()
+                url.contains("hubdrive.space", ignoreCase = true) ||
+                url.contains("hubdrive.link", ignoreCase = true) ||
+                url.contains("hubdrive.me", ignoreCase = true) -> {
+                    Hubdrive().getUrl(url, name, subtitleCallback, callback)
+                }
+
+                url.contains("hubcloud.foo", ignoreCase = true) ||
+                url.contains("hubcloud.cx", ignoreCase = true) ||
+                url.contains("hubcloud.fans", ignoreCase = true) ||
+                url.contains("hubcloud.lol", ignoreCase = true) -> {
+                    HubCloud().getUrl(url, name, subtitleCallback, callback)
+                }
+
+                url.contains("hubcdn.org", ignoreCase = true) ||
+                url.contains("hubcdn.sbs", ignoreCase = true) ||
+                url.contains("hubcdn.fans", ignoreCase = true) -> {
+                    HUBCDN().getUrl(url, name, subtitleCallback, callback)
+                }
+
+                url.contains("mclinks.xyz", ignoreCase = true) -> {
+                    // mclinks is an intermediary — use Hblinks aggregator
+                    Hblinks().getUrl(url, name, subtitleCallback, callback)
+                }
+
+                url.contains("hblinks", ignoreCase = true) -> {
+                    Hblinks().getUrl(url, name, subtitleCallback, callback)
+                }
+
+                url.contains("hdstream4u", ignoreCase = true) -> {
+                    HdStream4u().getUrl(url, name, subtitleCallback, callback)
+                }
+
+                else -> {
+                    if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
+                        addDirectLink(url, callback)
+                    }
+                }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "resolveRedirector failed for $url: ${e.message}")
-            emptyList()
+            Log.w(TAG, "loadLinks failed for $url: ${e.message}")
         }
     }
-
-    private suspend fun resolveHubcdn(url: String): List<String> {
-        val linkParam = Regex("""[?&]link=(https?://[^&]+)""").find(url)?.groupValues?.get(1)
-        if (linkParam != null) {
-            return listOf(java.net.URLDecoder.decode(linkParam, "UTF-8"))
-        }
-
-        try {
-            val res = app.get(url, headers = headers, allowRedirects = false, timeout = 10000L)
-            val location = res.headers["Location"]
-            if (!location.isNullOrEmpty() && location.startsWith("http")) {
-                return listOf(location)
-            }
-        } catch (_: Exception) {}
-
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 10000L).document
-            val results = mutableListOf<String>()
-            doc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("hubcdn", ignoreCase = true) &&
-                    !href.contains(mainUrl, ignoreCase = true) &&
-                    href !in results
-                ) {
-                    results.add(href)
-                }
-            }
-            results
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun resolveMclinks(url: String): List<String> {
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 15000L).document
-            val results = mutableListOf<String>()
-
-            val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")
-            if (metaRefresh != null) {
-                val content = metaRefresh.attr("content")
-                val urlMatch = Regex("""url=(https?://[^"']+)""", RegexOption.IGNORE_CASE)
-                    .find(content)?.groupValues?.get(1)
-                if (urlMatch != null) {
-                    results.add(urlMatch)
-                    return results
-                }
-            }
-
-            doc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("mclinks.xyz", ignoreCase = true) &&
-                    !href.contains(mainUrl, ignoreCase = true) &&
-                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                    href !in results
-                ) {
-                    results.add(href)
-                }
-            }
-
-            doc.select("script").forEach { script ->
-                val jsUrl = Regex("""(?:window\.)?location\s*[=:]\s*["']([^"']+)["']""")
-                    .find(script.data())?.groupValues?.get(1)
-                if (jsUrl != null && jsUrl.startsWith("http") && jsUrl !in results) {
-                    results.add(jsUrl)
-                }
-            }
-
-            results
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Direct link fallback
-    // ------------------------------------------------------------------
 
     private suspend fun addDirectLink(
         url: String,
         callback: (ExtractorLink) -> Unit,
-        qualityLabel: String = "",
-        sourceName: String? = null
+        qualityLabel: String = ""
     ) {
         val quality = when {
             qualityLabel.contains("4K", ignoreCase = true) ||
@@ -1229,11 +898,11 @@ class MoviesCounterProvider : MainAPI() {
             else -> Qualities.Unknown.value
         }
 
-        val displayName = if (qualityLabel.isNotBlank()) qualityLabel else (sourceName ?: "Direct")
+        val displayName = if (qualityLabel.isNotBlank()) qualityLabel else "Direct"
 
         callback(
             newExtractorLink(
-                sourceName ?: name,
+                name,
                 displayName,
                 url,
                 INFER_TYPE

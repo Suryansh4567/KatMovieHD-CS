@@ -1,8 +1,8 @@
-version = 25
+version = 26
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v25: Dual-format series parsing — S4 (E01+Drive|Instant combined) and S5 (EPiSODE N+quality lines), E-num regex, PACK filter, hubcdn.fans support, h5 tag scanning"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v26: Professional rewrite — custom ExtractorApi classes (Hubdrive, HubCloud, HUBCDN, Hblinks), newEpisode(List<String>) JSON pattern, HubCloud chain (FSL/BuzzServer/PixelDrain/S3), mclinks via Hblinks aggregator"
     authors = listOf("Suryansh4567")
     status = 1
 
