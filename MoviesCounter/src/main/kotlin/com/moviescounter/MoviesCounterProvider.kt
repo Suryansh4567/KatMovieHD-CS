@@ -23,8 +23,6 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.newTvSeriesSearchResponse
-import com.lagradost.cloudstream3.parseJson
-import com.lagradost.cloudstream3.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
@@ -72,11 +70,9 @@ import org.jsoup.nodes.Element
  *        labels via URL fragment (#label=...). loadLinks simplified.
  * v24 — SERIES REWRITE: Complete removal of pack entries from episodes.
  *        Each episode shows ONLY its own individual quality links.
- *        Episode data now uses JSON-serialized List<EpLink> (Pattern D,
- *        like MeloMovie/SuperStream) — completely avoids fixUrl() corruption
- *        since newEpisode(List) uses .toJson(), not fixUrl().
- *        loadLinks() auto-detects JSON vs newline-joined URL format.
- *        Pack-only series show quality-labeled entries without "pack" word.
+ *        No "pack" or "Complete Pack" entries at all. Pack-only series
+ *        show quality-labeled entries without "pack" word.
+ *        Clean episode names: "Episode 1", "Episode 2" etc.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -86,16 +82,6 @@ class MoviesCounterProvider : MainAPI() {
     override var lang = "hi"
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
-
-    /**
-     * Pre-fetched download link for an episode.
-     * Serialized as JSON via newEpisode(List<EpLink>) — avoids fixUrl().
-     * Deserialized in loadLinks() via parseJson<List<EpLink>>(data).
-     */
-    private data class EpLink(
-        val name: String,
-        val url: String
-    )
 
     companion object {
         private const val TAG = "MoviesCounter"
@@ -441,8 +427,7 @@ class MoviesCounterProvider : MainAPI() {
                 // Ultimate fallback: single episode with all links
                 val links = collectDownloadLinks(container)
                 if (links.isNotEmpty()) {
-                    val epLinks = links.map { (ql, href) -> EpLink(ql, href) }
-                    listOf(newEpisode(epLinks) {
+                    listOf(newEpisode(links.joinToString("\n") { it.second }) {
                         name = "Episode 1"
                         season = seasonNum
                         episode = 1
@@ -599,15 +584,16 @@ class MoviesCounterProvider : MainAPI() {
      * Each episode gets ONLY its own individual quality links.
      * NO pack links are included in any episode.
      *
-     * Episode data is List<EpLink> (JSON-serialized by CloudStream),
-     * completely avoiding fixUrl() since newEpisode(List) uses .toJson().
+     * Episode data uses newline-joined URLs with #label= fragments
+     * (same proven pattern as movies). Data starts with "http" so
+     * fixUrl() passes it through unchanged.
      */
     private fun buildPerEpisodeLinks(
         container: Element,
         defaultSeason: Int
     ): List<Episode> {
-        // Map: (season, episodeNum) → list of quality links for THAT episode
-        val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<EpLink>>()
+        // Map: (season, episodeNum) → list of URL strings with quality labels
+        val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
         var currentSeason = defaultSeason
         var currentEpisode: Int? = null
 
@@ -663,27 +649,32 @@ class MoviesCounterProvider : MainAPI() {
                         val key = currentSeason to currentEpisode
                         val bucket = episodeMap.getOrPut(key) { mutableListOf() }
                         // Avoid duplicate URLs
-                        if (bucket.none { it.url == href }) {
+                        if (href !in bucket) {
                             val qualityLabel = buildPerEpLinkLabel(text, anchor)
-                            bucket.add(EpLink(qualityLabel, href))
+                            val urlWithLabel = if (qualityLabel.isNotBlank()) {
+                                "$href#label=${java.net.URLEncoder.encode(qualityLabel, "UTF-8")}"
+                            } else {
+                                href
+                            }
+                            bucket.add(urlWithLabel)
                         }
                     }
                 }
             }
         }
 
-        // Build Episode objects — each with its own List<EpLink> data
+        // Build Episode objects — each with its own newline-joined URLs
         val episodes = mutableListOf<Episode>()
 
-        for ((key, links) in episodeMap.entries.sortedWith(
+        for ((key, urls) in episodeMap.entries.sortedWith(
             compareBy({ it.key.first }, { it.key.second })
         )) {
             val (season, ep) = key
-            if (links.isEmpty()) continue
+            if (urls.isEmpty()) continue
 
-            // newEpisode(List<EpLink>) → CloudStream serializes to JSON via .toJson()
-            // This completely avoids fixUrl() corruption
-            episodes.add(newEpisode(links) {
+            val data = urls.joinToString("\n")
+            // data starts with "http" → fixUrl() passes it through unchanged
+            episodes.add(newEpisode(data) {
                 name = "Episode $ep"
                 this.season = season
                 this.episode = ep
@@ -723,7 +714,8 @@ class MoviesCounterProvider : MainAPI() {
                 } else {
                     qualityLabel
                 }
-                episodes.add(newEpisode(listOf(EpLink(displayName, href))) {
+                val urlWithLabel = "$href#label=${java.net.URLEncoder.encode(displayName, "UTF-8")}"
+                episodes.add(newEpisode(urlWithLabel) {
                     name = qualityLabel
                     season = defaultSeason
                     episode = episodes.size + 1
@@ -735,7 +727,8 @@ class MoviesCounterProvider : MainAPI() {
         if (episodes.isEmpty()) {
             val allLinks = collectDownloadLinks(container)
             allLinks.forEachIndexed { idx, (ql, link) ->
-                episodes.add(newEpisode(listOf(EpLink(ql, link))) {
+                val urlWithLabel = "$link#label=${java.net.URLEncoder.encode(ql, "UTF-8")}"
+                episodes.add(newEpisode(urlWithLabel) {
                     name = ql
                     season = defaultSeason
                     episode = idx + 1
@@ -889,21 +882,12 @@ class MoviesCounterProvider : MainAPI() {
     ): Boolean {
         if (data.isBlank()) return false
 
-        // v24: Auto-detect data format.
-        // JSON (starts with "[") → series episode with List<EpLink>
-        // Newline-joined URLs → movie or legacy format
-        val entries: List<Pair<String, String>> = if (data.trimStart().startsWith("[")) {
-            // Series episode: JSON-serialized List<EpLink>
-            tryParseJson<List<EpLink>>(data)?.map { Pair(it.name, it.url) }
-                ?: emptyList()
-        } else {
-            // Movie: newline-joined URLs (may have #label= fragments or pipe delimiters)
-            data.lines()
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .map { line -> parseDataLine(line) }
-                .filterNotNull()
-        }
+        // v24: Parse data lines — handles #label= fragments, pipe delimiters, plain URLs
+        val entries = data.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .map { line -> parseDataLine(line) }
+            .filterNotNull()
 
         if (entries.isEmpty()) return false
 
@@ -939,7 +923,7 @@ class MoviesCounterProvider : MainAPI() {
     /**
      * Parse a single data line into (qualityLabel, url) pair.
      * Supports:
-     *   1. URL with #label= fragment (v23 format)
+     *   1. URL with #label= fragment (v23+ format)
      *   2. URL|quality pipe format (v22 format)
      *   3. quality|URL pipe format (v21 format)
      *   4. Plain URL (no label)
@@ -967,7 +951,7 @@ class MoviesCounterProvider : MainAPI() {
             }
         }
 
-        // URL with #label= fragment (v23 format)
+        // URL with #label= fragment (v23+ format)
         if (line.startsWith("http")) {
             val hashIdx = line.indexOf("#label=")
             if (hashIdx > 0) {
