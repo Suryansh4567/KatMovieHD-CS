@@ -1,8 +1,8 @@
-version = 7
+version = 8
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama in 480p/720p/1080p/2160p 4K with HEVC & x264 variants. v7: Fixed missing 4K/pack links, all quality variants now captured, pack links merged into per-episode sources"
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series, K-Drama. v8: Fixed missing 4K/pack links, pack quality tiers merged into episodes, all quality variants captured"
     authors = listOf("Suryansh4567")
     status = 1
 
