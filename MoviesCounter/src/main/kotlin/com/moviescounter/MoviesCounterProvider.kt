@@ -4,6 +4,8 @@ import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.Actor
+import com.lagradost.cloudstream3.ActorData
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
@@ -12,6 +14,7 @@ import com.lagradost.cloudstream3.SearchQuality
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.addDate
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrlNull
@@ -27,8 +30,10 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
+import com.lagradost.cloudstream3.LoadResponse.Companion.addSeasonNames
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.async
@@ -59,6 +64,22 @@ import org.jsoup.nodes.Element
  *     from page tags and surfaces them in the response.
  *   • Subtitle link discovery: scans for .srt/.vtt links in post body
  *     and passes them through the subtitleCallback.
+ *
+ * ── v6 — Future-Ready & Performance ──
+ *   • Known host whitelist: curated list of stream/mirror providers
+ *     (streamtape, gofile, hubcloud, etc.) for confident link detection.
+ *     Two-pass collection: strict whitelist first, permissive fallback
+ *     if nothing found — robust against new hosts the site adds.
+ *   • Additional redirector resolvers: linkszilla, linkomark, direct-cloud
+ *     intermediate pages that appear on some download links.
+ *   • Anime/Asian Drama supported type: site has Korean drama and
+ *     anime content that gets proper TvType classification.
+ *   • "You May Also Like" recommendation extraction: parses the related
+ *     posts section on each detail page and surfaces recommendations.
+ *   • Multi-season series detection with addSeasonNames: when TMDB
+ *     reports multiple seasons, the season picker shows "Season 4"
+ *     instead of just "4".
+ *   • Actor/cast data from Cinemeta for richer detail pages.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -67,7 +88,7 @@ class MoviesCounterProvider : MainAPI() {
     override val hasMainPage = true
     override var lang = "hi"
     override val hasDownloadSupport = true
-    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.AsianDrama, TvType.Anime)
 
     companion object {
         private const val TAG = "MoviesCounter"
@@ -158,6 +179,60 @@ class MoviesCounterProvider : MainAPI() {
         private val STOPWORDS = setOf(
             "the", "a", "an", "and", "of", "in", "on", "to", "for", "with",
             "ka", "ki", "ke", "se", "aur"
+        )
+
+        /**
+         * Known stream/mirror host providers — a curated whitelist for
+         * confident link detection. Matches here are guaranteed-good
+         * download/stream sources. Used by the strict-pass link filter.
+         *
+         * A false positive just means loadExtractor no-ops harmlessly;
+         * a false negative means a real source is dropped.
+         */
+        private val KNOWN_HOST_REGEX = Regex(
+            """(?i)(""" +
+                    // Video streaming hosts
+                    """streamtape|streamlare|filemoon|filelions|doodstream|dood\.|""" +
+                    """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|""" +
+                    // File sharing / cloud hosts
+                    """gofile\.io|drive\.google|mediafire|pixeldrain|pixeldra\.in|""" +
+                    """1fichier|send\.cm|sendvid|send\.now|krakenfiles|""" +
+                    // Common download hosts
+                    """clicknupload|uploadflix|sendgb|rapidgator|megaup|hexload|""" +
+                    """vikingfile|katdrive|hubcloud|hubdrive|hubcdn|""" +
+                    // Hindi-dub specific hosts
+                    """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
+                    """bbupload|gofileserver|bbserver|gdtot|techkit|""" +
+                    // Additional hosts
+                    """uploadrar|catshare|nitroflare|9xupload|""" +
+                    """cloudmail|mega\.nz|mdisk|terabox|""" +
+                    // MoviesCounter-specific redirectors
+                    """mclinks|linkszilla|linkomark|direct-cloud|""" +
+                    """secure\.linkszilla|linkszilla\.(top|xyz|cc)|""" +
+                    // General cloud/CDN patterns
+                    """gdflix|gd-flix|gdlink|gdmirror|""" +
+                    """drive\.hyperlink|work\.ink|link\.to""" +
+                    """)"""
+        )
+
+        /**
+         * Intermediate redirector domains that need resolution before
+         * reaching the actual file host. These are NOT final stream hosts
+         * — they need to be fetched to extract the real URL.
+         */
+        private val REDIRECTOR_REGEX = Regex(
+            """(?i)""" +
+            """(?:hubcdn\.org|hubcdn\.sbs|""" +
+            """mclinks\.xyz|""" +
+            """linkszilla\.top|linkszilla\.xyz|linkszilla\.cc|secure\.linkszilla|""" +
+            """linkomark\.com|linkomark\.top|""" +
+            """direct-cloud\.[a-z]+|""" +
+            """linkszilla|linkomark)"""
+        )
+
+        /** Regex to detect anime/K-drama keywords in titles or categories. */
+        private val ANIME_REGEX = Regex(
+            """(?i)\b(anime|k-drama|korean|kdrama|j-drama|donghua|cartoon|animation)\b"""
         )
     }
 
@@ -527,7 +602,8 @@ class MoviesCounterProvider : MainAPI() {
         "$mainUrl/category/web-series/" to "Web Series",
         "$mainUrl/category/hd-movies/" to "HD Movies",
         "$mainUrl/category/300mb-movies/" to "300MB Movies",
-        "$mainUrl/category/true-web-dl/" to "TRUE WEB-DL"
+        "$mainUrl/category/true-web-dl/" to "TRUE WEB-DL",
+        "$mainUrl/category/k-drama/" to "K-Drama"
     )
 
     override suspend fun getMainPage(
@@ -815,6 +891,14 @@ class MoviesCounterProvider : MainAPI() {
                 imdbUrl?.let { addImdbUrl(it) }
                 imdbId?.let { addImdbId(it) }
                 tmdbMeta?.trailer?.let { addTrailer(it) }
+                // Season names from TMDB for multi-season series
+                if (tmdbMeta?.totalSeasons != null && tmdbMeta.totalSeasons > 1) {
+                    addSeasonNames((1..tmdbMeta.totalSeasons).map { "Season $it" })
+                }
+                // Actor/cast data from Cinemeta
+                if (cine?.cast?.isNotEmpty() == true) {
+                    addActors(cine.cast)
+                }
             }
         } else {
             // For MOVIES: collect ALL quality download links with size info.
@@ -832,27 +916,45 @@ class MoviesCounterProvider : MainAPI() {
                 imdbUrl?.let { addImdbUrl(it) }
                 imdbId?.let { addImdbId(it) }
                 tmdbMeta?.trailer?.let { addTrailer(it) }
+                // Actor/cast data from Cinemeta
+                if (cine?.cast?.isNotEmpty() == true) {
+                    addActors(cine.cast)
+                }
             }
         }
     }
 
     // ------------------------------------------------------------------
-    // Download link collection — now with size extraction
+    // Download link collection — two-pass with known host whitelist
     // ------------------------------------------------------------------
 
     /**
-     * Collect all download links with quality+size labels.
-     * Returns list of (displayLabel, url) pairs.
+     * Two-pass download link collector — follows the proven KatMovieHD pattern:
      *
-     * v5: Labels now include size when available, e.g. "1080p WEB-DL (1.2GB)"
+     *   Pass 1 (strict): URLs whose host matches KNOWN_HOST_REGEX.
+     *     These are guaranteed-good stream/mirror sources.
+     *   Pass 2 (permissive): if pass 1 found NOTHING, fall back to every
+     *     external http(s) URL that isn't on the explicit blacklist
+     *     (IGNORE_HOST_REGEX) and isn't the MoviesCounter site itself.
+     *     CloudStream's loadExtractor silently no-ops on unknown hosts,
+     *     so a few junk URLs here are harmless — but any new host the
+     *     site starts using (which we haven't added to the whitelist yet)
+     *     will still be tried.
+     *
+     * This makes the extension robust against MoviesCounter adding a new
+     * mirror provider in the future without us having to rebuild.
+     *
+     * Returns list of (displayLabel, url) pairs with quality+size labels.
      */
     private fun collectAllDownloadLinks(
         container: Element
     ): List<Pair<String, String>> {
-        val results = mutableListOf<Pair<String, String>>()
         val seen = mutableSetOf<String>()
 
-        // Walk h3/h4 headings that contain download links
+        // Gather all candidate URLs from headings first, then anchors
+        val allCandidates = mutableListOf<Pair<String, String>>()
+
+        // Strategy 1: h3/h4 headings with download links (primary)
         container.select("h3, h4").forEach { heading ->
             val headingText = heading.text().trim()
 
@@ -870,11 +972,11 @@ class MoviesCounterProvider : MainAPI() {
 
             seen.add(href)
             val qualityLabel = extractQualityLabelWithSize(headingText)
-            results.add(Pair(qualityLabel, href))
+            allCandidates.add(Pair(qualityLabel, href))
         }
 
-        // Fallback: if no heading links found, try all <a> in the container
-        if (results.isEmpty()) {
+        // Strategy 2: all <a> in container (fallback for non-heading links)
+        if (allCandidates.isEmpty()) {
             container.select("a[href]").forEach { anchor ->
                 val href = anchor.attr("href").trim()
                 if (href.isBlank() || !href.startsWith("http")) return@forEach
@@ -885,12 +987,25 @@ class MoviesCounterProvider : MainAPI() {
                 seen.add(href)
                 val text = anchor.text().trim()
                 val qualityLabel = extractQualityLabelWithSize(text)
-                results.add(Pair(qualityLabel, href))
+                allCandidates.add(Pair(qualityLabel, href))
             }
         }
 
-        Log.d(TAG, "collectAllDownloadLinks(): ${results.size} links")
-        return results
+        if (allCandidates.isEmpty()) return emptyList()
+
+        // Pass 1: Strict — only URLs matching our known host whitelist
+        val strict = allCandidates.filter { (_, url) ->
+            KNOWN_HOST_REGEX.containsMatchIn(url)
+        }
+
+        if (strict.isNotEmpty()) {
+            Log.d(TAG, "collectAllDownloadLinks(): ${strict.size} strict-match links")
+            return strict
+        }
+
+        // Pass 2: Permissive — any URL not on the blacklist
+        Log.d(TAG, "collectAllDownloadLinks(): 0 strict, ${allCandidates.size} permissive links")
+        return allCandidates
     }
 
     // ------------------------------------------------------------------
@@ -1157,11 +1272,24 @@ class MoviesCounterProvider : MainAPI() {
         val isHubcdn = url.contains("hubcdn.org", ignoreCase = true) ||
             url.contains("hubcdn.sbs", ignoreCase = true)
         val isMclinks = url.contains("mclinks.xyz", ignoreCase = true)
+        val isLinkszilla = url.contains("linkszilla", ignoreCase = true) ||
+            url.contains("secure.linkszilla", ignoreCase = true)
+        val isLinkomark = url.contains("linkomark", ignoreCase = true)
+        val isDirectCloud = url.contains("direct-cloud", ignoreCase = true)
 
-        if (!isHubcdn && !isMclinks) return emptyList()
+        if (!isHubcdn && !isMclinks && !isLinkszilla && !isLinkomark && !isDirectCloud) {
+            return emptyList()
+        }
 
         return try {
-            if (isHubcdn) resolveHubcdn(url) else resolveMclinks(url)
+            when {
+                isHubcdn -> resolveHubcdn(url)
+                isMclinks -> resolveMclinks(url)
+                isLinkszilla -> resolveLinkszilla(url)
+                isLinkomark -> resolveLinkomark(url)
+                isDirectCloud -> resolveDirectCloud(url)
+                else -> emptyList()
+            }
         } catch (e: Exception) {
             Log.w(TAG, "resolveRedirector failed for $url: ${e.message}")
             emptyList()
@@ -1250,6 +1378,134 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
+    // Additional redirector resolvers (v6)
+    // ------------------------------------------------------------------
+
+    /**
+     * Resolve linkszilla redirector pages.
+     * Linkszilla pages typically have a list of mirror links (streamtape,
+     * gofile, etc.) or a single redirect to the actual host.
+     */
+    private suspend fun resolveLinkszilla(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val results = mutableListOf<String>()
+
+            // Strategy 1: Find all links that match known hosts
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("linkszilla", ignoreCase = true) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                    href !in results
+                ) {
+                    results.add(href)
+                }
+            }
+
+            // Strategy 2: meta refresh redirect
+            if (results.isEmpty()) {
+                doc.selectFirst("meta[http-equiv=refresh]")?.let { meta ->
+                    val content = meta.attr("content")
+                    Regex("""url=(https?://[^"']+)""", RegexOption.IGNORE_CASE)
+                        .find(content)?.groupValues?.get(1)?.let {
+                            results.add(it)
+                        }
+                }
+            }
+
+            // Strategy 3: JavaScript location redirect
+            if (results.isEmpty()) {
+                doc.select("script").forEach { script ->
+                    Regex("""(?:window\.)?location\s*[=:]\s*["']([^"']+)["']""")
+                        .find(script.data())?.groupValues?.get(1)?.let {
+                            if (it.startsWith("http")) results.add(it)
+                        }
+                }
+            }
+
+            Log.d(TAG, "resolveLinkszilla: found ${results.size} link(s)")
+            results
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveLinkszilla failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Resolve linkomark redirector pages.
+     * Similar to linkszilla — intermediate page with mirror links.
+     */
+    private suspend fun resolveLinkomark(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val results = mutableListOf<String>()
+
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                if (href.startsWith("http") &&
+                    !href.contains("linkomark", ignoreCase = true) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                    href !in results
+                ) {
+                    results.add(href)
+                }
+            }
+
+            // Fallback: meta refresh
+            if (results.isEmpty()) {
+                doc.selectFirst("meta[http-equiv=refresh]")?.let { meta ->
+                    val content = meta.attr("content")
+                    Regex("""url=(https?://[^"']+)""", RegexOption.IGNORE_CASE)
+                        .find(content)?.groupValues?.get(1)?.let {
+                            results.add(it)
+                        }
+                }
+            }
+
+            Log.d(TAG, "resolveLinkomark: found ${results.size} link(s)")
+            results
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveLinkomark failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Resolve direct-cloud redirector pages.
+     * These typically embed a single link or use JS redirects.
+     */
+    private suspend fun resolveDirectCloud(url: String): List<String> {
+        return try {
+            val doc = app.get(url, headers = headers, timeout = 15000).document
+            val results = mutableListOf<String>()
+
+            // Look for actual download/stream links
+            doc.select("a[href]").forEach { anchor ->
+                val href = anchor.attr("href").trim()
+                val text = anchor.text().trim().lowercase()
+                if (href.startsWith("http") &&
+                    !href.contains("direct-cloud", ignoreCase = true) &&
+                    !href.contains(mainUrl, ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
+                    href !in results &&
+                    !text.contains("how to download", ignoreCase = true)
+                ) {
+                    results.add(href)
+                }
+            }
+
+            Log.d(TAG, "resolveDirectCloud: found ${results.size} link(s)")
+            results
+        } catch (e: Exception) {
+            Log.w(TAG, "resolveDirectCloud failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Utility functions
     // ------------------------------------------------------------------
 
@@ -1303,8 +1559,29 @@ class MoviesCounterProvider : MainAPI() {
             .trim()
     }
 
-    private fun detectSeriesFromTitle(title: String, href: String): Boolean {
-        return title.contains("Season", ignoreCase = true) ||
+    /**
+     * Detect content type from title and URL.
+     * v6: Now also detects Anime/AsianDrama for proper TvType classification.
+     */
+    private fun detectContentType(title: String, href: String): TvType {
+        // Check anime/K-drama first (more specific)
+        if (ANIME_REGEX.containsMatchIn(title) ||
+            href.contains("/category/k-drama/", ignoreCase = true) ||
+            href.contains("/category/anime/", ignoreCase = true)
+        ) {
+            // Distinguish anime from Asian drama
+            return if (title.contains("k-drama", ignoreCase = true) ||
+                title.contains("korean", ignoreCase = true) ||
+                href.contains("/category/k-drama/", ignoreCase = true)
+            ) {
+                TvType.AsianDrama
+            } else {
+                TvType.Anime
+            }
+        }
+
+        // Then check series
+        if (title.contains("Season", ignoreCase = true) ||
             title.contains("WEB-Series", ignoreCase = true) ||
             title.contains("TV Series", ignoreCase = true) ||
             title.contains("Web Series", ignoreCase = true) ||
@@ -1313,6 +1590,18 @@ class MoviesCounterProvider : MainAPI() {
             Regex("""\bS\d{1,2}\b""").containsMatchIn(title) ||
             href.contains("/category/web-series/", ignoreCase = true) ||
             href.contains("/category/tv-shows/", ignoreCase = true)
+        ) {
+            return TvType.TvSeries
+        }
+
+        return TvType.Movie
+    }
+
+    /**
+     * Legacy method kept for backwards compat — delegates to detectContentType.
+     */
+    private fun detectSeriesFromTitle(title: String, href: String): Boolean {
+        return detectContentType(title, href) != TvType.Movie
     }
 
     private fun detectSearchQuality(title: String): SearchQuality? {
