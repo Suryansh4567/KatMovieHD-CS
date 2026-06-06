@@ -56,7 +56,7 @@
             "Suryansh4567"
         ],
         "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies & Web Series in 480p/720p/1080p/2160p 4K with HEVC & x264 variants",
-        "fileSize": 31082,
+        "fileSize": 33057,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -65,9 +65,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-ffb2ea0f8c5eada44195012ae94aa35c82a1603e1da6fb2fde53eeba65ee0d62",
-        "jarFileSize": 109575,
+        "fileHash": "sha256-a0a2143975c42d41b65f2d15924419b1dfe638531b1f8b546379ddd91b3975a1",
+        "jarFileSize": 118042,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-09d4add8c2765e19f228a48712af91aaf1390aa5c50d667756d5fa4b86782c23"
+        "jarHash": "sha256-ed9dd21db12fdf64e9ca2aabd8d1e82596eb583fb26363bb616c0ab8e7be8b13"
     }
 ]
