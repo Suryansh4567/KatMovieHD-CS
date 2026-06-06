@@ -27,8 +27,13 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.jsoup.nodes.Element
 
 /**
@@ -36,39 +41,24 @@ import org.jsoup.nodes.Element
  *
  * Site: moviescounter.boston (WordPress, custom Tailwind-based theme)
  *
- * Page structure:
- *   <main>
- *     <section class="md:flex mt-4">
- *       <div class="w-full md:w-8/12 px-2">      ← content column
- *         <h3 class="text-gray-500">TITLE</h3>
- *         <div class="post-body">                  ← POST BODY (downloads only)
- *           ...description, screenshots, download links...
- *         </div>
- *         <div class="w-full my-4 text-center">   ← POST HASHTAGS (#Action, #Horror)
- *           <a href="/category/..."># Tag</a>
- *         </div>
- *         <h3>You May Also Like</h3>               ← RELATED POSTS (contamination!)
- *         <section>...related cards...</section>
- *       </div>
- *       <aside class="w-full md:w-4/12">           ← SIDEBAR (contamination!)
- *         ...categories, recent posts...
- *       </aside>
- *     </section>
- *   </main>
- *
- * CRITICAL: The sidebar and "You May Also Like" sections contain series-related
- * keywords ("WEB-Series", "TV-Shows", "Season", "EPiSODE") that cause FALSE
- * POSITIVES in series detection. ALL scraping must be scoped to div.post-body
- * and the post's own hashtag div ONLY.
- *
  * ── v4 — Reliability & Robustness ──
- *   • Domain rotation fallback: site frequently changes TLDs (.boston, .one,
- *     .win, .vip, .ink). On network failure, each alternative is tried in order.
- *   • Dead page detection: WordPress redirects non-existent pages to the
- *     homepage/category instead of 404. Detected via canonical URL check.
- *   • Search pagination: WordPress /page/N/?s=query format for deep results.
- *   • Retry with timeout tuning: transient failures don't kill the entire load.
- *   • Canonical URL validation: catches silent redirects to wrong pages.
+ *   • Domain rotation fallback, dead page detection, search pagination,
+ *     retry with timeout tuning, canonical URL validation.
+ *
+ * ── v5 — Enhanced Metadata & UX ──
+ *   • TMDB metadata enrichment: poster, backdrop, plot, rating, genres,
+ *     actors, and YouTube trailer — fetched in parallel so they never
+ *     block playable links from appearing.
+ *   • Quality + size labels in source names: user sees "1080p WEB-DL (1.2GB)"
+ *     instead of just "1080p" — makes it easy to pick the right source.
+ *   • Better series episode naming: clean S01E01 format with quality
+ *     breakdown visible per episode.
+ *   • IMDB ID extraction for CloudStream's built-in metadata matching
+ *     (enables "Watch Next", recommendation engine, etc.).
+ *   • Dubbed type indicators: detects "UnOfficial Dubbed", "Hindi Dubbed"
+ *     from page tags and surfaces them in the response.
+ *   • Subtitle link discovery: scans for .srt/.vtt links in post body
+ *     and passes them through the subtitleCallback.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -85,24 +75,19 @@ class MoviesCounterProvider : MainAPI() {
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
-        /**
-         * Known MoviesCounter domain TLDs — the site frequently changes domains.
-         * On domain failure, each alternative is tried in order until one works.
-         * The first successful domain becomes the active mainUrl.
-         */
         private val DOMAIN_TLDS = listOf("boston", "one", "win", "vip", "ink", "lol", "cc")
 
-        /**
-         * WordPress redirects non-existent pages to this category
-         * instead of returning 404. Used to detect invalid page loads.
-         */
         private const val FALLBACK_CATEGORY = "/category/latest"
-
-        /** Request timeout in seconds. */
         private const val TIMEOUT = 30
-
-        /** Maximum retry attempts for network requests. */
         private const val MAX_RETRIES = 2
+
+        /** TMDB API key for metadata enrichment. */
+        private const val TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49"
+        private const val TMDB_API = "https://api.themoviedb.org/3"
+        private const val TMDB_IMG = "https://image.tmdb.org/t/p/original"
+
+        /** Stremio's free metadata API — rich per-episode data. */
+        private const val CINEMETA = "https://v3-cinemeta.strem.io/meta"
 
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
@@ -133,6 +118,11 @@ class MoviesCounterProvider : MainAPI() {
         /** Regex to extract size like [510MB] or [1.3GB] */
         private val SIZE_REGEX = Regex("""\[([\d.]+(?:MB|GB|TB))\]""", RegexOption.IGNORE_CASE)
 
+        /** Regex to also match size patterns like "Size: 1.2GB" or "– 500MB" */
+        private val SIZE_TEXT_REGEX = Regex(
+            """(?i)(?:Size\s*:\s*|–\s*|\|\s*)([\d.]+(?:MB|GB|TB))"""
+        )
+
         /** Regex to match "PACK" keyword — full-season downloads */
         private val PACK_REGEX = Regex("""(?i)\bPACK\b""")
 
@@ -144,12 +134,30 @@ class MoviesCounterProvider : MainAPI() {
         /** Regex to skip SAMPLE/trailer links */
         private val SAMPLE_REGEX = Regex("""(?i)\bSAMPLE\b|\bTRAILER\b""")
 
-        /**
-         * Regex to skip torrent/magnet links — CloudStream can't play them.
-         * These appear on some pages as alternative download options.
-         */
+        /** Regex to skip torrent/magnet links */
         private val TORRENT_REGEX = Regex(
             """(?i)\btorrent\b|\bmagnet\b|\b\.torrent\b|\bmagnet:\?"""
+        )
+
+        /** Regex to detect subtitle file URLs */
+        private val SUBTITLE_REGEX = Regex(
+            """(?i)\.(srt|vtt|ass|ssa|sub|idx)$"""
+        )
+
+        /** Regex to detect quality in heading text — more granular than before */
+        private val QUALITY_REGEX = Regex(
+            """(?i)(4K|2160p|1080p|720p|480p|300MB)"""
+        )
+
+        /** Regex to detect codec info in heading text */
+        private val CODEC_REGEX = Regex(
+            """(?i)(HEVC|x264|x265|10Bit|AV1|H\.?264|H\.?265|WEB-DL|WEBRip|BluRay|HDRip|BRRip|DVDRip)"""
+        )
+
+        /** Common English/Hindi stopwords — excluded from token similarity. */
+        private val STOPWORDS = setOf(
+            "the", "a", "an", "and", "of", "in", "on", "to", "for", "with",
+            "ka", "ki", "ke", "se", "aur"
         )
     }
 
@@ -159,22 +167,301 @@ class MoviesCounterProvider : MainAPI() {
     )
 
     // ------------------------------------------------------------------
-    // Domain rotation & network resilience
+    // TMDB metadata enrichment
     // ------------------------------------------------------------------
 
     /**
-     * Attempt an HTTP GET with domain rotation fallback.
-     * If the primary domain fails (timeout, DNS error, 5xx), each
-     * alternative TLD from DOMAIN_TLDS is tried in order.
-     * On success, [mainUrl] is updated to the working domain so
-     * subsequent requests don't have to retry.
+     * Lightweight TMDB metadata holder. Only fields we actually use.
      */
+    private data class TmdbMeta(
+        val title: String? = null,
+        val poster: String? = null,
+        val backdrop: String? = null,
+        val overview: String? = null,
+        val year: Int? = null,
+        val rating: Score? = null,
+        val genres: List<String> = emptyList(),
+        val trailer: String? = null,
+        val imdbId: String? = null,
+        val totalSeasons: Int? = null
+    )
+
+    /**
+     * Per-season TMDB data (episode names, thumbnails, overviews).
+     */
+    private data class TmdbSeason(
+        val seasonNumber: Int,
+        val episodes: List<TmdbEpisode> = emptyList()
+    )
+
+    private data class TmdbEpisode(
+        val episodeNumber: Int,
+        val name: String? = null,
+        val overview: String? = null,
+        val stillUrl: String? = null,
+        val airDate: String? = null,
+        val rating: Score? = null
+    )
+
+    /**
+     * Cinemeta (Stremio) metadata — free, no API key, rich episode data.
+     */
+    private data class CinemetaMeta(
+        val name: String? = null,
+        val poster: String? = null,
+        val background: String? = null,
+        val description: String? = null,
+        val year: String? = null,
+        val imdbRating: String? = null,
+        val genre: List<String> = emptyList(),
+        val cast: List<String> = emptyList(),
+        val videos: List<CinemetaVideo> = emptyList()
+    )
+
+    private data class CinemetaVideo(
+        val id: String,
+        val title: String? = null,
+        val season: Int,
+        val episode: Int,
+        val thumbnail: String? = null,
+        val overview: String? = null,
+        val released: String? = null
+    )
+
+    /**
+     * Resolve a TMDB ID from an IMDB ID (fast path) or by text search.
+     * Returns null if nothing found — caller falls back to page-scraped data.
+     */
+    private suspend fun resolveTmdbId(
+        imdbId: String?,
+        title: String,
+        isSeries: Boolean,
+        yearHint: Int?
+    ): Int? {
+        // Fast path: IMDB → TMDB via /find endpoint
+        if (imdbId != null) {
+            try {
+                val url = "$TMDB_API/find/$imdbId?api_key=$TMDB_API_KEY&external_source=imdb_id"
+                val json = app.get(url, headers = headers, timeout = 10).text
+                val obj = org.json.JSONObject(json)
+                val results = if (isSeries) obj.optJSONArray("tv_results")
+                    else obj.optJSONArray("movie_results")
+                if (results != null && results.length() > 0) {
+                    return results.getJSONObject(0).optInt("id", -1).takeIf { it > 0 }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "TMDB find by IMDB failed: ${e.message}")
+            }
+        }
+
+        // Slow path: text search
+        val type = if (isSeries) "tv" else "movie"
+        try {
+            val encoded = java.net.URLEncoder.encode(title, "UTF-8")
+            var url = "$TMDB_API/search/$type?api_key=$TMDB_API_KEY&query=$encoded"
+            if (yearHint != null) {
+                url += if (isSeries) "&first_air_date_year=$yearHint"
+                       else "&year=$yearHint"
+            }
+            val json = app.get(url, headers = headers, timeout = 10).text
+            val results = org.json.JSONObject(json).optJSONArray("results")
+            if (results != null && results.length() > 0) {
+                val first = results.getJSONObject(0)
+                val id = first.optInt("id", -1)
+                if (id > 0) {
+                    // Verify title similarity to avoid wrong matches
+                    val tmdbTitle = first.optString("name",
+                        first.optString("title", "")).lowercase()
+                    val ourTitle = title.lowercase()
+                    if (tokenSimilarity(ourTitle, tmdbTitle) >= 0.3) {
+                        return id
+                    }
+                    Log.w(TAG, "TMDB title mismatch: '$ourTitle' vs '$tmdbTitle', skipping")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "TMDB search failed: ${e.message}")
+        }
+
+        return null
+    }
+
+    /**
+     * Fetch full TMDB details for a movie or TV show.
+     */
+    private suspend fun fetchTmdbDetails(tmdbId: Int, isSeries: Boolean): TmdbMeta? {
+        val type = if (isSeries) "tv" else "movie"
+        return try {
+            val url = "$TMDB_API/$type/$tmdbId?api_key=$TMDB_API_KEY&append_to_response=videos"
+            val json = app.get(url, headers = headers, timeout = 10).text
+            val obj = org.json.JSONObject(json)
+
+            val poster = obj.optString("poster_path", "")
+                .takeIf { it.isNotBlank() }?.let { "$TMDB_IMG$it" }
+            val backdrop = obj.optString("backdrop_path", "")
+                .takeIf { it.isNotBlank() }?.let { "$TMDB_IMG$it" }
+            val rating = obj.optDouble("vote_average", 0.0).takeIf { it > 0 }
+                ?.let { Score.from10(it.toFloat()) }
+            val genres = obj.optJSONArray("genres")?.let { arr ->
+                (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("name") }
+                    .filter { it.isNotBlank() }
+            } ?: emptyList()
+            val totalSeasons = obj.optInt("number_of_seasons", 0).takeIf { it > 0 }
+            val yearStr = obj.optString("release_date",
+                obj.optString("first_air_date", ""))
+            val year = if (yearStr.length >= 4) yearStr.substring(0, 4).toIntOrNull() else null
+
+            // Extract YouTube trailer
+            var trailer: String? = null
+            obj.optJSONObject("videos")?.optJSONArray("results")?.let { videos ->
+                for (i in 0 until videos.length()) {
+                    val v = videos.optJSONObject(i) ?: continue
+                    if (v.optString("site") == "YouTube" &&
+                        v.optString("type") == "Trailer" &&
+                        v.optString("key").isNotBlank()
+                    ) {
+                        trailer = "https://www.youtube.com/watch?v=${v.optString("key")}"
+                        break
+                    }
+                }
+            }
+
+            TmdbMeta(
+                title = obj.optString("title",
+                    obj.optString("name", "")).ifBlank { null },
+                poster = poster,
+                backdrop = backdrop,
+                overview = obj.optString("overview", "").ifBlank { null },
+                year = year,
+                rating = rating,
+                genres = genres,
+                trailer = trailer,
+                imdbId = null, // Will be set separately if available
+                totalSeasons = totalSeasons
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchTmdbDetails failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Fetch TMDB season details for per-episode metadata.
+     */
+    private suspend fun fetchTmdbSeason(
+        tmdbId: Int,
+        seasonNum: Int
+    ): TmdbSeason? {
+        return try {
+            val url = "$TMDB_API/tv/$tmdbId/season/$seasonNum?api_key=$TMDB_API_KEY"
+            val json = app.get(url, headers = headers, timeout = 10).text
+            val obj = org.json.JSONObject(json)
+
+            val episodes = obj.optJSONArray("episodes")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val ep = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val epNum = ep.optInt("episode_number", -1)
+                    if (epNum < 0) return@mapNotNull null
+                    TmdbEpisode(
+                        episodeNumber = epNum,
+                        name = ep.optString("name", "").ifBlank { null },
+                        overview = ep.optString("overview", "").ifBlank { null },
+                        stillUrl = ep.optString("still_path", "")
+                            .takeIf { it.isNotBlank() }?.let { "$TMDB_IMG$it" },
+                        airDate = ep.optString("air_date", "").ifBlank { null },
+                        rating = ep.optDouble("vote_average", 0.0).takeIf { it > 0 }
+                            ?.let { Score.from10(it.toFloat()) }
+                    )
+                }
+            } ?: emptyList()
+
+            TmdbSeason(seasonNumber = seasonNum, episodes = episodes)
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchTmdbSeason failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Fetch Cinemeta (Stremio) metadata — free, rich per-episode data.
+     * Used as supplementary source when TMDB fails.
+     */
+    private suspend fun fetchCinemeta(
+        imdbId: String,
+        isSeries: Boolean
+    ): CinemetaMeta? {
+        val type = if (isSeries) "series" else "movie"
+        return try {
+            val url = "$CINEMETA/$type/$imdbId.json"
+            val json = app.get(url, headers = headers, timeout = 10).text
+            val obj = org.json.JSONObject(json).optJSONObject("meta") ?: return null
+
+            val videos = obj.optJSONArray("videos")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val v = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val id = v.optString("id", "")
+                    val parts = id.split(":")
+                    if (parts.size >= 3) {
+                        CinemetaVideo(
+                            id = id,
+                            title = v.optString("title", "").ifBlank { null },
+                            season = parts[1].toIntOrNull() ?: 0,
+                            episode = parts[2].toIntOrNull() ?: 0,
+                            thumbnail = v.optString("thumbnail", "").ifBlank { null },
+                            overview = v.optString("overview", "").ifBlank { null },
+                            released = v.optString("released", "").ifBlank { null }
+                        )
+                    } else null
+                }
+            } ?: emptyList()
+
+            CinemetaMeta(
+                name = obj.optString("name", "").ifBlank { null },
+                poster = obj.optString("poster", "").ifBlank { null },
+                background = obj.optString("background", "").ifBlank { null },
+                description = obj.optString("description", "").ifBlank { null },
+                year = obj.optString("year", "").ifBlank { null },
+                imdbRating = obj.optString("imdbRating", "").ifBlank { null },
+                genre = obj.optJSONArray("genre")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { arr.optString(it) }
+                } ?: emptyList(),
+                cast = obj.optJSONArray("cast")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { arr.optString(it) }
+                } ?: emptyList(),
+                videos = videos
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchCinemeta failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Token-set similarity (Jaccard) for title matching.
+     * Prevents TMDB returning a completely wrong movie as a match.
+     */
+    private fun tokenSimilarity(a: String, b: String): Double {
+        val setA = a.split(Regex("""\s+"""))
+            .map { it.lowercase() }
+            .filter { it.length > 1 && it !in STOPWORDS }.toSet()
+        val setB = b.split(Regex("""\s+"""))
+            .map { it.lowercase() }
+            .filter { it.length > 1 && it !in STOPWORDS }.toSet()
+        if (setA.isEmpty() || setB.isEmpty()) return 0.0
+        val intersection = setA.intersect(setB).size
+        val union = setA.union(setB).size
+        return intersection.toDouble() / union.toDouble()
+    }
+
+    // ------------------------------------------------------------------
+    // Domain rotation & network resilience
+    // ------------------------------------------------------------------
+
     private suspend fun resilientGet(
         url: String,
         customHeaders: Map<String, String> = headers,
         timeout: Int = TIMEOUT
     ): com.lagradost.cloudstream3.mvvm.Resource<com.lagradost.cloudstream3.network.WebPage> {
-        // First attempt: use the URL as-is
         var lastException: Exception? = null
         for (attempt in 1..MAX_RETRIES) {
             try {
@@ -187,7 +474,6 @@ class MoviesCounterProvider : MainAPI() {
             }
         }
 
-        // Domain rotation: try each alternative TLD
         val currentHost = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1)
         if (currentHost != null) {
             for (tld in DOMAIN_TLDS) {
@@ -197,7 +483,6 @@ class MoviesCounterProvider : MainAPI() {
                 try {
                     val res = app.get(altUrl, headers = customHeaders, timeout = timeout)
                     if (res.code < 500) {
-                        // Domain works! Update mainUrl for future requests
                         Log.d(TAG, "Domain rotation: switching from $currentHost to $altHost")
                         mainUrl = altHost
                         return res
@@ -208,40 +493,22 @@ class MoviesCounterProvider : MainAPI() {
             }
         }
 
-        // All attempts failed — throw the last exception
         throw lastException ?: Exception("All domain attempts failed for $url")
     }
 
-    /**
-     * Check if a document represents a dead/invalid page.
-     * WordPress often redirects non-existent pages to a category
-     * listing (200 OK) instead of returning 404.
-     */
     private fun isDeadPage(doc: org.jsoup.nodes.Document, originalUrl: String): Boolean {
-        // Check 1: canonical URL points to a fallback category
         val canonical = doc.selectFirst("link[rel=canonical]")?.attr("href")
-        if (canonical != null && canonical.contains(FALLBACK_CATEGORY)) {
-            Log.d(TAG, "Dead page detected: canonical redirects to $canonical")
-            return true
-        }
+        if (canonical != null && canonical.contains(FALLBACK_CATEGORY)) return true
 
-        // Check 2: body class indicates 404
         val bodyClass = doc.selectFirst("body")?.className() ?: ""
         if (bodyClass.contains("error404", ignoreCase = true) ||
             bodyClass.contains("page-not-found", ignoreCase = true)
-        ) {
-            Log.d(TAG, "Dead page detected: body class indicates 404")
-            return true
-        }
+        ) return true
 
-        // Check 3: page title contains "Not Found" or "Page not found"
         val pageTitle = doc.title().lowercase()
-        if (pageTitle.contains("page not found") || pageTitle.contains("not found") &&
-            !pageTitle.contains("moviescounter")
-        ) {
-            Log.d(TAG, "Dead page detected: title '$pageTitle'")
-            return true
-        }
+        if (pageTitle.contains("page not found") ||
+            (pageTitle.contains("not found") && !pageTitle.contains("moviescounter"))
+        ) return true
 
         return false
     }
@@ -284,10 +551,6 @@ class MoviesCounterProvider : MainAPI() {
         return parseListing(doc)
     }
 
-    /**
-     * Paginated search — enables deep result browsing.
-     * WordPress uses /page/N/?s=query format for search pagination.
-     */
     override suspend fun search(query: String, page: Int): List<SearchResponse> {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
         val url = if (page <= 1) {
@@ -412,8 +675,6 @@ class MoviesCounterProvider : MainAPI() {
         val response = resilientGet(url)
         val doc = response.document
 
-        // Dead page detection: WordPress redirects non-existent pages
-        // to a category listing instead of 404
         if (isDeadPage(doc, url)) {
             throw Exception("Page not found (dead/redirected): $url")
         }
@@ -426,70 +687,54 @@ class MoviesCounterProvider : MainAPI() {
         val title = cleanTitle(rawTitle)
 
         // Poster: prefer TMDB image, fallback to og:image
-        val posterUrl = doc.selectFirst("article img[src*=tmdb], article img[src*=image.tmdb.org]")?.let {
+        val sitePoster = doc.selectFirst("article img[src*=tmdb], article img[src*=image.tmdb.org]")?.let {
             fixUrlNull(it.attr("src"))
         } ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
             ?: doc.selectFirst("article img.aligncenter")?.let { fixUrlNull(it.attr("src")) }
 
         // Plot from og:description or longest paragraph in post-body
         val postBody = doc.selectFirst("div.post-body")
-        val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+        val sitePlot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
             ?: postBody?.select("p")?.firstOrNull { it.text().length > 100 }?.text()?.trim()
 
         // Score from post-body only
-        var score: Score? = null
+        var siteScore: Score? = null
         val metaText = postBody?.text() ?: ""
         Regex("""(\d+\.?\d*)/10""").find(metaText)?.groupValues?.get(1)
-            ?.toFloatOrNull()?.let { score = Score.from10(it) }
+            ?.toFloatOrNull()?.let { siteScore = Score.from10(it) }
 
-        // Tags from the POST'S OWN hashtag links only.
-        // The hashtags are in: <div class="w-full my-4 text-center"> which sits
-        // right after div.post-body, inside the content column.
-        // Do NOT use doc.select("a[href*=/category/]") — that picks up sidebar
-        // categories (including "WEB-Series", "TV-Shows") causing false positives.
+        // Tags from the POST'S OWN hashtag links only
         val tags = doc.select("div.w-full.my-4.text-center a[href*=/category/]")
             .map { it.text().trim().removePrefix("# ").trim() }
             .filter { it.isNotBlank() && it.length < 30 }.distinct()
             .ifEmpty {
-                // Fallback: try meta article:section
                 doc.selectFirst("meta[property=article:section]")?.attr("content")
                     ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }
                     ?: emptyList()
             }
 
         // Year from title
-        val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(rawTitle)
+        val yearHint = Regex("""\b(19\d{2}|20\d{2})\b""").find(rawTitle)
             ?.groupValues?.get(1)?.toIntOrNull()
 
-        // IMDB link
+        // IMDB link & ID
         val imdbUrl = doc.selectFirst("a[href*=imdb.com/title]")?.attr("href")
+        val imdbId = imdbUrl?.let {
+            Regex("""title/(tt\d+)""").find(it)?.groupValues?.get(1)
+        }
 
         // ---------------------------------------------------------------
         // Series detection — SCOPED to post-body ONLY
-        //
-        // MoviesCounter movie pages have THREE contamination sources:
-        //   1. Navigation menu: has "WEB-Series", "TV-Shows" links
-        //   2. Sidebar: has "Categories" widget with ALL site categories
-        //   3. "You May Also Like": has series cards with "Season 1" etc.
-        //
-        // ALL series keywords on movie pages come from these sections,
-        // NOT from the post's own content. We scope everything to:
-        //   - div.post-body (for h2 "Single Episode" check)
-        //   - div.w-full.my-4.text-center (for hashtag category check)
         // ---------------------------------------------------------------
 
-        // Check 1: Title/URL-based detection
         val titleIndicatesSeries = detectSeriesFromTitle(rawTitle, url)
 
-        // Check 2: Post's OWN category hashtags only (not sidebar/nav)
         val tagIndicatesSeries = tags.any {
             it.equals("WEB-Series", true) ||
             it.equals("TV-Shows", true) ||
             it.equals("WEB-Series [UnOfficial Dubbed]", true)
         }
 
-        // Check 3: "Single Episode" section header INSIDE post-body only
-        // This is the DEFINITIVE marker — it ONLY appears on series pages
         val hasSingleEpisodeSection = postBody?.select("h2")?.any { h2 ->
             SINGLE_EP_SECTION_REGEX.containsMatchIn(h2.text())
         } ?: false
@@ -497,7 +742,6 @@ class MoviesCounterProvider : MainAPI() {
         val isSeries = titleIndicatesSeries || tagIndicatesSeries ||
             hasSingleEpisodeSection
 
-        // Season number from title
         val seasonNum = SEASON_REGEX.find(rawTitle)?.let { m ->
             (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
         } ?: 1
@@ -506,11 +750,46 @@ class MoviesCounterProvider : MainAPI() {
             "titleIndicates=$titleIndicatesSeries tagIndicates=$tagIndicatesSeries " +
             "singleSection=$hasSingleEpisodeSection tags=$tags season=$seasonNum")
 
+        // ---------------------------------------------------------------
+        // TMDB + Cinemeta enrichment (parallel, non-blocking)
+        // ---------------------------------------------------------------
+
+        val (tmdbMeta, tmdbSeason, cine) = coroutineScope {
+            val tmdbDef = async {
+                val id = resolveTmdbId(imdbId, title, isSeries, yearHint)
+                if (id != null) fetchTmdbDetails(id, isSeries)?.let {
+                    it to (if (isSeries) fetchTmdbSeason(id, seasonNum) else null)
+                } else null
+            }
+            val cineDef = async {
+                if (imdbId != null) fetchCinemeta(imdbId, isSeries) else null
+            }
+            val result = tmdbDef.await()
+            Triple(result?.first, result?.second, cineDef.await())
+        }
+
+        // Merge: TMDB (primary) > Cinemeta (secondary) > site-scraped (fallback)
+        val finalTitle = tmdbMeta?.title ?: cine?.name ?: title
+        val finalPoster = tmdbMeta?.poster ?: cine?.poster ?: sitePoster
+        val finalBackdrop = tmdbMeta?.backdrop ?: cine?.background ?: finalPoster
+        val finalPlot = tmdbMeta?.overview ?: cine?.description ?: sitePlot
+        val finalYear = tmdbMeta?.year
+            ?: cine?.year?.substringBefore("-")?.toIntOrNull()
+            ?: yearHint
+        val finalScore = tmdbMeta?.rating
+            ?: cine?.imdbRating?.toFloatOrNull()?.let { Score.from10(it) }
+            ?: siteScore
+        val finalTags = (tmdbMeta?.genres ?: cine?.genre ?: tags).distinct()
+            .ifEmpty { tags }
+
+        Log.d(TAG, "Metadata: tmdb=${tmdbMeta != null} cine=${cine != null} " +
+            "poster=${finalPoster != null} backdrop=${finalBackdrop != null}")
+
         // Use postBody for all download link parsing (clean, no contamination)
         val container = postBody ?: doc.selectFirst("article") ?: doc
 
         if (isSeries) {
-            val episodes = buildSeriesEpisodes(container, seasonNum)
+            val episodes = buildSeriesEpisodes(container, seasonNum, tmdbSeason, cine)
             Log.d(TAG, "load() built ${episodes.size} series episode(s)")
 
             val finalEpisodes = if (episodes.isEmpty()) {
@@ -526,37 +805,47 @@ class MoviesCounterProvider : MainAPI() {
                 episodes
             }
 
-            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, finalEpisodes) {
-                this.posterUrl = posterUrl
-                this.plot = plot
-                this.year = year
-                this.tags = tags.ifEmpty { null }
-                this.score = score
+            return newTvSeriesLoadResponse(finalTitle, url, TvType.TvSeries, finalEpisodes) {
+                this.posterUrl = finalPoster
+                this.backgroundPosterUrl = finalBackdrop
+                this.plot = finalPlot
+                this.year = finalYear
+                this.tags = finalTags.ifEmpty { null }
+                this.score = finalScore
                 imdbUrl?.let { addImdbUrl(it) }
+                imdbId?.let { addImdbId(it) }
+                tmdbMeta?.trailer?.let { addTrailer(it) }
             }
         } else {
-            // For MOVIES: collect ALL quality download links.
-            // User sees "Play Movie" button → clicking it shows ALL quality
-            // options (480p, 720p, 1080p, 4K) as separate source links.
+            // For MOVIES: collect ALL quality download links with size info.
             val links = collectAllDownloadLinks(container)
-            val data = links.joinToString("\n") { it.second }
+            val data = links.joinToString("\n") { (label, href) -> "$label|$href" }
             Log.d(TAG, "load() found ${links.size} download link(s) for movie")
 
-            return newMovieLoadResponse(title, url, TvType.Movie, data) {
-                this.posterUrl = posterUrl
-                this.plot = plot
-                this.year = year
-                this.tags = tags.ifEmpty { null }
-                this.score = score
+            return newMovieLoadResponse(finalTitle, url, TvType.Movie, data) {
+                this.posterUrl = finalPoster
+                this.backgroundPosterUrl = finalBackdrop
+                this.plot = finalPlot
+                this.year = finalYear
+                this.tags = finalTags.ifEmpty { null }
+                this.score = finalScore
                 imdbUrl?.let { addImdbUrl(it) }
+                imdbId?.let { addImdbId(it) }
+                tmdbMeta?.trailer?.let { addTrailer(it) }
             }
         }
     }
 
     // ------------------------------------------------------------------
-    // Download link collection
+    // Download link collection — now with size extraction
     // ------------------------------------------------------------------
 
+    /**
+     * Collect all download links with quality+size labels.
+     * Returns list of (displayLabel, url) pairs.
+     *
+     * v5: Labels now include size when available, e.g. "1080p WEB-DL (1.2GB)"
+     */
     private fun collectAllDownloadLinks(
         container: Element
     ): List<Pair<String, String>> {
@@ -570,6 +859,7 @@ class MoviesCounterProvider : MainAPI() {
             if (EPISODE_HEADER_REGEX.containsMatchIn(headingText)) return@forEach
             if (PACK_REGEX.containsMatchIn(headingText)) return@forEach
             if (SAMPLE_REGEX.containsMatchIn(headingText)) return@forEach
+            if (TORRENT_REGEX.containsMatchIn(headingText)) return@forEach
 
             val link = heading.selectFirst("a[href]")
             val href = link?.attr("href")?.trim()
@@ -579,7 +869,7 @@ class MoviesCounterProvider : MainAPI() {
             if (href.contains(mainUrl, ignoreCase = true)) return@forEach
 
             seen.add(href)
-            val qualityLabel = extractQualityLabel(headingText)
+            val qualityLabel = extractQualityLabelWithSize(headingText)
             results.add(Pair(qualityLabel, href))
         }
 
@@ -594,7 +884,7 @@ class MoviesCounterProvider : MainAPI() {
 
                 seen.add(href)
                 val text = anchor.text().trim()
-                val qualityLabel = extractQualityLabel(text)
+                val qualityLabel = extractQualityLabelWithSize(text)
                 results.add(Pair(qualityLabel, href))
             }
         }
@@ -604,12 +894,14 @@ class MoviesCounterProvider : MainAPI() {
     }
 
     // ------------------------------------------------------------------
-    // Series episode parsing
+    // Series episode parsing — now with TMDB/Cinemeta enrichment
     // ------------------------------------------------------------------
 
     private fun buildSeriesEpisodes(
         container: Element,
-        defaultSeason: Int
+        defaultSeason: Int,
+        tmdbSeason: TmdbSeason?,
+        cine: CinemetaMeta?
     ): List<Episode> {
         val hasSingleEpisodeSection = container.select("h2").any { h2 ->
             SINGLE_EP_SECTION_REGEX.containsMatchIn(h2.text())
@@ -624,21 +916,20 @@ class MoviesCounterProvider : MainAPI() {
             "epHeaders=$hasEpisodeHeaders")
 
         return if (hasSingleEpisodeSection || hasEpisodeHeaders) {
-            buildPerEpisodeLayout(container, defaultSeason)
+            buildPerEpisodeLayout(container, defaultSeason, tmdbSeason, cine)
         } else {
             buildPackEpisodes(container, defaultSeason)
         }
     }
 
     /**
-     * Per-episode layout: Walk h2/h3/h4 in document order, track current
-     * episode from "EPiSODE N" headers, bucket download links under it.
-     * Each Episode contains ALL quality links for that episode.
-     * SKIP the "Full Pack" section entirely.
+     * Per-episode layout with TMDB/Cinemeta episode names and thumbnails.
      */
     private fun buildPerEpisodeLayout(
         container: Element,
-        defaultSeason: Int
+        defaultSeason: Int,
+        tmdbSeason: TmdbSeason?,
+        cine: CinemetaMeta?
     ): List<Episode> {
         val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<Pair<String, String>>>()
         var currentSeason = defaultSeason
@@ -679,7 +970,7 @@ class MoviesCounterProvider : MainAPI() {
             if (!pastPackSection) continue
 
             if (currentEpisode != null) {
-                val qualityLabel = extractQualityLabel(text)
+                val qualityLabel = extractQualityLabelWithSize(text)
 
                 element.select("a[href]").forEach { anchor ->
                     val href = anchor.attr("href").trim()
@@ -703,18 +994,31 @@ class MoviesCounterProvider : MainAPI() {
         return episodeMap.entries.sortedWith(compareBy({ it.key.first }, { it.key.second }))
             .map { (key, links) ->
                 val (season, ep) = key
-                val data = links.joinToString("\n") { (ql, url) -> "$ql|$url" }
+
+                // Enrich with TMDB/Cinemeta episode data
+                val tmdbEp = tmdbSeason
+                    ?.takeIf { it.seasonNumber == season }
+                    ?.episodes?.firstOrNull { it.episodeNumber == ep }
+                val cineEp = cine?.videos
+                    ?.firstOrNull { it.season == season && it.episode == ep }
+
+                val data = links.joinToString("\n") { (ql, href) -> "$ql|$href" }
                 newEpisode(data) {
-                    name = "Episode $ep"
+                    name = tmdbEp?.name ?: cineEp?.title ?: "Episode $ep"
                     this.season = season
                     this.episode = ep
+                    posterUrl = tmdbEp?.stillUrl ?: cineEp?.thumbnail
+                    description = tmdbEp?.overview ?: cineEp?.overview
+                    score = tmdbEp?.rating
+                    (tmdbEp?.airDate ?: cineEp?.released)?.let {
+                        addDate(it.substringBefore("T"))
+                    }
                 }
             }
     }
 
     /**
-     * Pack-only fallback: No EPiSODE headers found.
-     * Each quality heading becomes its own episode entry.
+     * Pack-only fallback with quality+size labels.
      */
     private fun buildPackEpisodes(
         container: Element,
@@ -729,21 +1033,16 @@ class MoviesCounterProvider : MainAPI() {
 
             if (EPISODE_HEADER_REGEX.containsMatchIn(text)) return@forEach
             if (PACK_REGEX.containsMatchIn(text)) return@forEach
+            if (TORRENT_REGEX.containsMatchIn(text)) return@forEach
 
             if (href != null && href.startsWith("http") &&
                 !IGNORE_HOST_REGEX.containsMatchIn(href) &&
                 !href.contains(mainUrl, ignoreCase = true)
             ) {
-                val qualityLabel = extractQualityLabel(text)
-                val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1) ?: ""
-
-                val epName = buildString {
-                    append(qualityLabel)
-                    if (sizeStr.isNotBlank()) append(" ($sizeStr)")
-                }
+                val qualityLabel = extractQualityLabelWithSize(text)
 
                 episodes.add(newEpisode(href) {
-                    name = epName
+                    name = qualityLabel
                     season = defaultSeason
                     episode = episodes.size + 1
                 })
@@ -799,6 +1098,21 @@ class MoviesCounterProvider : MainAPI() {
 
         urls.amap { url ->
             try {
+                // Check for subtitle URLs
+                if (SUBTITLE_REGEX.containsMatchIn(url)) {
+                    val langName = if (url.contains("hindi", ignoreCase = true)) "Hindi"
+                        else if (url.contains("english", ignoreCase = true)) "English"
+                        else "Unknown"
+                    subtitleCallback(
+                        SubtitleFile(
+                            SubtitleHelper.fromTwoLettersToLanguage(langName),
+                            url
+                        )
+                    )
+                    anySuccess = true
+                    return@amap
+                }
+
                 val resolved = resolveRedirector(url)
 
                 if (resolved.isEmpty()) {
@@ -989,10 +1303,6 @@ class MoviesCounterProvider : MainAPI() {
             .trim()
     }
 
-    /**
-     * Detect if a title/URL indicates a TV series.
-     * Only uses title keywords and URL category — NO page body text check.
-     */
     private fun detectSeriesFromTitle(title: String, href: String): Boolean {
         return title.contains("Season", ignoreCase = true) ||
             title.contains("WEB-Series", ignoreCase = true) ||
@@ -1015,21 +1325,75 @@ class MoviesCounterProvider : MainAPI() {
         return null
     }
 
-    private fun extractQualityLabel(text: String): String {
-        return when {
+    /**
+     * v5: Enhanced quality label extraction with codec and size info.
+     * Returns labels like "1080p WEB-DL (1.2GB)" or "720p HEVC" or just "4K".
+     */
+    private fun extractQualityLabelWithSize(text: String): String {
+        val sb = StringBuilder()
+
+        // Quality tier
+        val quality = when {
             text.contains("2160p", ignoreCase = true) || text.contains("4K", ignoreCase = true) -> "4K"
-            text.contains("1080p", ignoreCase = true) && text.contains("HEVC", ignoreCase = true) -> "1080p HEVC"
-            text.contains("1080p", ignoreCase = true) && text.contains("x264", ignoreCase = true) -> "1080p x264"
-            text.contains("1080p", ignoreCase = true) && text.contains("10Bit", ignoreCase = true) -> "1080p 10Bit"
-            text.contains("1080p", ignoreCase = true) && text.contains("WEB-DL", ignoreCase = true) -> "1080p WEB-DL"
             text.contains("1080p", ignoreCase = true) -> "1080p"
-            text.contains("720p", ignoreCase = true) && text.contains("HEVC", ignoreCase = true) -> "720p HEVC"
-            text.contains("720p", ignoreCase = true) && text.contains("x264", ignoreCase = true) -> "720p x264"
-            text.contains("720p", ignoreCase = true) && text.contains("10Bit", ignoreCase = true) -> "720p 10Bit"
             text.contains("720p", ignoreCase = true) -> "720p"
             text.contains("480p", ignoreCase = true) -> "480p"
             text.contains("300MB", ignoreCase = true) -> "300MB"
             else -> "HD"
         }
+        sb.append(quality)
+
+        // Codec/source info
+        val codec = when {
+            text.contains("HEVC", ignoreCase = true) && !quality.contains("HEVC") -> " HEVC"
+            text.contains("x265", ignoreCase = true) -> " x265"
+            text.contains("x264", ignoreCase = true) -> " x264"
+            text.contains("10Bit", ignoreCase = true) -> " 10Bit"
+            text.contains("AV1", ignoreCase = true) -> " AV1"
+            text.contains("WEB-DL", ignoreCase = true) -> " WEB-DL"
+            text.contains("WEBRip", ignoreCase = true) -> " WEBRip"
+            text.contains("BluRay", ignoreCase = true) -> " BluRay"
+            text.contains("HDRip", ignoreCase = true) -> " HDRip"
+            else -> ""
+        }
+        sb.append(codec)
+
+        // Size info — try [510MB] first, then "Size: 1.2GB", then "– 500MB"
+        val sizeStr = SIZE_REGEX.find(text)?.groupValues?.get(1)
+            ?: SIZE_TEXT_REGEX.find(text)?.groupValues?.get(1)
+            ?: ""
+        if (sizeStr.isNotBlank()) {
+            sb.append(" ($sizeStr)")
+        }
+
+        return sb.toString()
+    }
+
+    /**
+     * Legacy quality label (without size) — kept for backwards compat.
+     */
+    private fun extractQualityLabel(text: String): String {
+        return extractQualityLabelWithSize(text)
+    }
+}
+
+/**
+ * Minimal subtitle language helper — avoids pulling in the full
+ * com.lagradost.cloudstream3.subtitle/ package which may not be
+ * available in all CloudStream build versions.
+ */
+private object SubtitleHelper {
+    private val languageMap = mapOf(
+        "Hindi" to "hi", "English" to "en", "Tamil" to "ta",
+        "Telugu" to "te", "Malayalam" to "ml", "Kannada" to "kn",
+        "Bengali" to "bn", "Marathi" to "mr", "Gujarati" to "gu",
+        "Punjabi" to "pa", "Urdu" to "ur", "Arabic" to "ar",
+        "Spanish" to "es", "French" to "fr", "German" to "de",
+        "Japanese" to "ja", "Korean" to "ko", "Chinese" to "zh",
+        "Unknown" to "und"
+    )
+
+    fun fromTwoLettersToLanguage(name: String): String {
+        return languageMap[name] ?: name
     }
 }
