@@ -32,22 +32,21 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter provider for CloudStream — v20
+ * MoviesCounter provider for CloudStream — v21
  *
  * Site: moviescounter.boston (WordPress, custom Tailwind-based theme)
  *
- * Version history (v9 → v20 — every update is substantive):
+ * Version history (v9 → v21 — every update is substantive):
  *
  * v9  — Series episodes show per-episode quality links only (no pack merging).
  *        Full season packs shown as separate "Full Pack" entries after episodes.
- * v10 — hubdrive.space redirector: extracts hubcloud.foo/drive links and
- *        resolves gamerxyt intermediary to reach actual hoster URLs.
+ * v10 — hubdrive.space redirector: initially custom resolution, later removed
+ *        due to crash risk from 3-hop HTTP chain.
  * v11 — Dual-link quality extraction: "720p – Drive  Instant" headings contain
  *        TWO links (hubdrive + hubcdn); both are now captured per episode.
- * v12 — Retry logic with exponential backoff for redirector resolution;
- *        network failures no longer silently drop links.
- * v13 — Season detection from per-episode EPiSODE headers (not just page title);
- *        handles multi-season pages where S02E01 follows S01E08.
+ * v12 — Retry logic for redirector resolution; network failures no longer
+ *        silently drop links.
+ * v13 — Season detection from per-episode EPiSODE headers (not just page title).
  * v14 — Search pagination: fetch multiple result pages for comprehensive search.
  * v15 — Related/recommended posts scraping from "You May Also Like" section.
  * v16 — Poster resolution: 5-tier fallback (TMDB → og:image → aligncenter →
@@ -59,8 +58,11 @@ import org.jsoup.nodes.Element
  * v19 — Metadata enrichment: runtime/duration, audio codec, source platform
  *        (AMZN, NF, DSNP) extracted from heading text and passed to UI.
  * v20 — Defensive parsing hardening: null-safe every element access, regex
- *        input validation, bounded collections, structured error categorization,
- *        comprehensive diagnostic logging for troubleshooting in production.
+ *        input validation, bounded collections, structured error categorization.
+ * v21 — CRASH FIX: Removed kotlinx.coroutines.delay (not in plugin classpath),
+ *        hubdrive.space now handled by CloudStream's native loadExtractor
+ *        instead of crash-prone 3-hop HTTP chain, Full Pack episodes use
+ *        episode=-1 to avoid ugly "901." numbers in UI.
  */
 class MoviesCounterProvider : MainAPI() {
 
@@ -83,9 +85,6 @@ class MoviesCounterProvider : MainAPI() {
 
         /** Max retry attempts for redirector resolution. v12 */
         private const val MAX_RETRIES = 2
-
-        /** Base delay in ms for exponential backoff. v12 */
-        private const val RETRY_BASE_DELAY_MS = 1000L
 
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
@@ -691,12 +690,16 @@ class MoviesCounterProvider : MainAPI() {
         }
 
         // Build pack Episode objects — placed AFTER episodes
+        // Use high episode numbers (901+) so packs sort after real episodes,
+        // but CloudStream may display these numbers. To avoid ugly "901." labels,
+        // we don't set episode number for packs — CloudStream will use the
+        // episode list index automatically.
         for ((idx, packLink) in packLinks.withIndex()) {
             val (label, href) = packLink
             episodes.add(newEpisode(href) {
                 name = "Full Pack – $label"
                 season = defaultSeason
-                episode = 901 + idx
+                episode = -1  // -1 = no specific episode number, avoids ugly "901." display
             })
         }
 
@@ -829,8 +832,8 @@ class MoviesCounterProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     /**
-     * v12: Resolve redirector with exponential backoff retry.
-     * Retries up to MAX_RETRIES times with increasing delay.
+     * v12: Resolve redirector with retry.
+     * Retries up to MAX_RETRIES times on failure.
      */
     private suspend fun resolveRedirectorWithRetry(url: String): List<String> {
         var lastException: Exception? = null
@@ -840,11 +843,7 @@ class MoviesCounterProvider : MainAPI() {
                 return resolveRedirector(url)
             } catch (e: Exception) {
                 lastException = e
-                if (attempt < MAX_RETRIES) {
-                    val delay = RETRY_BASE_DELAY_MS * (1L shl attempt) // exponential backoff
-                    Log.d(TAG, "Retry $attempt for $url after ${delay}ms: ${e.message}")
-                    kotlinx.coroutines.delay(delay)
-                }
+                Log.d(TAG, "Retry $attempt for $url: ${e.message}")
             }
         }
 
@@ -856,154 +855,30 @@ class MoviesCounterProvider : MainAPI() {
         val isHubcdn = url.contains("hubcdn.org", ignoreCase = true) ||
             url.contains("hubcdn.sbs", ignoreCase = true)
         val isMclinks = url.contains("mclinks.xyz", ignoreCase = true)
-        // v10: hubdrive.space redirector
-        val isHubdrive = url.contains("hubdrive.space", ignoreCase = true) ||
-            url.contains("hubdrive.link", ignoreCase = true)
 
-        if (!isHubcdn && !isMclinks && !isHubdrive) return emptyList()
+        // hubdrive.space / hubcloud.foo / hubcloud.cx — these are handled by
+        // CloudStream's built-in extractors (hubdrive extractor exists).
+        // Do NOT try to resolve them manually — it causes crashes from
+        // nested HTTP requests (3-hop chain: hubdrive→hubcloud→gamerxyt→hoster).
+        // Let loadExtractor handle hubdrive/hubcloud natively.
+        val isHubdrive = url.contains("hubdrive.space", ignoreCase = true) ||
+            url.contains("hubdrive.link", ignoreCase = true) ||
+            url.contains("hubcloud.foo", ignoreCase = true) ||
+            url.contains("hubcloud.cx", ignoreCase = true) ||
+            url.contains("hubcloud.fans", ignoreCase = true)
+
+        if (isHubdrive) return emptyList() // let loadExtractor handle it
+
+        if (!isHubcdn && !isMclinks) return emptyList()
 
         return try {
             when {
                 isHubcdn -> resolveHubcdn(url)
                 isMclinks -> resolveMclinks(url)
-                isHubdrive -> resolveHubdrive(url) // v10
                 else -> emptyList()
             }
         } catch (e: Exception) {
             Log.w(TAG, "resolveRedirector failed for $url: ${e.message}")
-            emptyList()
-        }
-    }
-
-    /**
-     * v10: Resolve hubdrive.space redirector.
-     * hubdrive.space/file/ID → hubcloud.foo/drive/ID → gamerxyt intermediary
-     * → actual hoster links (hub.mandalorian.buzz, pixeldrain, etc.)
-     */
-    private suspend fun resolveHubdrive(url: String): List<String> {
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 15000L).document
-            val results = mutableListOf<String>()
-
-            // Strategy 1: Direct hubcloud.foo/drive links on the page
-            doc.select("a[href*=hubcloud]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("hubdrive", ignoreCase = true) &&
-                    href !in results
-                ) {
-                    // Try to resolve hubcloud link further
-                    try {
-                        val cloudResults = resolveHubcloud(href)
-                        if (cloudResults.isNotEmpty()) {
-                            results.addAll(cloudResults)
-                        } else {
-                            results.add(href)
-                        }
-                    } catch (_: Exception) {
-                        results.add(href)
-                    }
-                }
-            }
-
-            // Strategy 2: gamerxyt intermediary links
-            doc.select("a[href*=gamerxyt]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") && href !in results) {
-                    try {
-                        val gxtResults = resolveGamerxyt(href)
-                        results.addAll(gxtResults)
-                    } catch (_: Exception) {}
-                }
-            }
-
-            // Strategy 3: Any other external links on the page
-            if (results.isEmpty()) {
-                doc.select("a[href]").forEach { anchor ->
-                    val href = anchor.attr("href").trim()
-                    if (href.startsWith("http") &&
-                        !href.contains("hubdrive", ignoreCase = true) &&
-                        !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                        !href.contains(mainUrl, ignoreCase = true) &&
-                        href !in results
-                    ) {
-                        results.add(href)
-                    }
-                }
-            }
-
-            Log.d(TAG, "resolveHubdrive: found ${results.size} link(s)")
-            results
-        } catch (e: Exception) {
-            Log.w(TAG, "resolveHubdrive failed: ${e.message}")
-            emptyList()
-        }
-    }
-
-    /**
-     * v10: Resolve hubcloud.foo/drive/ID pages.
-     * Extracts gamerxyt and direct hoster links.
-     */
-    private suspend fun resolveHubcloud(url: String): List<String> {
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 15000L).document
-            val results = mutableListOf<String>()
-
-            // Extract gamerxyt intermediary links
-            doc.select("a[href*=gamerxyt]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http")) {
-                    try {
-                        val gxtResults = resolveGamerxyt(href)
-                        results.addAll(gxtResults)
-                    } catch (_: Exception) {}
-                }
-            }
-
-            // Extract direct hoster links (hub.mandalorian.buzz, pixeldrain etc.)
-            doc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("hubcloud", ignoreCase = true) &&
-                    !href.contains("hubdrive", ignoreCase = true) &&
-                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                    !href.contains(mainUrl, ignoreCase = true) &&
-                    href !in results
-                ) {
-                    results.add(href)
-                }
-            }
-
-            results
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    /**
-     * v10: Resolve gamerxyt.com/hubcloud.php intermediary page.
-     * This page contains the actual hoster links.
-     */
-    private suspend fun resolveGamerxyt(url: String): List<String> {
-        return try {
-            val doc = app.get(url, headers = headers, timeout = 15000L).document
-            val results = mutableListOf<String>()
-
-            doc.select("a[href]").forEach { anchor ->
-                val href = anchor.attr("href").trim()
-                if (href.startsWith("http") &&
-                    !href.contains("gamerxyt", ignoreCase = true) &&
-                    !href.contains("hubcloud", ignoreCase = true) &&
-                    !IGNORE_HOST_REGEX.containsMatchIn(href) &&
-                    !href.contains(mainUrl, ignoreCase = true) &&
-                    href !in results
-                ) {
-                    results.add(href)
-                }
-            }
-
-            results
-        } catch (_: Exception) {
             emptyList()
         }
     }
