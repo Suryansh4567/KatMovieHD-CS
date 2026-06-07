@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 33,
+        "version": 32,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v33: Architecture overhaul \u2014 store page URL in data instead of extracted links, re-fetch in loadLinks() to avoid serialization issues. Robust HubCloud/HUBCDN/Mclinks resolution with proper User-Agent. PACK links filtered from episodes.",
-        "fileSize": 68872,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v32: CRITICAL FIX \u2014 Pattern A (simple EPiSODE links inside anchors) now correctly detected and parsed. Pattern B quality lines (720p Drive | Instant) now properly labeled. Added TMDB episode metadata (names, posters, descriptions). Added .fit domain fallback. Improved series layout with episode details. Pipe format for quality labels in loadLinks.",
+        "fileSize": 77192,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-1e2df32bda7bcadeec9ec3a129b0ffafdbd664d965972489cddee352cb72d11d",
-        "jarFileSize": 305416,
+        "fileHash": "sha256-ceb6a2fcaac48334dde21345ed2785a1d1a31ad88b89337d8323f7a9e766837c",
+        "jarFileSize": 327568,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-ad474a2f56eb6f38d41ba77e03d6cd7e8c00617da3ea9ab153bcaa903125213a"
+        "jarHash": "sha256-6633d97b15bb0a454de3dbb59dcb4eabc39ecbd704dcef8189129f89c4a75445"
     }
 ]
