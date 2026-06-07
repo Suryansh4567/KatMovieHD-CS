@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 32,
+        "version": 33,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v32: CRITICAL FIX \u2014 Pattern A (simple EPiSODE links inside anchors) now correctly detected and parsed. Pattern B quality lines (720p Drive | Instant) now properly labeled. Added TMDB episode metadata (names, posters, descriptions). Added .fit domain fallback. Improved series layout with episode details. Pipe format for quality labels in loadLinks.",
-        "fileSize": 77192,
+        "description": "MoviesCounter \u2014 v33: COMPLETE REWRITE matching phisher98 proven patterns. Extractors exactly copied from working HDhub4u extension. Hubdrive/HubCloud/HUBCDN simplified. loadLinks matches phisher98 pattern. Series episodes properly detected (Pattern A+B). TMDB episode metadata added.",
+        "fileSize": 72500,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-ceb6a2fcaac48334dde21345ed2785a1d1a31ad88b89337d8323f7a9e766837c",
-        "jarFileSize": 327568,
+        "fileHash": "sha256-c5745e38f855b90702e4799cfe12ea6ba7e4596ead871689b107796ffe08c5af",
+        "jarFileSize": 301950,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-6633d97b15bb0a454de3dbb59dcb4eabc39ecbd704dcef8189129f89c4a75445"
+        "jarHash": "sha256-d75bdf35ba8fe6a868d205ea19aebd9448359fd1c3217f6c6031476e35d59f60"
     }
 ]
