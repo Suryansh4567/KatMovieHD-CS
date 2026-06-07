@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 32,
+        "version": 33,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v32: Fix no-link-found \u2014 use String data format (newline-joined URLs) instead of List<String> to avoid JSON serialization issues. Improved Hubdrive selectors, HubCloud 10gbps handling, direct hubcdn CDN resolution, Mclinks broader selectors.",
-        "fileSize": 64393,
+        "description": "MoviesCounter \u2014 Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v33: Architecture overhaul \u2014 store page URL in data instead of extracted links, re-fetch in loadLinks() to avoid serialization issues. Robust HubCloud/HUBCDN/Mclinks resolution with proper User-Agent. PACK links filtered from episodes.",
+        "fileSize": 68872,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-efabce99d2fe99b05c7aca0baf3876f86506598fb393c32eb2e40f02b605630a",
-        "jarFileSize": 282370,
+        "fileHash": "sha256-1e2df32bda7bcadeec9ec3a129b0ffafdbd664d965972489cddee352cb72d11d",
+        "jarFileSize": 305416,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-43f1f6b75bb89da4529faed7eaf04ad40526dd2dc8a053819e0364365d93195f"
+        "jarHash": "sha256-ad474a2f56eb6f38d41ba77e03d6cd7e8c00617da3ea9ab153bcaa903125213a"
     }
 ]
