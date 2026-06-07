@@ -19,12 +19,13 @@ import java.net.URI
  * Chain: hubdrive.space -> hubcloud.foo -> gamerxyt.com -> FSL/BuzzServer/PixelDrain/S3
  * Alt:   mclinks.xyz -> hubdrive/hubcloud/hubcdn
  * Alt:   hblinks.dad -> hubdrive/hubcloud/hubcdn
- * Alt:   hubcdn.sbs/dl/?link=obsession.buzz -> CDN direct
+ * Alt:   hubcdn.org/dl/?link=hub.obsession.buzz/{hash} -> CDN direct
+ * Alt:   hubcdn.sbs/dl/?link=hub.noirspy.buzz/{hash} -> CDN direct
  * Alt:   hubcdn.sbs/file/{id} -> base64 reurl decode -> CDN
  * Alt:   hdstream4u.com -> VidHidePro
  *
- * v31: Restored from v26 working code, added Mclinks extractor.
- * Uses 3-arg newExtractorLink (proven working in v26).
+ * v32: Added hubcdn.org support, more CDN subdomains (noirspy.buzz, mandalorian.buzz),
+ *      improved HUBCDN ?link= parameter handling, better quality detection.
  */
 
 // ======================================================================
@@ -420,10 +421,32 @@ class HUBCDN : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         // Strategy 1: Extract from ?link= parameter (/dl/ URLs)
+        // hubcdn.org/dl/?link=https://hub.obsession.buzz/{hash}
+        // hubcdn.sbs/dl/?link=https://hub.noirspy.buzz/{hash}
         val linkParam = Regex("""[?&]link=(https?://[^&]+)""").find(url)?.groupValues?.get(1)
         if (linkParam != null) {
             val decoded = java.net.URLDecoder.decode(linkParam, "UTF-8")
             Log.d("HUBCDN", "?link= -> $decoded")
+            // For ?link= URLs, the decoded URL is a direct CDN link
+            // Try to follow it to get the actual video URL
+            try {
+                val cdnDoc = app.get(decoded, timeout = 10000L, allowRedirects = true).document
+                // Check if it's a direct video file
+                val videoUrl = cdnDoc.selectFirst("video source")?.attr("src")
+                    ?: cdnDoc.selectFirst("a#download")?.attr("href")
+                    ?: cdnDoc.selectFirst("a[download]")?.attr("href")
+                if (!videoUrl.isNullOrEmpty() && videoUrl.startsWith("http")) {
+                    Log.d("HUBCDN", "CDN video URL -> $videoUrl")
+                    callback(
+                        newExtractorLink(name, name, videoUrl) {
+                            this.quality = Qualities.Unknown.value
+                        }
+                    )
+                    return
+                }
+            } catch (_: Exception) {}
+
+            // If we can't resolve the CDN URL, use the decoded link directly
             callback(
                 newExtractorLink(name, name, decoded) {
                     this.quality = Qualities.Unknown.value

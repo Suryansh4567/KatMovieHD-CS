@@ -1,8 +1,8 @@
-version = 31
+version = 32
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v31: RESTORED from v26 working foundation — v27-v30 over-engineering broke both movies and series. Restored v26 extractors (3-arg newExtractorLink, hubcdn.fans), IGNORE_HOST_REGEX with moviescounter, simple isValidDownloadLink, proven Hubdrive selectors. Added Mclinks extractor, PACK URL filtering, more hubcdn/hubcloud domain variants."
+    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v32: CRITICAL FIX — Pattern A (simple EPiSODE links inside anchors) now correctly detected and parsed. Pattern B quality lines (720p Drive | Instant) now properly labeled. Added TMDB episode metadata (names, posters, descriptions). Added .fit domain fallback. Improved series layout with episode details. Pipe format for quality labels in loadLinks."
     authors = listOf("Suryansh4567")
     status = 1
 
