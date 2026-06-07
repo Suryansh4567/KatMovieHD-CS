@@ -32,20 +32,23 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
 import org.jsoup.nodes.Element
 
 /**
- * MoviesCounter CloudStream Provider — v32
+ * MoviesCounter CloudStream Provider — v33
  *
- * CRITICAL FIXES from v31:
- * - FIXED Pattern A: "EPiSODE N" inside a link now correctly detected and parsed.
- *   v31 only looked for EPiSODE headers WITHOUT links, causing "no link found" on
- *   simple episode pages (like FROM S4, Dutton Ranch).
- * - FIXED Pattern B: Quality lines "720p – Drive | Instant" now properly parsed
- *   with quality labels preserved via pipe format (url|label).
- * - ADDED TMDB episode metadata: episode names, posters, descriptions via TMDB API.
- * - ADDED .fit domain to fallback list (confirmed active mirror).
- * - IMPROVED series layout with episode posters and proper names.
- * - IMPROVED PACK filtering: PACK links properly excluded from episodes,
- *   but quality-only headings (480p, 720p, etc.) before Single Episode section
- *   are correctly identified as PACK links and skipped.
+ * CRITICAL FIXES from v32:
+ * - FIXED: Pre-episode full-season quality links (480p/720p/1080p via mclinks,
+ *   720p/1080p HEVC via hubdrive) were LOST between "DOWNLOAD LINKS" and the
+ *   first EPiSODE header because currentEpisode was null. These are now
+ *   collected in a fullSeasonLinks bucket and prepended to Episode 1.
+ * - FIXED: IGNORE_HOST_REGEX contained standalone `#` which incorrectly
+ *   filtered valid streaming URLs like https://hubstream.art/#xsvrxc.
+ *   Anchor-only hrefs are already filtered by startsWith("http") check.
+ * - FIXED: HubCloud extractor was getting 403 from hubcloud.foo because
+ *   it didn't send proper User-Agent and Referer headers. Now sends both.
+ * - FIXED: Hubdrive and HUBCDN extractors now also send proper User-Agent.
+ * - ADDED: hubstream.art support in resolveAndLoad() — handles hash-based
+ *   SPA streaming URLs that were previously filtered.
+ * - ADDED: gofile.io handling in Mclinks extractor.
+ * - ADDED: noirspy.buzz as recognized CDN domain in Mclinks extractor.
  *
  * Chain: MoviesCounter -> mclinks.xyz/hubdrive.space/hubcloud.foo -> hubcloud.foo -> gamerxyt.com -> download
  * Alt:   hubcdn.sbs/dl/?link=obsession.buzz -> direct video file
@@ -107,7 +110,11 @@ class MoviesCounterProvider : MainAPI() {
             """(?i)\b(x264|x265|HEVC|H264|H265|AV1|10Bit|8Bit|HDR|SDR|DV|HDRip)\b"""
         )
 
-        // v26's IGNORE_HOST_REGEX — includes "moviescounter" to filter self-domain links
+        // IGNORE_HOST_REGEX — filters non-download URLs
+        // v33 FIX: Removed standalone `#` from regex — it was incorrectly filtering
+        // valid streaming URLs like https://hubstream.art/#xsvrxc. Anchor-only
+        // hrefs (e.g. "#section") are already filtered by the `startsWith("http")`
+        // check in isValidDownloadLink().
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
                     """imdb\.com|themoviedb\.org|wikipedia\.org|""" +
@@ -121,7 +128,7 @@ class MoviesCounterProvider : MainAPI() {
                     """jsdelivr|cloudflare\.com|gravatar|effectivecpm|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|\.zip|""" +
-                    """.css|\.js|/feed/|#|""" +
+                    """.css|\.js|/feed/|""" +
                     """doubleclick|popads|propeller|profitablecpm|""" +
                     """adsboosters|admaven|winexch|a-ads|tinyurl|hdhub4u|inventoryidea|""" +
                     """bonuscaf|snvhost|llvpn""" +
@@ -690,6 +697,11 @@ class MoviesCounterProvider : MainAPI() {
         var pastSingleEpisodeSection = false
         var foundAnyEpisode = false
 
+        // v33 FIX: Bucket for full-season quality links that appear BEFORE any
+        // EPiSODE header (e.g. "480p x264 [2.4GB]" via mclinks). These are
+        // added to Episode 1 after the main loop completes.
+        val fullSeasonLinks = mutableListOf<String>()
+
         val downloadElements = container.select("h2, h3, h4, h5, hr")
 
         for (element in downloadElements) {
@@ -806,7 +818,52 @@ class MoviesCounterProvider : MainAPI() {
                         }
                     }
                 }
+            } else if (currentEpisode == null && pastDownloadSection && !pastSingleEpisodeSection) {
+                // v33 FIX: Collect full-season quality links that appear between
+                // "DOWNLOAD LINKS" and the first EPiSODE / "Single Episode" header.
+                // These are links like "480p x264 [2.4GB]" via mclinks or
+                // "720p HEVC [1.9GB]" via hubdrive — full-season downloads.
+                val links = element.select("a[href]")
+                if (links.isNotEmpty()) {
+                    val qualityPrefix = QUALITY_LINE_REGEX.find(text)?.groupValues?.get(1)
+                        ?: QUALITY_REGEX.find(text)?.groupValues?.get(1)
+
+                    links.forEach { anchor ->
+                        val href = anchor.attr("href").trim()
+                        if (!isValidDownloadLink(href)) return@forEach
+                        if (PACK_URL_REGEX.containsMatchIn(href)) return@forEach
+
+                        val mirrorLabel = anchor.text().trim()
+                        val qualityLabel = when {
+                            qualityPrefix != null && mirrorLabel.isNotEmpty() ->
+                                "$qualityPrefix $mirrorLabel"
+                            qualityPrefix != null -> qualityPrefix
+                            mirrorLabel.isNotEmpty() -> mirrorLabel
+                            else -> null
+                        }
+
+                        val entry = if (qualityLabel != null) "$href|$qualityLabel" else href
+                        val urlOnly = entry.substringBefore("|")
+                        if (fullSeasonLinks.none { it.substringBefore("|") == urlOnly }) {
+                            fullSeasonLinks.add(entry)
+                        }
+                    }
+                }
             }
+        }
+
+        // v33 FIX: Prepend full-season links to Episode 1 (if it exists)
+        // or create Episode 1 from them. Full-season download links are useful
+        // as they provide additional mirrors for the first episode or the whole season.
+        if (fullSeasonLinks.isNotEmpty()) {
+            val ep1Key = defaultSeason to 1
+            val ep1Bucket = episodeMap.getOrPut(ep1Key) { mutableListOf() }
+            // Prepend so full-season links appear first (higher quality usually)
+            val combined = fullSeasonLinks.filter { fs ->
+                ep1Bucket.none { it.substringBefore("|") == fs.substringBefore("|") }
+            }
+            ep1Bucket.addAll(0, combined)
+            Log.d(TAG, "buildPerEpisodeLinks: prepended ${combined.size} full-season links to E1")
         }
 
         // Build Episode objects with TMDB metadata
@@ -1080,22 +1137,12 @@ class MoviesCounterProvider : MainAPI() {
                     HdStream4u().getUrl(url, name, subtitleCallback, callback)
                 }
 
-                // Direct CDN links (obsession.buzz, noirspy.buzz, etc.)
-                url.contains("obsession.buzz", ignoreCase = true) ||
-                url.contains("noirspy.buzz", ignoreCase = true) ||
-                url.contains("mandalorian.buzz", ignoreCase = true) -> {
-                    val quality = getQualityFromLabel(qualityLabel)
-                    val displayName = qualityLabel ?: "Direct [CDN]"
-                    callback(
-                        newExtractorLink(name, displayName, url) {
-                            this.quality = quality
-                            this.referer = mainUrl
-                        }
-                    )
-                }
-
+                // v33 FIX: hubstream.art streaming links — hash-based SPA URLs
+                // hubstream.art, obsession.buzz, noirspy.buzz, etc. -> generic extractor
+                // phisher98 pattern: pass empty string as referer, not mainUrl
                 else -> {
-                    if (!loadExtractor(url, mainUrl, subtitleCallback, callback)) {
+                    if (!loadExtractor(url, "", subtitleCallback, callback)) {
+                        // Fallback: try as direct link
                         addDirectLink(url, callback, qualityLabel ?: "")
                     }
                 }

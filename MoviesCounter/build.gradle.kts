@@ -1,8 +1,8 @@
-version = 32
+version = 33
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — Bollywood, Hollywood, South Hindi Dubbed Movies, Web Series. v32: CRITICAL FIX — Pattern A (simple EPiSODE links inside anchors) now correctly detected and parsed. Pattern B quality lines (720p Drive | Instant) now properly labeled. Added TMDB episode metadata (names, posters, descriptions). Added .fit domain fallback. Improved series layout with episode details. Pipe format for quality labels in loadLinks."
+    description = "MoviesCounter — v33: COMPLETE REWRITE matching phisher98 proven patterns. Extractors exactly copied from working HDhub4u extension. Hubdrive/HubCloud/HUBCDN simplified. loadLinks matches phisher98 pattern. Series episodes properly detected (Pattern A+B). TMDB episode metadata added."
     authors = listOf("Suryansh4567")
     status = 1
 
