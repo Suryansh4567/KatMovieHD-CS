@@ -49,14 +49,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 33,
+        "version": 34,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 v33: COMPLETE REWRITE matching phisher98 proven patterns. Extractors exactly copied from working HDhub4u extension. Hubdrive/HubCloud/HUBCDN simplified. loadLinks matches phisher98 pattern. Series episodes properly detected (Pattern A+B). TMDB episode metadata added.",
-        "fileSize": 72500,
+        "description": "MoviesCounter \u2014 v34: Built from scratch by studying ACTUAL site HTML. Fixed: HUBCDN mainUrl now hubcdn.sbs (was hubcdn.fans). Fixed: Mclinks now correctly handles image-based links. Fixed: HubDrive checks multiple button selectors. Added: Direct video handling for obsession.buzz URLs. Added: TMDB episode names/posters/descriptions.",
+        "fileSize": 72434,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -67,9 +67,9 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-c5745e38f855b90702e4799cfe12ea6ba7e4596ead871689b107796ffe08c5af",
-        "jarFileSize": 301950,
+        "fileHash": "sha256-7184eb910ac34982ef5dcb6e9b8836132536c0ad12bdf44b5911c555f1123947",
+        "jarFileSize": 313679,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-d75bdf35ba8fe6a868d205ea19aebd9448359fd1c3217f6c6031476e35d59f60"
+        "jarHash": "sha256-1ae96cddf106abd512d84e2b472024b92f0e41664526789d83ba2fa5caf9ac47"
     }
 ]
