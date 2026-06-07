@@ -15,21 +15,31 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import java.net.URI
 
 /**
- * Custom ExtractorApi classes — v33
+ * Custom Extractors — v34
  *
- * COMPLETELY REWRITTEN to match phisher98's PROVEN WORKING patterns exactly.
- * The key insight: phisher98's extractors are SIMPLE and they WORK.
- * No custom headers, no complex fallbacks, just the essential selectors.
+ * Built from scratch by tracing actual link chains:
  *
- * Chain: hubdrive.space -> hubcloud.foo -> gamerxyt.com -> FSL/BuzzServer/PixelDrain/S3
- * Alt:   mclinks.xyz -> hubdrive/hubcloud/hubcdn
- * Alt:   hblinks.dad -> hubdrive/hubcloud/hubcdn
- * Alt:   hubcdn.org/dl/?link=hub.obsession.buzz/{hash} -> CDN direct
- * Alt:   hdstream4u.com -> VidHidePro
+ * 1. HubDrive: hubdrive.space → button → hubcloud.foo link
+ *    - Button class: "btn btn-primary btn-user btn-success1 m-1"
+ *    - Only visible when logged in, but HubCloud link is shown
+ *
+ * 2. HubCloud: hubcloud.foo/drive/{id}
+ *    → a#download → gamerxyt.com/hubcloud.php?...
+ *    → gamerxyt page has buttons: FSLv2, FSL, PixelServer, BuzzServer, etc.
+ *
+ * 3. HUBCDN: hubcdn.sbs/dl/?link=hub.obsession.buzz/{hash}
+ *    → obsession.buzz/{hash} → direct MKV/MP4 video file
+ *
+ * 4. Mclinks: mclinks.xyz/archives/{id}
+ *    → Image links in entry-content → hubcloud/hubdrive/hubcdn
+ *
+ * 5. Hblinks: hblinks.dad → same as mclinks
+ *
+ * 6. HdStream4u: hdstream4u.com → VidHidePro
  */
 
 // ======================================================================
-// HdStream4u — delegates to CloudStream's built-in VidHidePro
+// HdStream4u — built-in VidHidePro
 // ======================================================================
 
 class HdStream4u : VidHidePro() {
@@ -38,8 +48,15 @@ class HdStream4u : VidHidePro() {
 
 // ======================================================================
 // Mclinks — extracts links from mclinks.xyz intermediary pages
-// Routes to Hubdrive/HubCloud/HUBCDN based on domain
-// Simplified to match phisher98's Hblinks pattern
+//
+// Actual HTML structure (confirmed):
+// <div class="entry-content">
+//   <p><a href="hubcloud.foo/drive/..."><img src="Cloud-Logo.png" /></a></p>
+//   <p><a href="hubdrive.space/file/..."><img src="Hubdrive2.png" /></a></p>
+//   <p><a href="multicloudlinks.com/view/..."><img src="gofile.png" /></a></p>
+// </div>
+//
+// KEY: Links are image-based, not text-based. Select on p a, not h3 a.
 // ======================================================================
 
 class Mclinks : ExtractorApi() {
@@ -60,37 +77,56 @@ class Mclinks : ExtractorApi() {
             return
         }
 
-        // Match phisher98's Hblinks selector pattern
-        doc.select("h3 a, h5 a, div.entry-content p a, div.entry-content a").forEach { anchor ->
-            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
-            if (href.isBlank() || !href.startsWith("http")) return@forEach
+        // Select ALL links in entry-content (image links + text links)
+        val selectors = listOf(
+            "div.entry-content a[href]",
+            "div.entry-content p a[href]",
+            "h3 a[href]",
+            "h5 a[href]"
+        )
 
-            val lower = href.lowercase()
-            try {
-                when {
-                    "hubdrive" in lower -> Hubdrive().getUrl(href, name, subtitleCallback, callback)
-                    "hubcloud" in lower -> HubCloud().getUrl(href, name, subtitleCallback, callback)
-                    "hubcdn" in lower -> HUBCDN().getUrl(href, name, subtitleCallback, callback)
-                    "obsession.buzz" in lower || "noirspy.buzz" in lower -> {
-                        callback(newExtractorLink(name, "Direct [CDN]", href) {
-                            this.quality = Qualities.Unknown.value
-                        })
+        val seen = mutableSetOf<String>()
+        for (selector in selectors) {
+            doc.select(selector).forEach { anchor ->
+                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+                if (href.isBlank() || !href.startsWith("http")) return@forEach
+                if (href in seen) return@forEach
+                seen.add(href)
+
+                val lower = href.lowercase()
+                try {
+                    when {
+                        "hubdrive" in lower -> Hubdrive().getUrl(href, name, subtitleCallback, callback)
+                        "hubcloud" in lower -> HubCloud().getUrl(href, name, subtitleCallback, callback)
+                        "hubcdn" in lower -> HUBCDN().getUrl(href, name, subtitleCallback, callback)
+                        "obsession.buzz" in lower || "noirspy.buzz" in lower -> {
+                            callback(newExtractorLink(name, "Direct [CDN]", href) {
+                                this.quality = Qualities.Unknown.value
+                            })
+                        }
+                        "mclinks" in lower -> return@forEach
+                        "wordpress.org" in lower || "michaelvandenberg" in lower -> return@forEach
+                        "multicloud" in lower -> loadExtractor(href, "", subtitleCallback, callback)
+                        "gofile" in lower -> loadExtractor(href, "", subtitleCallback, callback)
+                        else -> loadExtractor(href, "", subtitleCallback, callback)
                     }
-                    "mclinks" in lower -> return@forEach
-                    "gofile" in lower -> loadExtractor(href, "", subtitleCallback, callback)
-                    "wordpress.org" in lower || "michaelvandenberg" in lower -> return@forEach
-                    else -> loadExtractor(href, "", subtitleCallback, callback)
+                } catch (e: Exception) {
+                    Log.w("Mclinks", "Failed for $href: ${e.message}")
                 }
-            } catch (e: Exception) {
-                Log.w("Mclinks", "Failed for $href: ${e.message}")
             }
         }
     }
 }
 
 // ======================================================================
-// Hubdrive — EXACT copy of phisher98's proven working Hubdrive
-// Simple: fetch page, find the button, route to hubcloud or loadExtractor
+// HubDrive — hubdrive.space/file/{id}
+//
+// Actual HTML (confirmed):
+// <h5><a class="btn btn-primary btn-user btn-success1 m-1"
+//        href="https://hubcloud.foo/drive/...">
+//   [HubCloud Server]</a></h5>
+//
+// Also shows: GDrive [Login] button (needs auth, skip)
 // ======================================================================
 
 class Hubdrive : ExtractorApi() {
@@ -104,39 +140,61 @@ class Hubdrive : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        // phisher98 pattern: simple app.get, no custom headers
-        val href = try {
-            app.get(url, timeout = 5000L).document
-                .selectFirst(".btn.btn-primary.btn-user.btn-success1.m-1")
-                ?.attr("href")
+        val doc = try {
+            app.get(url, timeout = 15000L).document
         } catch (e: Exception) {
             Log.w("HubDrive", "Failed to fetch $url: ${e.message}")
             return
         }
 
-        if (href.isNullOrBlank()) {
-            Log.w("HubDrive", "No link found on hubdrive page: $url")
-            return
+        // Strategy 1: Look for the HubCloud button (primary pattern)
+        // Class: btn btn-primary btn-user btn-success1 m-1
+        val hubCloudBtn = doc.selectFirst("a.btn.btn-primary.btn-user.btn-success1.m-1")
+            ?: doc.selectFirst("a.btn-success1[href*=hubcloud]")
+            ?: doc.selectFirst("a[href*=hubcloud]")
+
+        if (hubCloudBtn != null) {
+            val href = hubCloudBtn.attr("href").trim()
+            if (href.startsWith("http") && href.contains("hubcloud", ignoreCase = true)) {
+                Log.d("HubDrive", "Found HubCloud link: $href")
+                HubCloud().getUrl(href, name, subtitleCallback, callback)
+                return
+            }
         }
 
-        Log.d("HubDrive", "HubDrive resolved: $url -> $href")
+        // Strategy 2: Look for any link to hubcloud or hubcdn
+        doc.select("a[href]").forEach { anchor ->
+            val href = anchor.attr("href").trim()
+            if (href.isBlank() || !href.startsWith("http")) return@forEach
 
-        // phisher98 pattern: if hubcloud -> HubCloud, else loadExtractor
-        if (href.contains("hubcloud", ignoreCase = true)) {
-            HubCloud().getUrl(href, "HubDrive", subtitleCallback, callback)
-        } else if (href.contains("hubcdn", ignoreCase = true)) {
-            HUBCDN().getUrl(href, "HubDrive", subtitleCallback, callback)
-        } else {
-            loadExtractor(href, "", subtitleCallback, callback)
+            val lower = href.lowercase()
+            when {
+                "hubcloud" in lower -> HubCloud().getUrl(href, name, subtitleCallback, callback)
+                "hubcdn" in lower -> HUBCDN().getUrl(href, name, subtitleCallback, callback)
+            }
+        }
+
+        // Strategy 3: Check if page says "cannot be found" (dead link)
+        val pageText = doc.text().lowercase()
+        if (pageText.contains("cannot be found")) {
+            Log.w("HubDrive", "File not found on server: $url")
         }
     }
 }
 
 // ======================================================================
-// HubCloud — EXACT copy of phisher98's proven working HubCloud
-// No custom headers, no complex fallbacks
+// HubCloud — hubcloud.foo/drive/{id}
 //
-// Chain: hubcloud.foo/drive/{id} -> a#download -> gamerxyt.com -> buttons
+// Chain (confirmed from live HTML):
+// 1. hubcloud.foo/drive/{id}
+//    → <a id="download" href="gamerxyt.com/hubcloud.php?host=hubcloud&id=...&token=...">
+//
+// 2. gamerxyt.com page has download buttons:
+//    - FSLv2 Server: cdn.fsl-buckets.work/...mkv (direct video)
+//    - FSL Server: hub.obsession.buzz/{hash}?token=... (redirect → video)
+//    - PixelServer: pixel.hubcloud.cx/?id=...
+//    - PixelDrain: pixeldrain.dev/u/...
+//    - S3 Server: direct video URL
 // ======================================================================
 
 class HubCloud : ExtractorApi() {
@@ -153,42 +211,43 @@ class HubCloud : ExtractorApi() {
         val tag = "HubCloud"
         val ref = referer.orEmpty().ifBlank { name }
 
-        val uri = try { URI(url) } catch (e: Exception) {
-            Log.e(tag, "Invalid URL: ${e.message}"); return
-        }
-        val realUrl = uri.toString()
-        val baseUrl = "${uri.scheme}://${uri.host}"
-
-        // Step 1: Resolve the #download href from hubcloud page
-        // phisher98 pattern: no custom headers
-        val href = try {
-            if ("hubcloud.php" in realUrl) {
-                realUrl
+        // Step 1: Get the #download href from hubcloud page
+        val downloadHref = try {
+            if (url.contains("hubcloud.php")) {
+                url  // Already the download page URL
             } else {
-                val raw = app.get(realUrl, timeout = 15000L).document
-                    .selectFirst("#download")?.attr("href").orEmpty()
-
+                val doc = app.get(url, timeout = 15000L).document
+                val raw = doc.selectFirst("#download")?.attr("href").orEmpty()
                 if (raw.startsWith("http", true)) raw
-                else baseUrl.trimEnd('/') + "/" + raw.trimStart('/')
+                else {
+                    val base = try {
+                        URI(url).let { "${it.scheme}://${it.host}" }
+                    } catch (_: Exception) { "" }
+                    base.trimEnd('/') + "/" + raw.trimStart('/')
+                }
             }
         } catch (e: Exception) {
-            Log.e(tag, "Failed to extract href: ${e.message}"); return
+            Log.e(tag, "Failed to get download href: ${e.message}")
+            return
         }
 
-        if (href.isBlank()) return
+        if (downloadHref.isBlank()) {
+            Log.w(tag, "No #download href found on $url")
+            return
+        }
 
-        Log.d(tag, "HubCloud step1: $realUrl -> $href")
+        Log.d(tag, "Step 1: $url -> $downloadHref")
 
         // Step 2: Fetch the download page (gamerxyt.com)
         val document = try {
-            app.get(href, timeout = 15000L).document
+            app.get(downloadHref, timeout = 15000L).document
         } catch (e: Exception) {
-            Log.e(tag, "Failed to fetch download page: ${e.message}"); return
+            Log.e(tag, "Failed to fetch download page: ${e.message}")
+            return
         }
 
         val size = document.selectFirst("i#size")?.text().orEmpty()
         val header = document.selectFirst("div.card-header")?.text().orEmpty()
-
         val headerDetails = cleanTitle(header)
         val quality = getIndexQuality(header)
 
@@ -197,9 +256,9 @@ class HubCloud : ExtractorApi() {
             if (size.isNotEmpty()) append("[$size]")
         }
 
-        Log.d(tag, "HubCloud step2: quality=$quality header='$header' size='$size' buttons=${document.select("a.btn").size}")
+        Log.d(tag, "Step 2: quality=$quality header='$header' size='$size' buttons=${document.select("a.btn").size}")
 
-        // Step 3: Process each download button — phisher98 exact pattern
+        // Step 3: Process each download button
         document.select("a.btn").forEach { element ->
             val link = element.attr("href").trim()
             val text = element.ownText()
@@ -209,6 +268,18 @@ class HubCloud : ExtractorApi() {
 
             try {
                 when {
+                    // FSLv2 Server — direct video CDN URL
+                    "fslv2" in label || "cdn.fsl" in link.lowercase() -> {
+                        callback(
+                            newExtractorLink(
+                                "$ref [FSLv2]",
+                                "$ref [FSLv2] $labelExtras",
+                                link
+                            ) { this.quality = quality }
+                        )
+                    }
+
+                    // FSL Server — usually obsession.buzz redirect
                     "fsl server" in label -> {
                         callback(
                             newExtractorLink(
@@ -219,6 +290,7 @@ class HubCloud : ExtractorApi() {
                         )
                     }
 
+                    // Download File — generic
                     "download file" in label -> {
                         callback(
                             newExtractorLink(
@@ -229,12 +301,12 @@ class HubCloud : ExtractorApi() {
                         )
                     }
 
+                    // BuzzServer
                     "buzzserver" in label || "buzz server" in label -> {
                         try {
                             val resp = app.get("$link/download", referer = link, allowRedirects = false)
                             val dlink = resp.headers["hx-redirect"]
                                 ?: resp.headers["HX-Redirect"].orEmpty()
-
                             if (dlink.isNotBlank()) {
                                 callback(
                                     newExtractorLink(
@@ -243,14 +315,15 @@ class HubCloud : ExtractorApi() {
                                         dlink
                                     ) { this.quality = quality }
                                 )
-                            } else {
-                                Log.w(tag, "BuzzServer: No redirect")
                             }
                         } catch (_: Exception) {}
                     }
 
+                    // PixelDrain / PixelServer
                     "pixeldra" in label || "pixelserver" in label || "pixel server" in label || "pixeldrain" in label -> {
-                        val base = getBaseUrl(link)
+                        val base = try {
+                            URI(link).let { "${it.scheme}://${it.host}" }
+                        } catch (_: Exception) { "" }
                         val finalUrl = if ("download" in link) link
                         else "$base/api/file/${link.substringAfterLast("/")}?download"
 
@@ -263,6 +336,7 @@ class HubCloud : ExtractorApi() {
                         )
                     }
 
+                    // S3 Server
                     "s3 server" in label -> {
                         callback(
                             newExtractorLink(
@@ -273,16 +347,7 @@ class HubCloud : ExtractorApi() {
                         )
                     }
 
-                    "fslv2" in label -> {
-                        callback(
-                            newExtractorLink(
-                                "$ref [FSLv2]",
-                                "$ref [FSLv2] $labelExtras",
-                                link
-                            ) { this.quality = quality }
-                        )
-                    }
-
+                    // Mega Server
                     "mega server" in label -> {
                         callback(
                             newExtractorLink(
@@ -293,41 +358,37 @@ class HubCloud : ExtractorApi() {
                         )
                     }
 
+                    // Gofile
                     "gofile" in label -> {
                         loadExtractor(link, "", subtitleCallback, callback)
                     }
 
+                    // HUBCDN
                     "hubcdn" in link.lowercase() -> {
                         HUBCDN().getUrl(link, ref, subtitleCallback, callback)
                     }
 
+                    // Everything else — try loadExtractor
                     else -> {
-                        // phisher98 pattern: just loadExtractor, no custom direct link fallback
                         loadExtractor(link, "", subtitleCallback, callback)
                     }
                 }
             } catch (e: Exception) {
-                Log.w(tag, "Failed to resolve button '$label': ${e.message}")
+                Log.w(tag, "Failed button '$label': ${e.message}")
             }
         }
     }
 
     private fun getIndexQuality(str: String?): Int {
-        return Regex("(\\d{3,4})[pP]")
+        return Regex("""(\d{3,4})[pP]""")
             .find(str.orEmpty())
             ?.groupValues?.getOrNull(1)
             ?.toIntOrNull()
             ?: Qualities.P2160.value
     }
 
-    private fun getBaseUrl(url: String): String {
-        return try {
-            URI(url).let { "${it.scheme}://${it.host}" }
-        } catch (_: Exception) { "" }
-    }
-
     private fun cleanTitle(title: String): String {
-        val name = title.replace(Regex("\\.[a-zA-Z0-9]{2,4}$"), "")
+        val name = title.replace(Regex("""\.[a-zA-Z0-9]{2,4}$"""), "")
         val normalized = name
             .replace(Regex("WEB[-_. ]?DL", RegexOption.IGNORE_CASE), "WEB-DL")
             .replace(Regex("WEB[-_. ]?RIP", RegexOption.IGNORE_CASE), "WEBRIP")
@@ -336,11 +397,9 @@ class HubCloud : ExtractorApi() {
             .replace(Regex("DDP[ .]?([0-9]\\.[0-9])", RegexOption.IGNORE_CASE), "DDP$1")
 
         val parts = normalized.split(" ", "_", ".")
-
         val sourceTags = setOf("WEB-DL", "WEBRIP", "BLURAY", "HDRIP", "DVDRIP", "HDTV", "CAM", "TS", "BRRIP", "BDRIP")
         val codecTags = setOf("H264", "H265", "X264", "X265", "HEVC", "AVC")
         val audioTags = setOf("AAC", "AC3", "DTS", "MP3", "FLAC", "DD", "DDP", "EAC3")
-        val audioExtras = setOf("ATMOS")
         val hdrTags = setOf("SDR", "HDR", "HDR10", "HDR10+", "DV", "DOLBYVISION")
 
         return parts.mapNotNull { part ->
@@ -349,11 +408,7 @@ class HubCloud : ExtractorApi() {
                 sourceTags.contains(p) -> p
                 codecTags.contains(p) -> p
                 audioTags.any { p.startsWith(it) } -> p
-                audioExtras.contains(p) -> p
-                hdrTags.contains(p) -> when (p) {
-                    "DV", "DOLBYVISION" -> "DOLBYVISION"
-                    else -> p
-                }
+                hdrTags.contains(p) -> if (p in setOf("DV", "DOLBYVISION")) "DOLBYVISION" else p
                 p == "NF" || p == "CR" -> p
                 else -> null
             }
@@ -362,13 +417,19 @@ class HubCloud : ExtractorApi() {
 }
 
 // ======================================================================
-// HUBCDN — EXACT copy of phisher98's proven working HUBCDN
-// Simple: fetch page, decode reurl, done. No extra strategies.
+// HUBCDN — hubcdn.sbs/dl/?link=hub.obsession.buzz/{hash}
+//
+// Chain (confirmed from live testing):
+// 1. hubcdn.sbs/dl/?link=https://hub.obsession.buzz/{hash}
+// 2. hub.obsession.buzz/{hash} → direct MKV/MP4 file (binary data)
+//
+// KEY: obsession.buzz URLs return DIRECT VIDEO FILES, not HTML pages!
+// Don't try to parse them as HTML — use as direct links.
 // ======================================================================
 
 class HUBCDN : ExtractorApi() {
     override val name = "HUBCDN"
-    override var mainUrl = "https://hubcdn.fans"
+    override var mainUrl = "https://hubcdn.sbs"  // Match actual site domain
     override val requiresReferer = false
 
     override suspend fun getUrl(
@@ -377,84 +438,89 @@ class HUBCDN : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        // Strategy 1: Extract from ?link= parameter (/dl/ URLs)
-        // hubcdn.org/dl/?link=https://hub.obsession.buzz/{hash}
+        // Strategy 1: Extract ?link= parameter
         val linkParam = Regex("""[?&]link=(https?://[^&]+)""").find(url)?.groupValues?.get(1)
         if (linkParam != null) {
             val decoded = java.net.URLDecoder.decode(linkParam, "UTF-8")
             Log.d("HUBCDN", "?link= -> $decoded")
-            // phisher98 pattern: try to decode as base64 reurl from the decoded link
-            try {
-                val cdnDoc = app.get(decoded, timeout = 10000L).document.toString()
-                val encoded = Regex("""r=([A-Za-z0-9+/=]+)""").find(cdnDoc)?.groups?.get(1)?.value
-                if (!encoded.isNullOrEmpty()) {
-                    val m3u8 = base64Decode(encoded).substringAfterLast("link=")
-                    callback(
-                        newExtractorLink(name, name, m3u8, INFER_TYPE) {
-                            this.quality = Qualities.Unknown.value
-                        }
-                    )
-                    return
-                }
-            } catch (_: Exception) {}
 
-            // Fallback: use decoded URL directly
-            callback(
-                newExtractorLink(name, name, decoded, INFER_TYPE) {
-                    this.quality = Qualities.Unknown.value
-                }
-            )
-            return
-        }
-
-        // Strategy 2: Fetch page and decode reurl from script (/file/ URLs)
-        // phisher98's exact pattern
-        try {
-            val doc = app.get(url, timeout = 10000L).document
-
-            // First check a#vd link (some hubcdn pages)
-            val vdLink = doc.selectFirst("a#vd")?.attr("href")?.trim()
-            if (!vdLink.isNullOrEmpty() && vdLink.startsWith("http")) {
-                Log.d("HUBCDN", "a#vd -> $vdLink")
+            // obsession.buzz URLs are DIRECT video files — use immediately
+            if (decoded.contains("obsession.buzz") || decoded.contains("noirspy.buzz")) {
                 callback(
-                    newExtractorLink(name, name, vdLink, INFER_TYPE) {
+                    newExtractorLink(name, name, decoded, INFER_TYPE) {
                         this.quality = Qualities.Unknown.value
                     }
                 )
                 return
             }
 
-            // phisher98 pattern: decode reurl from script
-            val scriptText = doc.selectFirst("script:containsData(var reurl)")?.data()
-                ?: doc.selectFirst("script:containsData(reurl)")?.data()
+            // Try to fetch and parse as HTML (for hubcdn pages with reurl script)
+            try {
+                val doc = app.get(decoded, timeout = 10000L).document
+                // Check for a#vd link
+                val vdLink = doc.selectFirst("a#vd")?.attr("href")?.trim()
+                if (!vdLink.isNullOrEmpty() && vdLink.startsWith("http")) {
+                    callback(newExtractorLink(name, name, vdLink, INFER_TYPE) {
+                        this.quality = Qualities.Unknown.value
+                    })
+                    return
+                }
+                // Check for reurl script
+                val scriptText = doc.selectFirst("script:containsData(reurl)")?.data()
+                val encodedUrl = Regex("""reurl\s*=\s*"([^"]+)"""")
+                    .find(scriptText ?: "")
+                    ?.groupValues?.get(1)
+                    ?.substringAfter("?r=")
+                val decodedUrl = encodedUrl?.let { base64Decode(it) }?.substringAfterLast("link=")
+                if (decodedUrl != null) {
+                    callback(newExtractorLink(name, name, decodedUrl, INFER_TYPE) {
+                        this.quality = Qualities.Unknown.value
+                    })
+                    return
+                }
+            } catch (_: Exception) {}
 
+            // Fallback: use decoded URL as direct link
+            callback(newExtractorLink(name, name, decoded, INFER_TYPE) {
+                this.quality = Qualities.Unknown.value
+            })
+            return
+        }
+
+        // Strategy 2: Fetch hubcdn page and decode reurl from script
+        try {
+            val doc = app.get(url, timeout = 10000L).document
+
+            val vdLink = doc.selectFirst("a#vd")?.attr("href")?.trim()
+            if (!vdLink.isNullOrEmpty() && vdLink.startsWith("http")) {
+                callback(newExtractorLink(name, name, vdLink, INFER_TYPE) {
+                    this.quality = Qualities.Unknown.value
+                })
+                return
+            }
+
+            val scriptText = doc.selectFirst("script:containsData(reurl)")?.data()
             val encodedUrl = Regex("""reurl\s*=\s*"([^"]+)"""")
                 .find(scriptText ?: "")
                 ?.groupValues?.get(1)
                 ?.substringAfter("?r=")
-
             val decodedUrl = encodedUrl?.let { base64Decode(it) }?.substringAfterLast("link=")
 
             if (decodedUrl != null) {
-                Log.d("HUBCDN", "reurl decoded -> $decodedUrl")
-                callback(
-                    newExtractorLink(name, name, decodedUrl, INFER_TYPE) {
-                        this.quality = Qualities.Unknown.value
-                    }
-                )
+                callback(newExtractorLink(name, name, decodedUrl, INFER_TYPE) {
+                    this.quality = Qualities.Unknown.value
+                })
                 return
             }
         } catch (e: Exception) {
             Log.w("HUBCDN", "Failed to resolve $url: ${e.message}")
         }
-
-        Log.w("HUBCDN", "No link found for $url")
     }
 }
 
 // ======================================================================
-// Hblinks — EXACT copy of phisher98's proven working Hblinks
-// Routes to Hubdrive/HubCloud/HUBCDN based on domain
+// Hblinks — hblinks.dad → hubcloud/hubdrive/hubcdn
+// Same pattern as Mclinks
 // ======================================================================
 
 class Hblinks : ExtractorApi() {
@@ -468,7 +534,6 @@ class Hblinks : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        // phisher98 pattern: simple app.get, no headers
         val doc = try {
             app.get(url, timeout = 15000L).document
         } catch (e: Exception) {
@@ -476,27 +541,39 @@ class Hblinks : ExtractorApi() {
             return
         }
 
-        doc.select("h3 a, h5 a, div.entry-content p a, div.entry-content a").forEach { anchor ->
-            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
-            if (href.isBlank() || !href.startsWith("http")) return@forEach
+        val selectors = listOf(
+            "div.entry-content a[href]",
+            "div.entry-content p a[href]",
+            "h3 a[href]",
+            "h5 a[href]"
+        )
 
-            val lower = href.lowercase()
-            try {
-                when {
-                    "hubdrive" in lower -> Hubdrive().getUrl(href, name, subtitleCallback, callback)
-                    "hubcloud" in lower -> HubCloud().getUrl(href, name, subtitleCallback, callback)
-                    "hubcdn" in lower -> HUBCDN().getUrl(href, name, subtitleCallback, callback)
-                    "obsession.buzz" in lower || "noirspy.buzz" in lower -> {
-                        callback(newExtractorLink(name, "Direct [CDN]", href) {
-                            this.quality = Qualities.Unknown.value
-                        })
+        val seen = mutableSetOf<String>()
+        for (selector in selectors) {
+            doc.select(selector).forEach { anchor ->
+                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+                if (href.isBlank() || !href.startsWith("http")) return@forEach
+                if (href in seen) return@forEach
+                seen.add(href)
+
+                val lower = href.lowercase()
+                try {
+                    when {
+                        "hubdrive" in lower -> Hubdrive().getUrl(href, name, subtitleCallback, callback)
+                        "hubcloud" in lower -> HubCloud().getUrl(href, name, subtitleCallback, callback)
+                        "hubcdn" in lower -> HUBCDN().getUrl(href, name, subtitleCallback, callback)
+                        "obsession.buzz" in lower || "noirspy.buzz" in lower -> {
+                            callback(newExtractorLink(name, "Direct [CDN]", href) {
+                                this.quality = Qualities.Unknown.value
+                            })
+                        }
+                        "gofile" in lower -> loadExtractor(href, "", subtitleCallback, callback)
+                        "wordpress.org" in lower || "michaelvandenberg" in lower -> return@forEach
+                        else -> loadExtractor(href, "", subtitleCallback, callback)
                     }
-                    "gofile" in lower -> loadExtractor(href, "", subtitleCallback, callback)
-                    "wordpress.org" in lower || "michaelvandenberg" in lower -> return@forEach
-                    else -> loadExtractor(href, "", subtitleCallback, callback)
+                } catch (e: Exception) {
+                    Log.w("Hblinks", "Failed for $href: ${e.message}")
                 }
-            } catch (e: Exception) {
-                Log.w("Hblinks", "Failed for $href: ${e.message}")
             }
         }
     }

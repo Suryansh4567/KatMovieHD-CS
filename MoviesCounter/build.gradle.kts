@@ -1,8 +1,8 @@
-version = 33
+version = 34
 
 cloudstream {
     language = "hi"
-    description = "MoviesCounter — v33: COMPLETE REWRITE matching phisher98 proven patterns. Extractors exactly copied from working HDhub4u extension. Hubdrive/HubCloud/HUBCDN simplified. loadLinks matches phisher98 pattern. Series episodes properly detected (Pattern A+B). TMDB episode metadata added."
+    description = "MoviesCounter — v34: Built from scratch by studying ACTUAL site HTML. Fixed: HUBCDN mainUrl now hubcdn.sbs (was hubcdn.fans). Fixed: Mclinks now correctly handles image-based links. Fixed: HubDrive checks multiple button selectors. Added: Direct video handling for obsession.buzz URLs. Added: TMDB episode names/posters/descriptions."
     authors = listOf("Suryansh4567")
     status = 1
 
