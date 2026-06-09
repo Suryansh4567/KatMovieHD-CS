@@ -1,6 +1,6 @@
 package com.kmmovies
 
-import android.util.Log
+import com.lagradost.api.Log
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.Actor
 import com.lagradost.cloudstream3.ActorData
@@ -31,11 +31,16 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
+import com.lagradost.cloudstream3.getQualityFromString
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.INFER_TYPE
+import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLDecoder
@@ -414,7 +419,7 @@ class KMMoviesProvider : MainAPI() {
         }
     }
 
-    private fun applyCommonMeta(
+    private suspend fun applyCommonMeta(
         target: LoadResponse,
         poster: String?,
         backdrop: String?,
@@ -709,14 +714,15 @@ class KMMoviesProvider : MainAPI() {
                 url.contains("googleusercontent.com", ignoreCase = true) -> {
                     val quality = guessQualityFromUrl(url)
                     callback(
-                        ExtractorLink(
-                            source = name,
-                            name = "$name Direct $quality",
-                            url = url,
-                            referer = "$mainUrl/",
-                            quality = getQualityInt(quality),
-                            isM3u8 = url.endsWith(".m3u8", ignoreCase = true)
-                        )
+                        newExtractorLink(
+                            "$name Direct $quality",
+                            "$name Direct $quality",
+                            url,
+                            INFER_TYPE
+                        ) {
+                            this.quality = getQualityInt(quality)
+                            this.referer = "$mainUrl/"
+                        }
                     )
                     true
                 }
@@ -829,14 +835,15 @@ class KMMoviesProvider : MainAPI() {
                 if (!videoLink.isNullOrBlank()) {
                     val quality = guessQualityFromUrl(videoLink)
                     callback(
-                        ExtractorLink(
-                            source = name,
-                            name = "$name SkyDrop $quality",
-                            url = videoLink,
-                            referer = "$mainUrl/",
-                            quality = getQualityInt(quality),
-                            isM3u8 = videoLink.endsWith(".m3u8", ignoreCase = true)
-                        )
+                        newExtractorLink(
+                            "$name SkyDrop $quality",
+                            "$name SkyDrop $quality",
+                            videoLink,
+                            INFER_TYPE
+                        ) {
+                            this.quality = getQualityInt(quality)
+                            this.referer = "$mainUrl/"
+                        }
                     )
                 }
 
@@ -851,14 +858,15 @@ class KMMoviesProvider : MainAPI() {
                         if (!dlLocation.isNullOrBlank()) {
                             val quality = guessQualityFromUrl(dlLocation)
                             callback(
-                                ExtractorLink(
-                                    source = name,
-                                    name = "$name Direct $quality",
-                                    url = dlLocation,
-                                    referer = "$mainUrl/",
-                                    quality = getQualityInt(quality),
-                                    isM3u8 = dlLocation.endsWith(".m3u8", ignoreCase = true)
-                                )
+                                newExtractorLink(
+                                    "$name Direct $quality",
+                                    "$name Direct $quality",
+                                    dlLocation,
+                                    INFER_TYPE
+                                ) {
+                                    this.quality = getQualityInt(quality)
+                                    this.referer = "$mainUrl/"
+                                }
                             )
                         }
                     } catch (_: Exception) {}
@@ -894,14 +902,15 @@ class KMMoviesProvider : MainAPI() {
                 if (videoUrl != null) {
                     val quality = guessQualityFromUrl(url)
                     callback(
-                        ExtractorLink(
-                            source = name,
-                            name = "$name Stream $quality",
-                            url = videoUrl,
-                            referer = "$mainUrl/",
-                            quality = getQualityInt(quality),
-                            isM3u8 = videoUrl.endsWith(".m3u8", ignoreCase = true)
-                        )
+                        newExtractorLink(
+                            "$name Stream $quality",
+                            "$name Stream $quality",
+                            videoUrl,
+                            INFER_TYPE
+                        ) {
+                            this.quality = getQualityInt(quality)
+                            this.referer = "$mainUrl/"
+                        }
                     )
                 } else {
                     // The redirect itself might be the video URL
@@ -932,11 +941,17 @@ class KMMoviesProvider : MainAPI() {
     }
 
     private fun getQualityInt(quality: String): Int = when (quality) {
-        "4K" -> 2160
-        "1080p HEVC", "1080p" -> 1080
-        "720p" -> 720
-        "480p" -> 480
-        else -> 720
+        "4K" -> Qualities.P2160.value
+        "1080p HEVC", "1080p" -> Qualities.P1080.value
+        "720p" -> Qualities.P720.value
+        "480p" -> Qualities.P480.value
+        else -> Qualities.P720.value
+    }
+
+    private fun fixUrl(url: String): String {
+        if (url.startsWith("http")) return url
+        if (url.startsWith("//")) return "https:$url"
+        return mainUrl + (if (url.startsWith("/")) url else "/$url")
     }
 
     private fun cleanTitle(raw: String): String {
@@ -966,15 +981,14 @@ class KMMoviesProvider : MainAPI() {
         return if (seriesScore > movieScore) TvType.TvSeries else TvType.Movie
     }
 
-    private fun detectSearchQuality(title: String, badge: String? = null): SearchQuality {
+    private fun detectSearchQuality(title: String, badge: String? = null): SearchQuality? {
+        val tokens = listOf("2160p", "4k", "1080p", "720p", "480p", "bluray", "web-dl",
+            "webrip", "hdcam", "hdts", "camrip", "cam", "hdtv", "dvdrip", "dvd")
         val combined = (badge.orEmpty() + " " + title).lowercase()
-        return when {
-            combined.contains("4k") || combined.contains("2160p") -> SearchQuality.FourK
-            combined.contains("1080p") -> SearchQuality.HD
-            combined.contains("720p") -> SearchQuality.HD
-            combined.contains("480p") -> SearchQuality.SD
-            else -> SearchQuality.Unknown
+        for (tok in tokens) {
+            if (combined.contains(tok)) return getQualityFromString(tok)
         }
+        return null
     }
 
     // ==================================================================
@@ -1016,7 +1030,7 @@ class KMMoviesProvider : MainAPI() {
     ): Int? {
         if (!imdbId.isNullOrBlank()) {
             runCatching {
-                val json = org.json.JSONObject(
+                val json = JSONObject(
                     app.get(
                         "$TMDB_API/find/$imdbId?api_key=$TMDB_API_KEY&external_source=imdb_id",
                         timeout = 15
@@ -1031,7 +1045,7 @@ class KMMoviesProvider : MainAPI() {
         return runCatching {
             val queryTitle = cleanedTitle.substringBefore("(").trim()
             val q = URLEncoder.encode(queryTitle, "UTF-8")
-            val json = org.json.JSONObject(
+            val json = JSONObject(
                 app.get("$TMDB_API/search/multi?api_key=$TMDB_API_KEY&query=$q", timeout = 15).text
             )
             val results = json.optJSONArray("results") ?: return@runCatching null
@@ -1079,7 +1093,7 @@ class KMMoviesProvider : MainAPI() {
     private suspend fun fetchTmdbDetails(id: Int, isSeries: Boolean): TmdbDetails? {
         return runCatching {
             val type = if (isSeries) "tv" else "movie"
-            val json = org.json.JSONObject(
+            val json = JSONObject(
                 app.get("$TMDB_API/$type/$id?api_key=$TMDB_API_KEY&append_to_response=credits,videos", timeout = 15).text
             )
 
@@ -1095,10 +1109,11 @@ class KMMoviesProvider : MainAPI() {
             val actors = json.optJSONObject("credits")?.optJSONArray("cast")?.let { arr ->
                 (0 until minOf(arr.length(), 10)).mapNotNull { i ->
                     val c = arr.optJSONObject(i) ?: return@mapNotNull null
-                    ActorData(
-                        Actor(c.optString("name"), c.optString("character")),
-                        c.optString("profile_path")?.let { "$TMDB_IMG$it" }
-                    )
+                    val n = c.optString("name").ifBlank { c.optString("original_name") }
+                    if (n.isBlank()) return@mapNotNull null
+                    val pf = c.optString("profile_path").takeIf { it.isNotBlank() }?.let { "$TMDB_IMG$it" }
+                    val ch = c.optString("character").takeIf { it.isNotBlank() }
+                    ActorData(Actor(n, pf), roleString = ch)
                 }
             } ?: emptyList()
 
@@ -1129,7 +1144,7 @@ class KMMoviesProvider : MainAPI() {
 
     private suspend fun fetchTmdbSeason(tvId: Int, seasonNum: Int): TmdbSeason? {
         return runCatching {
-            val json = org.json.JSONObject(
+            val json = JSONObject(
                 app.get("$TMDB_API/tv/$tvId/season/$seasonNum?api_key=$TMDB_API_KEY", timeout = 15).text
             )
             val episodes = json.optJSONArray("episodes")?.let { arr ->
@@ -1182,7 +1197,7 @@ class KMMoviesProvider : MainAPI() {
     private suspend fun fetchCinemeta(imdbId: String, isSeries: Boolean): CinemetaMeta? {
         return runCatching {
             val type = if (isSeries) "series" else "movie"
-            val json = org.json.JSONObject(
+            val json = JSONObject(
                 app.get("$CINEMETA/$type/$imdbId.json", timeout = 15).text
             ).optJSONObject("meta") ?: return null
 
