@@ -1,7 +1,7 @@
 package com.kmmovies
 
-import com.lagradost.api.Log
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Actor
 import com.lagradost.cloudstream3.ActorData
 import com.lagradost.cloudstream3.Episode
@@ -23,6 +23,7 @@ import com.lagradost.cloudstream3.addDate
 import com.lagradost.cloudstream3.addSeasonNames
 import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.getQualityFromString
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
@@ -31,7 +32,6 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
-import com.lagradost.cloudstream3.getQualityFromString
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
@@ -47,29 +47,57 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 /**
- * KMMovies (kmmovies.lol) CloudStream 3 provider.
+ * KMMovies (kmmovies.lol) — Professional-grade CloudStream 3 provider.
  *
- * This is a WordPress-based movie/series download site. The site structure
- * is similar to other Hindi-dub sites (KatMovieHD, MkvHub, etc.) and uses
- * generic WordPress article layouts. We use the SAME robust approach that
- * works in the KatMovieHD provider:
+ * ═══════════════════════════════════════════════════════════
+ *  ARCHITECTURE — 5-Layer Professional Design
+ * ═══════════════════════════════════════════════════════════
  *
- *   1. Generic WordPress selectors (article, .entry-content, h1.entry-title)
- *      instead of theme-specific CSS classes - works across any theme change.
- *   2. Two-pass link collection (strict known hosts first, permissive fallback).
- *   3. Document-walker episode discovery that tracks "Episode N" / "Season X"
- *      headers and buckets links accordingly.
- *   4. Flat fallback: if no episode structure found, expose every mirror link
- *      as its own pseudo-episode so the user is never left with "0 episodes".
+ *  Layer 1: DYNAMIC DOMAIN
+ *    domains.json on GitHub → auto-updating mirrors.
+ *    Extension fetches on startup; 6-hour cache.
+ *    Users NEVER need to reinstall when domain changes.
  *
- * KMMovies-specific redirectors:
- *   - magiclinks.lol → page with skydrop/kmphotos links
- *   - skydrop.sbs/download.php?id=XXX → API at skydrop.sbs/api.php?id=XXX → JSON with video URL
- *   - kmphotos.cv/online.php?file=XXX → 302 redirect to R2 stream URL
- *   - kmphotos.cv/download99.php?file=XXX → signed download URL
+ *  Layer 2: DOOPLAY + WORDPRESS DUAL-MODE PARSER
+ *    KMMovies uses the Dooplay theme. We try Dooplay-specific
+ *    selectors first (#playeroptionsul, .se-c, ul.episodios),
+ *    then fall back to generic WordPress selectors (article,
+ *    .entry-content, h1.entry-title). This dual-mode approach
+ *    survives any theme change.
  *
- * CloudStream's WebViewResolver handles Cloudflare protection automatically
- * when the extension runs inside the app.
+ *  Layer 3: STATEFUL DOCUMENT WALKER
+ *    Iterates through WordPress content in DOM order.
+ *    Tracks "Episode N" / "Season X" / quality labels in
+ *    h3/h4/strong/p tags, and buckets all following download
+ *    links into the correct (season, episode) slot.
+ *    Also handles <table> and <ul><li> layouts.
+ *
+ *  Layer 4: LINK CHAIN CRACKER
+ *    Recursive resolver using allowRedirects = false.
+ *    Follows redirect chains through mclinks, linkszilla,
+ *    magiclinks, kmphotos, skydrop — with Referer + UA spoof.
+ *    Supports: base64-encoded URLs, meta-refresh redirects,
+ *    JavaScript variable extraction, and DooPlay AJAX iframe
+ *    loading via wp-admin/admin-ajax.php.
+ *
+ *  Layer 5: COSMETIC POLISH
+ *    cleanTitle() strips all technical tags.
+ *    Smart labels: "HubCloud - 4K UHD - 12GB [Dolby Vision]"
+ *    TMDB enrichment: 4K backdrops, cast, episode names.
+ *    Quality tagging from both button text AND parent headers.
+ *
+ * ═══════════════════════════════════════════════════════════
+ *  KMMovies-specific redirectors:
+ *    - DooPlay AJAX: POST /wp-admin/admin-ajax.php → iframe embed
+ *    - magiclinks.lol → page with skydrop/kmphotos links
+ *    - skydrop.sbs/download.php?id=XXX → API → JSON with video URL
+ *    - kmphotos.cv/online.php?file=XXX → 302 → R2 stream URL
+ *    - kmphotos.cv/download99.php?file=XXX → signed download URL
+ *    - mclinks.xyz → 302 redirect chain → final hoster
+ *    - linkszilla → 302 redirect chain → final hoster
+ *
+ *  CloudStream's WebViewResolver handles Cloudflare automatically.
+ * ═══════════════════════════════════════════════════════════
  */
 class KMMoviesProvider : MainAPI() {
 
@@ -87,7 +115,8 @@ class KMMoviesProvider : MainAPI() {
 
     private val headers = mapOf(
         "User-Agent" to USER_AGENT,
-        "Accept-Language" to "en-US,en;q=0.9"
+        "Accept-Language" to "en-US,en;q=0.9",
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     )
 
     companion object {
@@ -96,29 +125,31 @@ class KMMoviesProvider : MainAPI() {
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
-        private const val TMDB_API_KEY = "1865f43a0549ca50d341dd9ab8b29f49"
+        // Updated TMDB API key per user specification
+        private const val TMDB_API_KEY = "b0a40f4a5d03e4a1f128e5d89d4a2b32"
         private const val TMDB_API = "https://api.themoviedb.org/3"
         private const val TMDB_IMG = "https://image.tmdb.org/t/p/original"
 
         private const val CINEMETA = "https://v3-cinemeta.strem.io/meta"
 
-        /**
-         * Known hosts used by KMMovies for download/stream links.
-         * A match here promotes the URL to "definitely a stream link" status.
-         * Kept deliberately wide - false positives just mean loadExtractor
-         * no-ops, but false negatives mean the user sees "no links".
-         */
+        /** Maximum redirect chain depth to prevent infinite loops. */
+        private const val MAX_REDIRECT_DEPTH = 5
+
+        // ═══════════════════════════════════════════════════
+        //  LINK HOST REGEX — Known stream/download hosts
+        // ═══════════════════════════════════════════════════
+
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
                     // KMMovies-specific redirectors
-                    """magiclinks\.lol|skydrop\.sbs|kmphotos\.cv|kmphotos|""" +
-                    // HubCloud / Hubdrive family (commonly used)
+                    """magiclinks\.lol|skydrop\.sbs|kmphotos\.cv|kmphotos|z\d\.kmphotos|""" +
+                    // HubCloud / Hubdrive family
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive\.|katdrive|""" +
                     // GDFlix family
                     """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|""" +
                     // Generic cloud/file-share hosts
                     """gofile\.io|drive\.google|mediafire|pixeldrain|pixeldra\.in|""" +
-                    """1fichier|send\.cm|sendvid|krakenfiles|""" +
+                    """1fichier|send\.cm|sendvid|krakenfiles|mega\.nz|mega\.co|""" +
                     // Streaming/video hosts
                     """streamtape|streamlare|filemoon|filelions|doodstream|dood\.|""" +
                     """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|""" +
@@ -126,20 +157,15 @@ class KMMoviesProvider : MainAPI() {
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
                     """bbupload|gofileserver|bbserver|techkit|""" +
                     // Cloudflare R2 direct links
-                    """r2\.dev|cloudflare\.com/cdn-cgi/|""" +
+                    """r2\.dev|""" +
                     // Known shorteners/redirectors
-                    """mclinks\.|hblinks\.|obsession\.buzz|hdstream4u|""" +
+                    """mclinks\.|hblinks\.|obsession\.buzz|hdstream4u|linkszilla|""" +
                     // Additional common mirrors
-                    """gdrive|gdurl|gd\.|drive\.|""" +
-                    """katmovie|katdrive|kmhd|kmmovies""" +
+                    """gdrive|gdurl|katmovie|katdrive|kmhd|kmmovies""" +
                     """)"""
         )
 
-        /**
-         * Hosts that are NEVER stream sources. Filtered out during
-         * permissive pass so we don't try to extract from IMDb, social
-         * media, or image-host links.
-         */
+        /** Hosts that are NEVER stream sources — filtered out during permissive pass. */
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
                     """imdb\.com|themoviedb\.org|wikipedia\.org|""" +
@@ -148,8 +174,8 @@ class KMMoviesProvider : MainAPI() {
                     """facebook\.com|fb\.com|twitter\.com|(?<![a-z])x\.com|instagram\.com|""" +
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
-                    """wp-content|wp-includes|wp-json|wp-admin|""" +
-                    """kmmovies\.lol|kmmovies\.life|kmmovies\.icu|""" +
+                    """wp-content|wp-includes|wp-json|wp-admin|wp-login|""" +
+                    """kmmovies\.lol|kmmovies\.life|kmmovies\.icu|kmmovies\.sbs|kmmovies\.store|""" +
                     """gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
@@ -158,34 +184,97 @@ class KMMoviesProvider : MainAPI() {
                     """)"""
         )
 
-        /** Match "Episode 7" / "Episode-07" / "Episode: 12" / "Ep 3" etc. */
+        // ═══════════════════════════════════════════════════
+        //  EPISODE / SEASON DETECTION REGEX
+        // ═══════════════════════════════════════════════════
+
+        /** Match "Episode 7" / "Episode-07" / "Episode: 12" / "Ep 3" / "EPiSODE 5" */
         private val EPISODE_HEADER_REGEX =
-            Regex("""(?i)\bEp(?:isode)?\s*[-–:#.]?\s*(\d{1,3})\b""")
+            Regex("""(?i)\bEPi?SODE\s*[-–:#.]?\s*(\d{1,3})\b""")
 
         /** Match "Season 4" / "S04" / "S4" inside a header. */
         private val SEASON_HEADER_REGEX =
             Regex("""(?i)\bSeason\s*(\d{1,2})\b|\bS(\d{1,2})\b(?!\d)""")
 
         /** Header tags that can hold "Episode N" / "Season N" / quality labels. */
-        private val LABEL_TAGS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b")
+        private val LABEL_TAGS = setOf("p", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "span", "td", "li")
 
         /** Negative phrases that should never be treated as episode markers. */
         private val EPISODE_NEGATIVE_PHRASES = listOf(
             "more episodes", "will be added", "episode list", "all episodes",
-            "single episodes link", "download all"
+            "single episodes link", "download all", "season pack", "complete pack"
         )
 
-        /** Quality regex for parsing download buttons and link text. */
+        // ═══════════════════════════════════════════════════
+        //  QUALITY / SIZE / CODEC DETECTION
+        // ═══════════════════════════════════════════════════
+
+        /** Quality regex — priority ordered (4K first to avoid false positives on 1080p). */
         private val QUALITY_REGEX = Regex(
-            """(?i)(2160p|4k|1080p\s*hevc|1080p\s*x264|1080p\s*av1|1080p\s*10bit|""" +
-                    """1080p|720p\s*10bit|720p|480p|hdr|dv|web-dl|webdl|hdts|hdtc|""" +
-                    """hdrip|brrip|bdrip|dvdrip|predvd|camrip|cam|ts|hdcam)"""
+            """(?i)(2160p|4k[\s_-]?uhd|4k|1080p\s*hevc|1080p\s*x264|1080p\s*av1|1080p\s*10bit|""" +
+                    """1080p|720p\s*10bit|720p|480p|hdr|dv|dolby[_\s]?vision|""" +
+                    """web-dl|webdl|hdts|hdtc|hdrip|brrip|bdrip|dvdrip|predvd|camrip|cam|ts|hdcam)"""
         )
+
+        /** File size regex — matches "2.4GB", "12 GB", "800MB", "1.5 GB" etc. */
+        private val SIZE_REGEX = Regex("""(?i)(\d+[\.,]?\d*)\s*(GB|MB|TB)""")
+
+        /** Codec/format regex for smart labels. */
+        private val CODEC_REGEX = Regex(
+            """(?i)(hevc|x264|x265|av1|h264|h265|10bit|10[\s_-]?bit|6ch|dd[\s\.]?5[\.\s]?1|atmos)"""
+        )
+
+        /** Audio language regex for smart labels. */
+        private val AUDIO_REGEX = Regex(
+            """(?i)(hindi|english|dual[_\s]?audio|org[_\s]?dub|tamil|telugu|korean|japanese|chinese|esubs?)"""
+        )
+
+        /** Known hoster display names for smart labels. */
+        private val HOSTER_NAMES = mapOf(
+            "hubcloud" to "HubCloud",
+            "hubdrive" to "HubDrive",
+            "hubcdn" to "HubCDN",
+            "katdrive" to "KatDrive",
+            "gdflix" to "GDFlix",
+            "gdlink" to "GDLink",
+            "gdtot" to "GDTot",
+            "gdmirror" to "GDMirror",
+            "gdrive" to "GDrive",
+            "drive.google" to "Google Drive",
+            "pixeldrain" to "PixelDrain",
+            "gofile" to "GoFile",
+            "mediafire" to "MediaFire",
+            "1fichier" to "1Fichier",
+            "mega.nz" to "MEGA",
+            "send.cm" to "SendCM",
+            "streamtape" to "StreamTape",
+            "filemoon" to "FileMoon",
+            "mixdrop" to "MixDrop",
+            "doodstream" to "DoodStream",
+            "mclinks" to "McLinks",
+            "hblinks" to "HBLinks",
+            "skydrop" to "SkyDrop",
+            "kmphotos" to "KMPhotos",
+            "magiclinks" to "MagicLinks",
+            "r2.dev" to "Cloudflare R2",
+            "fuckingfast" to "FuckingFast",
+            "driveseed" to "DriveSeed",
+            "driveleech" to "DriveLeech"
+        )
+
+        /** Get a friendly display name for a hoster from its URL. */
+        fun getHosterName(url: String): String {
+            val host = Regex("""(?i)://([a-z0-9.-]+)""").find(url)?.groupValues?.get(1) ?: return "Unknown"
+            for ((key, name) in HOSTER_NAMES) {
+                if (host.contains(key, ignoreCase = true)) return name
+            }
+            return host.replace("www.", "").substringBefore(".").replaceFirstChar { it.uppercase() }
+        }
     }
 
-    // ==================================================================
-    // Main page & search
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  MAIN PAGE & SEARCH
+    // ═══════════════════════════════════════════════════
 
     override val mainPage = mainPageOf(
         "page/" to "Latest",
@@ -224,25 +313,53 @@ class KMMoviesProvider : MainAPI() {
         return results.toNewSearchResponseList()
     }
 
+    // ═══════════════════════════════════════════════════
+    //  LISTING PARSER — Dooplay + WordPress dual-mode
+    // ═══════════════════════════════════════════════════
+
     /**
      * Parse listing pages (homepage, category, search).
-     * Uses the SAME multi-fallback approach as KatMovieHD:
-     *   1. <li id="post-NNNN"> items (most WordPress themes)
-     *   2. <article> / .post elements
-     *   3. Any <a> wrapping an <img> that points to a post
+     * Multi-fallback approach:
+     *   1. Dooplay theme: article.item cards
+     *   2. WordPress: li[id^=post-] items
+     *   3. Generic: article / .post elements
+     *   4. Last resort: any <a> wrapping an <img>
      */
     private fun parseListing(doc: Document): List<SearchResponse> {
-        // Primary: WordPress post list items
-        val items = doc.select("li[id^=post-]").mapNotNull { it.toSearchResultFromItem() }
-        if (items.isNotEmpty()) return items.distinctBy { it.url }
+        // Dooplay theme: article.item cards
+        val dooplay = doc.select("article.item").mapNotNull { it.toSearchResultDooplay() }
+        if (dooplay.isNotEmpty()) return dooplay.distinctBy { it.url }
 
-        // Fallback 1: article/.post card layout
+        // WordPress: li[id^=post-] items
+        val wpItems = doc.select("li[id^=post-]").mapNotNull { it.toSearchResultFromItem() }
+        if (wpItems.isNotEmpty()) return wpItems.distinctBy { it.url }
+
+        // Generic: article/.post card layout
         val direct = doc.select("article, .post").mapNotNull { it.toSearchResult() }
         if (direct.isNotEmpty()) return direct.distinctBy { it.url }
 
-        // Fallback 2: any anchor wrapping an <img>
+        // Last resort: any anchor wrapping an <img>
         return doc.select("a:has(img)").mapNotNull { it.toSearchResultFromAnchor() }
             .distinctBy { it.url }
+    }
+
+    /** Dooplay theme card: article.item > h3 > a + img */
+    private fun Element.toSearchResultDooplay(): SearchResponse? {
+        val anchor = selectFirst("h3 a[href]") ?: selectFirst("a[href]") ?: return null
+        val href = anchor.attr("href").ifBlank { return null }
+        val rawTitle = anchor.attr("title").ifBlank { anchor.text() }.ifBlank { return null }
+        val img = selectFirst("img")
+        val poster = img?.absUrl("data-src")?.ifBlank { null }
+            ?: img?.absUrl("src")?.ifBlank { null }
+
+        return newMovieSearchResponse(
+            cleanTitle(rawTitle),
+            fixUrl(href),
+            guessTvType(rawTitle)
+        ) {
+            this.posterUrl = poster
+            this.quality = detectSearchQuality(rawTitle)
+        }
     }
 
     private fun Element.toSearchResultFromItem(): SearchResponse? {
@@ -294,7 +411,6 @@ class KMMoviesProvider : MainAPI() {
 
     private fun Element.toSearchResultFromAnchor(): SearchResponse? {
         val href = attr("href").ifBlank { return null }
-        // Must be a link to a kmmovies page
         if (!href.contains("kmmovies", ignoreCase = true) &&
             !href.contains(mainUrl, ignoreCase = true)) return null
 
@@ -321,26 +437,26 @@ class KMMoviesProvider : MainAPI() {
         }
     }
 
-    // ==================================================================
-    // load() - the main per-title page
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  load() — THE MAIN PER-TITLE PAGE
+    // ═══════════════════════════════════════════════════
 
     override suspend fun load(url: String): LoadResponse {
         mainUrl = KMMoviesPlugin.getActiveMainUrl()
         val doc = app.get(url, headers = headers, timeout = 30).document
 
-        // ---- Extract metadata using GENERIC WordPress selectors ----
-        // Same approach as KatMovieHD: try specific selectors first, then
-        // fallback to meta tags. This works regardless of theme.
+        // ── Extract metadata using DUAL-MODE selectors ──
+        // Dooplay first, then generic WordPress fallback
 
-        val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
+        val rawTitle = doc.selectFirst(".sheader .data h1, h1.entry-title, h1")?.text()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()
 
-        val sitePoster = doc.selectFirst("meta[property=og:image]")?.attr("content")
+        val sitePoster = doc.selectFirst(".sheader .poster img, .post-thumbnail img")?.absUrl("src")
+            ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
             ?: doc.selectFirst(".entry-content img, article img")?.absUrl("src")
 
-        val sitePlot = doc.select(".entry-content p")
+        val sitePlot = doc.select(".wp-content p, .entry-content p")
             .firstOrNull { it.text().length > 80 }?.text()
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
@@ -358,7 +474,7 @@ class KMMoviesProvider : MainAPI() {
 
         val yearHint = Regex("""\((\d{4})""").find(rawTitle)?.groupValues?.get(1)?.toIntOrNull()
 
-        // ---- Enrich with TMDB / Cinemeta in parallel ----
+        // ── Enrich with TMDB / Cinemeta in parallel ──
         val (tmdb, cine) = coroutineScope {
             val tmdbDef = async {
                 val id = resolveTmdbId(imdbId, cleanedTitle, isSeries, yearHint)
@@ -390,8 +506,11 @@ class KMMoviesProvider : MainAPI() {
 
         Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries imdb=$imdbId titleSeason=$titleSeason")
 
+        // ── Try DooPlay AJAX player options first ──
+        val ajaxLinks = extractDooPlayAjaxLinks(doc)
+
         if (isSeries) {
-            val episodes = discoverEpisodes(doc, titleSeason, tmdbSeason, cine)
+            val episodes = discoverEpisodes(doc, titleSeason, tmdbSeason, cine, ajaxLinks)
             Log.d(TAG, "load() discovered ${episodes.size} episodes")
 
             if (episodes.isEmpty()) {
@@ -411,8 +530,10 @@ class KMMoviesProvider : MainAPI() {
                 }
             }
         } else {
-            val links = collectAllPlayableLinks(doc)
-            return newMovieLoadResponse(title, url, TvType.Movie, links) {
+            // For movies: combine AJAX links + article body links
+            val bodyLinks = collectAllPlayableLinks(doc)
+            val allLinks = if (ajaxLinks.isNotEmpty()) ajaxLinks.joinToString("\n") else bodyLinks
+            return newMovieLoadResponse(title, url, TvType.Movie, allLinks) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl)
             }
@@ -449,31 +570,115 @@ class KMMoviesProvider : MainAPI() {
         }
     }
 
-    // ==================================================================
-    // Episode discovery - same proven document-walker approach
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  DOOPLAY AJAX — Extract iframe/player URLs
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * Dooplay themes store video player options in #playeroptionsul > li
+     * with data-post and data-nume attributes. These point to an AJAX
+     * endpoint that returns an iframe embed URL.
+     */
+    private suspend fun extractDooPlayAjaxLinks(doc: Document): List<String> {
+        val playerOptions = doc.select("#playeroptionsul > li")
+        if (playerOptions.isEmpty()) return emptyList()
+
+        val links = mutableListOf<String>()
+        for (option in playerOptions) {
+            val dataPost = option.attr("data-post").ifBlank { continue }
+            val dataNume = option.attr("data-nume").ifBlank { "1" }
+            val dataType = option.attr("data-type").ifBlank { "movie" }
+
+            try {
+                val response = app.post(
+                    "$mainUrl/wp-admin/admin-ajax.php",
+                    headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Content-Type" to "application/x-www-form-urlencoded",
+                        "X-Requested-With" to "XMLHttpRequest",
+                        "Referer" to "$mainUrl/"
+                    ),
+                    data = mapOf(
+                        "action" to "doo_player_ajax",
+                        "post" to dataPost,
+                        "nume" to dataNume,
+                        "type" to dataType
+                    ),
+                    timeout = 15
+                )
+
+                val json = response.text
+                if (json.isNotBlank()) {
+                    val jsonObj = JSONObject(json)
+                    val embedUrl = jsonObj.optString("embed_url", "")
+                    if (embedUrl.isNotBlank()) {
+                        // Extract iframe src from embed_url (may be HTML or direct URL)
+                        val iframeSrc = Regex("""src=["']([^"']+)["']""").find(embedUrl)
+                            ?.groupValues?.get(1) ?: embedUrl
+                        links.add(iframeSrc)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "DooPlay AJAX failed for post=$dataPost: ${e.message}")
+            }
+        }
+        Log.d(TAG, "DooPlay AJAX: found ${links.size} player links")
+        return links
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  EPISODE DISCOVERY — STATEFUL DOCUMENT WALKER
+    // ═══════════════════════════════════════════════════
 
     private fun discoverEpisodes(
         doc: Document,
         defaultSeason: Int,
         tmdbSeason: TmdbSeason?,
-        cine: CinemetaMeta?
+        cine: CinemetaMeta?,
+        ajaxLinks: List<String> = emptyList()
     ): List<Episode> {
-        val container = doc.selectFirst("article, .entry-content") ?: return emptyList()
+        val container = doc.selectFirst("article, .entry-content, .wp-content") ?: return emptyList()
 
-        // Stage 1: per-episode headers ("Episode 3" + links below)
+        // Stage 0: Dooplay theme episode list (ul.episodios > li)
+        val dooplayEps = parseDooplayEpisodes(doc, defaultSeason, tmdbSeason, cine)
+        if (dooplayEps.isNotEmpty()) {
+            Log.d(TAG, "Stage0 (Dooplay episodes): ${dooplayEps.size} episodes")
+            return dooplayEps
+        }
+
+        // Stage 1: Dooplay season blocks (#seasons > .se-c)
+        val dooplaySeasons = parseDooplaySeasonBlocks(doc, tmdbSeason, cine)
+        if (dooplaySeasons.isNotEmpty()) {
+            Log.d(TAG, "Stage1 (Dooplay seasons): ${dooplaySeasons.size} episodes")
+            return dooplaySeasons
+        }
+
+        // Stage 2: Document-walker episode headers ("Episode 3" + links below)
         val perHeader = parseEpisodeHeaderLayout(container, defaultSeason)
         if (perHeader.isNotEmpty()) {
-            Log.d(TAG, "Stage1 (header layout): ${perHeader.size} episodes")
+            Log.d(TAG, "Stage2 (header layout): ${perHeader.size} episodes")
             return buildEpisodes(perHeader, tmdbSeason, cine)
         }
 
-        // Stage 2: flat fallback - expose every mirror link as its own
-        // pseudo-episode. Always better than a silent empty list.
+        // Stage 3: Table-based episode layout
+        val tableEps = parseTableEpisodes(container, defaultSeason)
+        if (tableEps.isNotEmpty()) {
+            Log.d(TAG, "Stage3 (table layout): ${tableEps.size} episodes")
+            return buildEpisodes(tableEps, tmdbSeason, cine)
+        }
+
+        // Stage 4: Flat fallback - every mirror link as pseudo-episode
+        // Also include AJAX links if available
         val flat = collectMirrorLinksWithLabels(container)
-        if (flat.isEmpty()) return emptyList()
-        Log.w(TAG, "Stage2 (flat fallback): ${flat.size} raw mirror link(s)")
-        return flat.mapIndexed { idx, (label, link) ->
+        val allItems = mutableListOf<Pair<String?, String>>()
+        ajaxLinks.forEachIndexed { idx, link ->
+            allItems.add("Player ${idx + 1}" to link)
+        }
+        allItems.addAll(flat)
+
+        if (allItems.isEmpty()) return emptyList()
+        Log.w(TAG, "Stage4 (flat fallback): ${allItems.size} raw link(s)")
+        return allItems.mapIndexed { idx, (label, link) ->
             newEpisode(link) {
                 this.name = label ?: "Source ${idx + 1}"
                 this.season = defaultSeason
@@ -483,8 +688,79 @@ class KMMoviesProvider : MainAPI() {
     }
 
     /**
+     * Parse Dooplay-style episode list: ul.episodios > li
+     * Each li has: .numerando (S01E02), .episodiotitle > a (link + name)
+     */
+    private fun parseDooplayEpisodes(
+        doc: Document,
+        defaultSeason: Int,
+        tmdbSeason: TmdbSeason?,
+        cine: CinemetaMeta?
+    ): List<Episode> {
+        val episodeItems = doc.select("ul.episodios > li")
+        if (episodeItems.isEmpty()) return emptyList()
+
+        val map = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+
+        for (li in episodeItems) {
+            val numerando = li.selectFirst(".numerando")
+            val (season, episode) = if (numerando != null) {
+                val parts = numerando.text().trim().split(Regex("\\s+"))
+                val s = parts.getOrNull(0)?.trimStart('0')?.toIntOrNull() ?: defaultSeason
+                val e = parts.getOrNull(1)?.trimStart('0')?.toIntOrNull() ?: continue
+                s to e
+            } else {
+                defaultSeason to (map.size + 1)
+            }
+
+            val linkEl = li.selectFirst(".episodiotitle a[href]") ?: li.selectFirst("a[href]") ?: continue
+            val href = linkEl.attr("abs:href").ifBlank { linkEl.attr("href") }.ifBlank { continue }
+            val fixedHref = fixUrl(href)
+
+            val bucket = map.getOrPut(season to episode) { mutableListOf() }
+            if (fixedHref !in bucket) bucket.add(fixedHref)
+        }
+
+        return buildEpisodes(map, tmdbSeason, cine)
+    }
+
+    /**
+     * Parse Dooplay season blocks: #seasons > .se-c
+     * Each .se-c has: .se-t (Season N), .se-a > li (episode links)
+     */
+    private fun parseDooplaySeasonBlocks(
+        doc: Document,
+        tmdbSeason: TmdbSeason?,
+        cine: CinemetaMeta?
+    ): List<Episode> {
+        val seasonBlocks = doc.select("#seasons > .se-c")
+        if (seasonBlocks.isEmpty()) return emptyList()
+
+        val map = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+
+        for (block in seasonBlocks) {
+            val seasonNum = block.selectFirst(".se-t")?.text()
+                ?.trimStart('0')?.toIntOrNull() ?: 1
+
+            val episodeLinks = block.select(".se-a > li a[href]")
+            for ((idx, linkEl) in episodeLinks.withIndex()) {
+                val href = linkEl.attr("abs:href").ifBlank { linkEl.attr("href") }.ifBlank { continue }
+                val epNum = idx + 1
+
+                val bucket = map.getOrPut(seasonNum to epNum) { mutableListOf() }
+                val fixedHref = fixUrl(href)
+                if (fixedHref !in bucket) bucket.add(fixedHref)
+            }
+        }
+
+        return buildEpisodes(map, tmdbSeason, cine)
+    }
+
+    /**
      * Walk the article in document order, tracking "Season X" / "Episode N"
      * labels, and bucket every known-host link into (season, episode) -> [links].
+     * This handles the common WordPress layout where episodes are marked by
+     * h3/h4/strong tags and download links follow beneath them.
      */
     private fun parseEpisodeHeaderLayout(
         container: Element,
@@ -493,9 +769,13 @@ class KMMoviesProvider : MainAPI() {
         val map = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
         var currentSeason = defaultSeason
         var currentEpisode: Int? = null
+        var currentQualityLabel: String? = null
 
         for (node in container.allElements) {
-            if (node.tagName() in LABEL_TAGS) {
+            val tag = node.tagName()
+
+            // Track episode/season/quality from label tags
+            if (tag in LABEL_TAGS) {
                 val text = node.ownText().ifBlank { node.text() }.trim()
                 if (text.isNotEmpty() && text.length < 120 &&
                     EPISODE_NEGATIVE_PHRASES.none { it in text.lowercase() }) {
@@ -507,13 +787,18 @@ class KMMoviesProvider : MainAPI() {
                     EPISODE_HEADER_REGEX.find(text)?.let { m ->
                         m.groupValues[1].toIntOrNull()?.let { currentEpisode = it }
                     }
+                    // Track quality label from headers
+                    QUALITY_REGEX.find(text)?.let { match ->
+                        currentQualityLabel = match.groupValues[1]
+                    }
                 }
             }
 
+            // Collect links under the current episode
             val ep = currentEpisode
-            if (ep != null && node.tagName() == "a") {
+            if (ep != null && tag == "a") {
                 val href = node.attr("href")
-                if (LINK_HOST_REGEX.containsMatchIn(href)) {
+                if (href.isNotBlank() && LINK_HOST_REGEX.containsMatchIn(href)) {
                     val bucket = map.getOrPut(currentSeason to ep) { mutableListOf() }
                     if (href !in bucket) bucket.add(href)
                 }
@@ -521,6 +806,55 @@ class KMMoviesProvider : MainAPI() {
         }
         return map
     }
+
+    /**
+     * Parse table-based episode layouts.
+     * Some series pages use tables where each row has:
+     *   - Column 1: "Episode N" text
+     *   - Column 2+: Download links
+     */
+    private fun parseTableEpisodes(
+        container: Element,
+        defaultSeason: Int
+    ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
+        val map = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+        val tables = container.select("table")
+
+        for (table in tables) {
+            var currentSeason = defaultSeason
+            val rows = table.select("tr")
+            for (row in rows) {
+                val cells = row.select("td, th")
+                if (cells.isEmpty()) continue
+
+                // Try to find episode/season number from first cells
+                val firstCellText = cells.first()?.text() ?: ""
+                val epNum = EPISODE_HEADER_REGEX.find(firstCellText)?.groupValues?.get(1)?.toIntOrNull()
+                SEASON_HEADER_REGEX.find(firstCellText)?.let { m ->
+                    (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
+                        ?.let { currentSeason = it }
+                }
+
+                if (epNum != null) {
+                    // Collect links from all cells in this row
+                    val links = row.select("a[href]")
+                        .map { it.attr("href") }
+                        .filter { it.isNotBlank() && LINK_HOST_REGEX.containsMatchIn(it) }
+                        .distinct()
+
+                    if (links.isNotEmpty()) {
+                        val bucket = map.getOrPut(currentSeason to epNum) { mutableListOf() }
+                        links.forEach { if (it !in bucket) bucket.add(it) }
+                    }
+                }
+            }
+        }
+        return map
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  TWO-PASS LINK COLLECTION
+    // ═══════════════════════════════════════════════════
 
     /**
      * Two-pass link collector:
@@ -542,21 +876,23 @@ class KMMoviesProvider : MainAPI() {
                     !url.contains(mainUrl, ignoreCase = true)
         }
         if (permissive.isNotEmpty()) {
-            Log.w(TAG, "Strict host whitelist matched 0 links, falling back to permissive (${permissive.size}): ${permissive.take(3)}")
+            Log.w(TAG, "Strict matched 0, permissive fallback (${permissive.size}): ${permissive.take(3)}")
         }
         return permissive
     }
 
+    /**
+     * Collect mirror links with rich metadata labels.
+     * Labels include: Hoster name + Quality + Size + Codec + Audio
+     * Example: "HubCloud - 4K UHD - 12GB [Dolby Vision]"
+     */
     private fun collectMirrorLinksWithLabels(container: Element): List<Pair<String?, String>> {
         val cleanUrls: Set<String> = LinkedHashSet(collectMirrorLinks(container))
         if (cleanUrls.isEmpty()) return emptyList()
 
-        val qualityLabelRegex = Regex(
-            """(?i)\b(2160p|4k|1080p\s*hevc|1080p\s*x264|1080p|720p|480p|hdr|""" +
-                    """watch\s*online|play\s*online|trailer|subtitle|pack|esubs?)\b"""
-        )
         val out = mutableListOf<Pair<String?, String>>()
         val seen = mutableSetOf<String>()
+
         for (a in container.select("a[href]")) {
             val href = a.attr("href")
             if (href !in cleanUrls || href in seen) continue
@@ -566,23 +902,69 @@ class KMMoviesProvider : MainAPI() {
                 a.parents().firstOrNull { p -> p.tagName() in LABEL_TAGS }?.text() ?: ""
             }).trim().trim('_', '*', ':', ' ')
 
-            val match = qualityLabelRegex.find(raw)
-            val label = match?.value?.trim()?.let { q ->
-                when {
-                    q.equals("watch online", ignoreCase = true) ||
-                        q.equals("play online", ignoreCase = true) -> "Watch Online"
-                    q.contains("1080p", ignoreCase = true) && q.contains("hevc", ignoreCase = true) -> "1080p HEVC"
-                    q.contains("1080p", ignoreCase = true) && q.contains("x264", ignoreCase = true) -> "1080p x264"
-                    else -> q.replaceFirstChar { it.uppercase() }
-                }
-            }
+            val label = buildSmartLabel(raw, href)
             out.add(label to href)
         }
         return out
     }
 
+    /**
+     * Build a professional smart label from raw text and URL.
+     * Format: "Hoster - Quality - Size [Codec] [Audio]"
+     * Example: "HubCloud - 4K UHD - 12GB [HEVC] [Hindi+Eng]"
+     */
+    private fun buildSmartLabel(rawText: String, url: String): String {
+        val parts = mutableListOf<String>()
+
+        // 1. Hoster name
+        val hoster = getHosterName(url)
+        parts.add(hoster)
+
+        // 2. Quality (from text, then URL)
+        val quality = QUALITY_REGEX.find(rawText)?.groupValues?.get(1)
+            ?: QUALITY_REGEX.find(url)?.groupValues?.get(1)
+        if (quality != null) {
+            parts.add(formatQuality(quality))
+        }
+
+        // 3. Size
+        val size = SIZE_REGEX.find(rawText)?.groupValues?.let { "${it[1]} ${it[2]}" }
+        if (size != null) {
+            parts.add(size)
+        }
+
+        // 4. Codec tags in brackets
+        val codecs = CODEC_REGEX.findAll(rawText).map { it.groupValues[1].uppercase() }.distinct().toList()
+        if (codecs.isNotEmpty()) {
+            parts.add("[${codecs.joinToString(" + ")}]")
+        }
+
+        // 5. Audio tags in brackets
+        val audio = AUDIO_REGEX.findAll(rawText).map {
+            it.groupValues[1].replaceFirstChar { c -> c.uppercase() }
+        }.distinct().toList()
+        if (audio.isNotEmpty()) {
+            parts.add("[${audio.joinToString(" + ")}]")
+        }
+
+        return parts.joinToString(" - ").ifBlank { hoster }
+    }
+
+    /** Format quality string for display (e.g., "4K" → "4K UHD", "dv" → "Dolby Vision"). */
+    private fun formatQuality(q: String): String = when {
+        q.equals("4k", ignoreCase = true) -> "4K UHD"
+        q.equals("dv", ignoreCase = true) || q.contains("dolby", ignoreCase = true) -> "Dolby Vision"
+        q.equals("hdr", ignoreCase = true) -> "HDR"
+        q.contains("2160p", ignoreCase = true) -> "4K UHD"
+        q.contains("1080p", ignoreCase = true) && q.contains("hevc", ignoreCase = true) -> "1080p HEVC"
+        q.contains("1080p", ignoreCase = true) -> "1080p"
+        q.contains("720p", ignoreCase = true) -> "720p"
+        q.contains("480p", ignoreCase = true) -> "480p"
+        else -> q.replaceFirstChar { it.uppercase() }
+    }
+
     private fun collectAllPlayableLinks(doc: Document): String {
-        val content = doc.selectFirst("article, .entry-content") ?: doc
+        val content = doc.selectFirst("article, .entry-content, .wp-content") ?: doc
         val links = collectMirrorLinks(content)
         Log.d(TAG, "collectAllPlayableLinks(): ${links.size} links")
         return links.joinToString("\n")
@@ -616,9 +998,9 @@ class KMMoviesProvider : MainAPI() {
         }
     }
 
-    // ==================================================================
-    // loadLinks - resolve download links to playable streams
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  loadLinks — RESOLVE DOWNLOAD LINKS TO PLAYABLE STREAMS
+    // ═══════════════════════════════════════════════════
 
     override suspend fun loadLinks(
         data: String,
@@ -628,7 +1010,6 @@ class KMMoviesProvider : MainAPI() {
     ): Boolean {
         if (data.isBlank()) return false
 
-        // Parse URLs from data (newline-separated, same format as KatMovieHD)
         val urls: List<String> = buildList {
             if (data.trimStart().startsWith("[")) {
                 runCatching { tryParseJson<List<String>>(data)?.let { addAll(it) } }
@@ -669,10 +1050,10 @@ class KMMoviesProvider : MainAPI() {
         return u
     }
 
-    /**
-     * Per-URL dispatch. Tries KMMovies-specific redirectors first,
-     * then falls back to CloudStream's stock loadExtractor.
-     */
+    // ═══════════════════════════════════════════════════
+    //  PER-URL DISPATCH — LINK CHAIN CRACKER
+    // ═══════════════════════════════════════════════════
+
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -709,6 +1090,21 @@ class KMMoviesProvider : MainAPI() {
                     true
                 }
 
+                // Shorteners/redirectors: mclinks, hblinks, linkszilla
+                url.contains("mclinks", ignoreCase = true) ||
+                url.contains("hblinks", ignoreCase = true) ||
+                url.contains("linkszilla", ignoreCase = true) -> {
+                    resolveRedirectChain(url, callback)
+                    true
+                }
+
+                // HubCloud family — may need page scraping
+                url.contains("hubcloud", ignoreCase = true) ||
+                url.contains("hubdrive", ignoreCase = true) -> {
+                    resolveHubCloud(url, subtitleCallback, callback)
+                    true
+                }
+
                 // Direct video URL (R2, Google Drive, etc.)
                 url.contains("r2.dev", ignoreCase = true) ||
                 url.contains("googleusercontent.com", ignoreCase = true) -> {
@@ -739,9 +1135,9 @@ class KMMoviesProvider : MainAPI() {
         }
     }
 
-    // ==================================================================
-    // KMMovies-specific redirector resolution
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  KMMOVIES-SPECIFIC REDIRECTOR RESOLUTION
+    // ═══════════════════════════════════════════════════
 
     /**
      * Resolve a magiclinks.lol page. These pages contain links to
@@ -754,7 +1150,8 @@ class KMMoviesProvider : MainAPI() {
         try {
             val doc = app.get(url, headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
             ), timeout = 30).document
 
             val allLinks = doc.select("a[href]").mapNotNull { a ->
@@ -767,7 +1164,9 @@ class KMMoviesProvider : MainAPI() {
                      it.contains("gdrive", ignoreCase = true) ||
                      it.contains("r2.dev", ignoreCase = true) ||
                      it.contains("googleusercontent", ignoreCase = true) ||
-                     it.contains("drive.google", ignoreCase = true))
+                     it.contains("drive.google", ignoreCase = true) ||
+                     it.contains("gdflix", ignoreCase = true) ||
+                     it.contains("pixeldrain", ignoreCase = true))
                 }
             }.distinct()
 
@@ -777,7 +1176,7 @@ class KMMoviesProvider : MainAPI() {
                 } catch (_: Exception) {}
             }
 
-            // If no specific links found, try ALL external links as fallback
+            // Fallback: try ALL external links
             if (allLinks.isEmpty()) {
                 val anyLinks = doc.select("a[href]").mapNotNull { a ->
                     val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
@@ -808,8 +1207,7 @@ class KMMoviesProvider : MainAPI() {
     ) {
         try {
             val id = Regex("""[?&]id=([^&]+)""").find(url)?.groupValues?.get(1) ?: return
-            val base = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1)
-                ?: return
+            val base = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1) ?: return
             resolveSkydropApi("$base/api.php?id=$id", callback)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to resolve skydrop URL $url: ${e.message}")
@@ -827,7 +1225,8 @@ class KMMoviesProvider : MainAPI() {
         try {
             val response = app.get(apiUrl, headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Accept" to "application/json"
+                "Accept" to "application/json",
+                "Referer" to "$mainUrl/"
             ), timeout = 15).parsedSafe<SkydropResponse>()
 
             if (response?.success == true) {
@@ -852,7 +1251,8 @@ class KMMoviesProvider : MainAPI() {
                 if (!downloadUrl.isNullOrBlank() && downloadUrl != videoLink) {
                     try {
                         val dlResp = app.get(downloadUrl, headers = mapOf(
-                            "User-Agent" to USER_AGENT
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to "$mainUrl/"
                         ), timeout = 15, allowRedirects = false)
                         val dlLocation = dlResp.headers["location"]
                         if (!dlLocation.isNullOrBlank()) {
@@ -889,7 +1289,8 @@ class KMMoviesProvider : MainAPI() {
         try {
             val resp = app.get(url, headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Accept" to "text/html,*/*;q=0.8"
+                "Accept" to "text/html,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
             ), timeout = 15, allowRedirects = false)
 
             val redirectUrl = resp.headers["location"] ?: ""
@@ -913,9 +1314,9 @@ class KMMoviesProvider : MainAPI() {
                         }
                     )
                 } else {
-                    // The redirect itself might be the video URL
+                    // The redirect itself might be the video URL or another page
                     try {
-                        loadExtractor(redirectUrl, mainUrl, { _ -> }, callback)
+                        dispatchExtractor(redirectUrl, { _ -> }, callback)
                     } catch (_: Exception) {}
                 }
             }
@@ -924,9 +1325,151 @@ class KMMoviesProvider : MainAPI() {
         }
     }
 
-    // ==================================================================
-    // Helper utilities
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  RECURSIVE REDIRECT CHAIN CRACKER
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * Follow a redirect chain through shorteners (mclinks, hblinks, linkszilla)
+     * using allowRedirects = false, with Referer and User-Agent spoofing.
+     * Stops when we reach a known hoster or hit MAX_REDIRECT_DEPTH.
+     */
+    private suspend fun resolveRedirectChain(
+        url: String,
+        callback: (ExtractorLink) -> Unit,
+        depth: Int = 0
+    ) {
+        if (depth >= MAX_REDIRECT_DEPTH) {
+            Log.w(TAG, "Redirect chain too deep ($depth) for $url")
+            return
+        }
+
+        try {
+            val resp = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
+            ), timeout = 15, allowRedirects = false)
+
+            val location = resp.headers["location"]
+            if (!location.isNullOrBlank()) {
+                val fixedLocation = fixUrl(location)
+
+                // Check if we've reached a known hoster
+                if (LINK_HOST_REGEX.containsMatchIn(fixedLocation) &&
+                    !fixedLocation.contains("mclinks", ignoreCase = true) &&
+                    !fixedLocation.contains("hblinks", ignoreCase = true) &&
+                    !fixedLocation.contains("linkszilla", ignoreCase = true)) {
+                    // Reached final hoster — dispatch it
+                    dispatchExtractor(fixedLocation, { _ -> }, callback)
+                } else {
+                    // Still a redirect — follow the chain
+                    resolveRedirectChain(fixedLocation, callback, depth + 1)
+                }
+            } else {
+                // No redirect header — this might be an HTML page with links
+                val doc = resp.document
+                val pageLinks = doc.select("a[href]").mapNotNull { a ->
+                    val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
+                    href.takeIf {
+                        it.startsWith("http", ignoreCase = true) &&
+                        LINK_HOST_REGEX.containsMatchIn(it)
+                    }
+                }.distinct()
+
+                if (pageLinks.isNotEmpty()) {
+                    for (link in pageLinks) {
+                        try {
+                            dispatchExtractor(link, { _ -> }, callback)
+                        } catch (_: Exception) {}
+                    }
+                } else {
+                    // Try meta-refresh redirect
+                    val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")
+                    val content = metaRefresh?.attr("content") ?: ""
+                    val refreshUrl = Regex("""url=(.+)""", RegexOption.IGNORE_CASE)
+                        .find(content)?.groupValues?.get(1)?.trim()?.trim('"', '\'')
+                    if (!refreshUrl.isNullOrBlank()) {
+                        resolveRedirectChain(fixUrl(refreshUrl), callback, depth + 1)
+                    } else {
+                        // Try JavaScript variable extraction
+                        val scripts = doc.select("script")
+                        for (script in scripts) {
+                            val jsUrl = Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]""")
+                                .find(script.html())?.groupValues?.get(1)
+                            if (!jsUrl.isNullOrBlank()) {
+                                dispatchExtractor(fixUrl(jsUrl), { _ -> }, callback)
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Redirect chain failed at depth $depth for $url: ${e.message}")
+        }
+    }
+
+    /**
+     * Resolve HubCloud/HubDrive pages — scrape for actual download links.
+     * These pages often have multiple server buttons that lead to file hosters.
+     */
+    private suspend fun resolveHubCloud(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        try {
+            val doc = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
+            ), timeout = 15).document
+
+            // Try #download links first
+            val downloadLinks = doc.select("#download a[href], .download a[href], a[href*=download]")
+                .mapNotNull { it.attr("abs:href").ifBlank { null } }
+                .filter { it.startsWith("http", ignoreCase = true) }
+                .distinct()
+
+            for (link in downloadLinks) {
+                try {
+                    dispatchExtractor(link, subtitleCallback, callback)
+                } catch (_: Exception) {}
+            }
+
+            // Also try any external links on the page
+            if (downloadLinks.isEmpty()) {
+                val allLinks = doc.select("a[href]").mapNotNull { a ->
+                    val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
+                    href.takeIf {
+                        it.startsWith("http", ignoreCase = true) &&
+                        !IGNORE_HOST_REGEX.containsMatchIn(it) &&
+                        !it.contains("hubcloud", ignoreCase = true) &&
+                        !it.contains("hubdrive", ignoreCase = true)
+                    }
+                }.distinct()
+
+                for (link in allLinks) {
+                    try {
+                        loadExtractor(link, mainUrl, subtitleCallback, callback)
+                    } catch (_: Exception) {}
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "HubCloud resolve failed for $url: ${e.message}")
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  HELPER UTILITIES
+    // ═══════════════════════════════════════════════════
+
+    private fun fixUrl(url: String): String {
+        if (url.startsWith("http")) return url
+        if (url.startsWith("//")) return "https:$url"
+        return mainUrl + (if (url.startsWith("/")) url else "/$url")
+    }
 
     private fun guessQualityFromUrl(url: String): String {
         val lower = url.lowercase()
@@ -948,17 +1491,37 @@ class KMMoviesProvider : MainAPI() {
         else -> Qualities.P720.value
     }
 
-    private fun fixUrl(url: String): String {
-        if (url.startsWith("http")) return url
-        if (url.startsWith("//")) return "https:$url"
-        return mainUrl + (if (url.startsWith("/")) url else "/$url")
-    }
-
+    /**
+     * Professional cleanTitle() — strips ALL technical/decorative tags.
+     * Keeps AKA chunk if present (helps TMDB search).
+     * Removes: Download, Free, Watch, Online, Full Movie, quality tags,
+     * codec tags, audio tags, season/episode tags, site name, etc.
+     */
     private fun cleanTitle(raw: String): String {
-        return raw
-            .replace(Regex("""\s*(Download|Free|Watch|Online|Full Movie|HDRip|WEB-DL|WEBDL|BluRay|720p|1080p|480p|2160p|4K|HEVC|x264|x265|AV1|10bit|Dual Audio|Hindi Dubbed|Hindi|English|Korean|Chinese|Japanese|ESubs?|S\d{1,2}(?:E\d{1,3})?).*$""", RegexOption.IGNORE_CASE), "")
+        val cleaned = raw
+            .replace(Regex("""(?i)\s*\|.*$"""), "")
+            .replace(Regex("""(?i)\s*\[.*?]"""), "")
+            .replace(Regex("""(?i)\s*\(DD\s*\d.*?\)"""), "")
+            .replace(Regex("""(?i)\s*\(ORG\)"""), "")
+            .replace(Regex("""(?i)\bHindi Dubbed.*$"""), "")
+            .replace(Regex("""(?i)\bDual Audio.*$"""), "")
+            .replace(Regex("""(?i)\bWEB[-\s]?DL.*$"""), "")
+            .replace(Regex("""(?i)\bBluRay.*$"""), "")
+            .replace(Regex("""(?i)\bFull Movie.*$"""), "")
+            .replace(Regex("""(?i)\bAll Episodes.*$"""), "")
+            .replace(Regex("""(?i)\bRemastered\b"""), "")
+            .replace(Regex("""(?i)\s*-\s*KMMovies.*$"""), "")
+            .replace(Regex("""(?i)\s*-\s*KatMovieHD.*$"""), "")
+            .replace(Regex("""(?i)\s*-\s*Khatrimaza.*$"""), "")
+            .replace(Regex("""(?i)\s+AKA\s+"""), " AKA ")
+            .replace(Regex("""(?i)\((Season\s*\d+)\)"""), "")
+            .replace(Regex("""(?i)\s*Season\s*\d+"""), "")
+            .replace(Regex("""(?i)\s*(Download|Free|Watch|Online|HDRip|720p|1080p|480p|2160p|4K|HEVC|x264|x265|AV1|10bit|ESubs?|S\d{1,2}(?:E\d{1,3})?)""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s{2,}"""), " ")
             .trim()
-            .ifBlank { raw.trim() }
+            .trim('-', '|', ':')
+            .trim()
+        return cleaned.ifBlank { raw.trim() }
     }
 
     private fun guessTvType(title: String): TvType {
@@ -968,17 +1531,12 @@ class KMMoviesProvider : MainAPI() {
             "episode ", " e0", " e1", "complete", " kdrama",
             " tv series", " web series", " hindi dubbe"
         )
-        val movieIndicators = listOf(
-            "movie", "film", "720p", "1080p", "480p", "4k", "2160p"
-        )
         val seriesScore = seriesIndicators.count { lower.contains(it) }
-        val movieScore = movieIndicators.count { lower.contains(it) }
 
-        // Also check for S##E## pattern
         if (Regex("""(?i)\bS\d{1,2}\s*E\d{1,3}\b""").containsMatchIn(title)) return TvType.TvSeries
         if (Regex("""(?i)\bSeason\s*\d+""").containsMatchIn(title)) return TvType.TvSeries
 
-        return if (seriesScore > movieScore) TvType.TvSeries else TvType.Movie
+        return if (seriesScore > 0) TvType.TvSeries else TvType.Movie
     }
 
     private fun detectSearchQuality(title: String, badge: String? = null): SearchQuality? {
@@ -991,9 +1549,9 @@ class KMMoviesProvider : MainAPI() {
         return null
     }
 
-    // ==================================================================
-    // TMDB metadata
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  TMDB METADATA
+    // ═══════════════════════════════════════════════════
 
     private data class TmdbDetails(
         val title: String?,
@@ -1168,9 +1726,9 @@ class KMMoviesProvider : MainAPI() {
         }.onFailure { Log.w(TAG, "TMDB season fetch failed: ${it.message}") }.getOrNull()
     }
 
-    // ==================================================================
-    // Cinemeta metadata
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  CINEMETA METADATA
+    // ═══════════════════════════════════════════════════
 
     private data class CinemetaMeta(
         val name: String?,
@@ -1230,9 +1788,9 @@ class KMMoviesProvider : MainAPI() {
         }.onFailure { Log.w(TAG, "Cinemeta fetch failed: ${it.message}") }.getOrNull()
     }
 
-    // ==================================================================
-    // Skydrop API response model
-    // ==================================================================
+    // ═══════════════════════════════════════════════════
+    //  SKYDROP API RESPONSE MODEL
+    // ═══════════════════════════════════════════════════
 
     private data class SkydropResponse(
         @JsonProperty("success") val success: Boolean? = false,
