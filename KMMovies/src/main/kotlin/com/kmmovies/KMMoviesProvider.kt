@@ -164,7 +164,7 @@ class KMMoviesProvider : MainAPI() {
                     // Known shorteners/redirectors
                     """mclinks\.|hblinks\.|obsession\.buzz|hdstream4u|linkszilla|""" +
                     // Additional common mirrors
-                    """gdrive|gdurl|katmovie|katdrive|kmhd|kmmovies""" +
+                    """gdrive|gdurl|katmovie|katdrive|kmhd""" +
                     """)"""
         )
 
@@ -187,12 +187,12 @@ class KMMoviesProvider : MainAPI() {
                     """\.css|\.js\?|/feed/|#|/comment|""" +
                     // kmmovies pages that are NOT download links
                     """/category/|/page/|/tag/|/genre/|/year/|/director/|/writer/|""" +
-                    """wp-content|wp-includes|wp-json|wp-admin|wp-login""" +
+                    """wp-content|wp-includes|wp-json|wp-login""" +
                     """)"""
         )
 
         /** Dooplay internal /links/ URL pattern — these redirect to savelinks.me → actual hoster */
-        private val DOOPLAY_LINKS_REGEX = Regex("""/links/[a-zA-Z0-9]+/?$""")
+        private val DOOPLAY_LINKS_REGEX = Regex("""/links/[a-zA-Z0-9]+""")
 
         // ═══════════════════════════════════════════════════
         //  EPISODE / SEASON DETECTION REGEX
@@ -953,10 +953,10 @@ class KMMoviesProvider : MainAPI() {
             return dooplayLinks
         }
 
-        // Pass 2: anything not obviously junk
+        // Pass 2: anything not obviously junk (but allow Dooplay /links/ redirects even on mainUrl)
         val permissive = all.filter { url ->
             !IGNORE_HOST_REGEX.containsMatchIn(url) &&
-                    !url.contains(mainUrl, ignoreCase = true)
+                    (!url.contains(mainUrl, ignoreCase = true) || DOOPLAY_LINKS_REGEX.containsMatchIn(url))
         }
         if (permissive.isNotEmpty()) {
             Log.w(TAG, "Strict matched 0, permissive fallback (${permissive.size}): ${permissive.take(3)}")

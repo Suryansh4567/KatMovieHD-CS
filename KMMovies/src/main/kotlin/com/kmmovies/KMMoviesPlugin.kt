@@ -12,12 +12,27 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  * domains.json in this repo (same pattern as KatMovieHD).
  * Updating one file on GitHub is enough to keep every user's
  * installed extension working without a rebuild.
+ *
+ * CRITICAL: Custom extractors MUST be registered here so that
+ * CloudStream's loadExtractor() can find them by URL prefix.
+ * Without registration, HubCloud/GDFlix URLs no-op silently,
+ * which was the primary cause of the "Coming Soon" bug.
  */
 @CloudstreamPlugin
 class KMMoviesPlugin : BasePlugin() {
 
     override fun load() {
         registerMainAPI(KMMoviesProvider())
+
+        // Mirror hosts used in download buttons — KMMovies links resolve
+        // through savelinks.me / Dooplay /links/ to these final hosters.
+        // Without registering these, loadExtractor() cannot match the URLs.
+        registerExtractorAPI(HubCloud())
+        registerExtractorAPI(GDFlix())
+        registerExtractorAPI(GDFlixNet())
+        registerExtractorAPI(GDFlixNew1())
+        registerExtractorAPI(GDFlixNew17())
+        registerExtractorAPI(GDFlixDotDev())
     }
 
     companion object {
