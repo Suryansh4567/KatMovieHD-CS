@@ -25,7 +25,7 @@ class KMMoviesPlugin : BasePlugin() {
         registerMainAPI(KMMoviesProvider())
 
         // Mirror hosts used in download buttons — KMMovies links resolve
-        // through savelinks.me / Dooplay /links/ to these final hosters.
+        // through magiclinks.lol → skydrop/kmphotos to these final hosters.
         // Without registering these, loadExtractor() cannot match the URLs.
         registerExtractorAPI(HubCloud())
         registerExtractorAPI(GDFlix())
@@ -33,6 +33,9 @@ class KMMoviesPlugin : BasePlugin() {
         registerExtractorAPI(GDFlixNew1())
         registerExtractorAPI(GDFlixNew17())
         registerExtractorAPI(GDFlixDotDev())
+        // KMHD extractor handles links.kmhd.eu/file/ and /pack/ URLs
+        // which some kmmovies pages cross-reference.
+        registerExtractorAPI(KmhdExtractor())
     }
 
     companion object {

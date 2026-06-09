@@ -142,8 +142,10 @@ class KMMoviesProvider : MainAPI() {
 
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
-                    // KMMovies-specific redirectors
-                    """magiclinks\.lol|skydrop\.sbs|kmphotos\.cv|kmphotos|z\d\.kmphotos|""" +
+                    // KMMovies-specific redirectors (w1/w2/z1 subdomain variants)
+                    """w\d\.magiclinks\.lol|magiclinks\.lol|""" +
+                    """w\d\.skydrop\.sbs|skydrop\.sbs|""" +
+                    """z\d\.kmphotos\.cv|kmphotos\.cv|kmphotos|""" +
                     // Dooplay link protection service
                     """savelinks\.me|linkstaker\.xyz|protectedlinks\.[a-z]+|""" +
                     // HubCloud / Hubdrive family
@@ -163,6 +165,8 @@ class KMMoviesProvider : MainAPI() {
                     """r2\.dev|""" +
                     // Known shorteners/redirectors
                     """mclinks\.|hblinks\.|obsession\.buzz|hdstream4u|linkszilla|""" +
+                    // KMHD link service (some pages cross-reference)
+                    """links\.kmhd\.|gd\.kmhd|kmhd\.net|""" +
                     // Additional common mirrors
                     """gdrive|gdurl|katmovie|katdrive|kmhd""" +
                     """)"""
@@ -180,6 +184,7 @@ class KMMoviesProvider : MainAPI() {
                     """facebook\.com|fb\.com|twitter\.com|(?<![a-z])x\.com|instagram\.com|""" +
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
+                    """images\.kmphotos|""" +  // image CDN, not stream source
                     """gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
@@ -330,12 +335,17 @@ class KMMoviesProvider : MainAPI() {
     /**
      * Parse listing pages (homepage, category, search).
      * Multi-fallback approach:
+     *   0. KMMovies custom theme: article.movie-card cards
      *   1. Dooplay theme: article.item cards
      *   2. WordPress: li[id^=post-] items
      *   3. Generic: article / .post elements
      *   4. Last resort: any <a> wrapping an <img>
      */
     private fun parseListing(doc: Document): List<SearchResponse> {
+        // KMMovies custom theme: article.movie-card
+        val kmCards = doc.select("article.movie-card").mapNotNull { it.toSearchResultKMMovies() }
+        if (kmCards.isNotEmpty()) return kmCards.distinctBy { it.url }
+
         // Dooplay theme: article.item cards
         val dooplay = doc.select("article.item").mapNotNull { it.toSearchResultDooplay() }
         if (dooplay.isNotEmpty()) return dooplay.distinctBy { it.url }
@@ -351,6 +361,30 @@ class KMMoviesProvider : MainAPI() {
         // Last resort: any anchor wrapping an <img>
         return doc.select("a:has(img)").mapNotNull { it.toSearchResultFromAnchor() }
             .distinctBy { it.url }
+    }
+
+    /** KMMovies custom theme card: article.movie-card */
+    private fun Element.toSearchResultKMMovies(): SearchResponse? {
+        val anchor = selectFirst("a[href]") ?: return null
+        val href = anchor.attr("href").ifBlank { return null }
+        val rawTitle = anchor.attr("title").ifBlank {
+            selectFirst(".movie-title")?.text() ?: ""
+        }.ifBlank {
+            anchor.text()
+        }.ifBlank { return null }
+        val img = selectFirst("img.poster, img")
+        val poster = img?.absUrl("src")?.ifBlank { null }
+            ?: img?.absUrl("data-src")?.ifBlank { null }
+        val badge = selectFirst(".badge-left")?.text()
+
+        return newMovieSearchResponse(
+            cleanTitle(rawTitle),
+            fixUrl(href),
+            guessTvType(rawTitle)
+        ) {
+            this.posterUrl = poster
+            this.quality = detectSearchQuality(rawTitle, badge)
+        }
     }
 
     /** Dooplay theme card: article.item > h3 > a + img */
@@ -458,16 +492,18 @@ class KMMoviesProvider : MainAPI() {
         // ── Extract metadata using DUAL-MODE selectors ──
         // Dooplay first, then generic WordPress fallback
 
-        val rawTitle = doc.selectFirst(".sheader .data h1, h1.entry-title, h1")?.text()
+        val rawTitle = doc.selectFirst(".hero-title, .sheader .data h1, h1.entry-title, h1")?.text()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()
 
-        val sitePoster = doc.selectFirst(".sheader .poster img, .post-thumbnail img")?.absUrl("src")
+        val sitePoster = doc.selectFirst(".hero-poster, .sheader .poster img, .post-thumbnail img")?.absUrl("src")
+            ?: doc.selectFirst("img.poster")?.absUrl("src")
             ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
             ?: doc.selectFirst(".entry-content img, article img")?.absUrl("src")
 
-        val sitePlot = doc.select(".wp-content p, .entry-content p")
-            .firstOrNull { it.text().length > 80 }?.text()
+        val sitePlot = doc.selectFirst(".hero-description")?.text()
+            ?: doc.select(".wp-content p, .entry-content p")
+                .firstOrNull { it.text().length > 80 }?.text()
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val cleanedTitle = cleanTitle(rawTitle)
@@ -516,7 +552,12 @@ class KMMoviesProvider : MainAPI() {
 
         Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries imdb=$imdbId titleSeason=$titleSeason")
 
-        // ── Try DooPlay AJAX player options first ──
+        // ── Extract trailer from hero section if available ──
+        val heroTrailer = doc.selectFirst("a.open-trailer")?.attr("data-trailer-url")
+            ?: doc.selectFirst(".hero-actions a[href*=youtube]")?.attr("href")
+        val effectiveTrailer = trailer ?: heroTrailer
+
+        // ── Try DooPlay AJAX player options first (may not exist on new theme) ──
         val ajaxLinks = extractDooPlayAjaxLinks(doc)
 
         if (isSeries) {
@@ -528,19 +569,19 @@ class KMMoviesProvider : MainAPI() {
                 val links = collectAllPlayableLinks(doc)
                 return newMovieLoadResponse(title, url, TvType.Movie, links) {
                     applyCommonMeta(this, poster, backdrop, plot, year, tags,
-                        actorData, cineActors, rating, trailer, imdbUrl)
+                        actorData, cineActors, rating, effectiveTrailer, imdbUrl)
                 }
             }
 
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
-                    actorData, cineActors, rating, trailer, imdbUrl)
+                    actorData, cineActors, rating, effectiveTrailer, imdbUrl)
                 if (totalSeasons != null && totalSeasons > 1) {
                     addSeasonNames((1..totalSeasons).map { "Season $it" })
                 }
             }
         } else {
-            // For movies: combine AJAX links + download table + article body links
+            // For movies: combine AJAX links + download section + article body links
             val bodyLinks = collectAllPlayableLinks(doc)
             val allLinks = buildString {
                 if (ajaxLinks.isNotEmpty()) {
@@ -549,9 +590,10 @@ class KMMoviesProvider : MainAPI() {
                 }
                 if (bodyLinks.isNotBlank()) append(bodyLinks)
             }
+            Log.d(TAG, "load() movie: allLinks length=${allLinks.length}, ajax=${ajaxLinks.size}")
             return newMovieLoadResponse(title, url, TvType.Movie, allLinks) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
-                    actorData, cineActors, rating, trailer, imdbUrl)
+                    actorData, cineActors, rating, effectiveTrailer, imdbUrl)
             }
         }
     }
@@ -702,7 +744,14 @@ class KMMoviesProvider : MainAPI() {
         cine: CinemetaMeta?,
         ajaxLinks: List<String> = emptyList()
     ): List<Episode> {
-        val container = doc.selectFirst("article, .entry-content, .wp-content") ?: return emptyList()
+        // CRITICAL: On the current kmmovies.lol theme, download links are in
+        // div.downloads-section which is a SIBLING of article.movie-hero, NOT
+        // a child. We must search the broader container (.single-container or
+        // the full document), otherwise we find zero links and show "Coming Soon".
+        val container = doc.selectFirst(".single-container")
+            ?: doc.selectFirst(".downloads-section")
+            ?: doc.selectFirst("article, .entry-content, .wp-content")
+            ?: doc
 
         // Stage 0: Dooplay theme episode list (ul.episodios > li)
         val dooplayEps = parseDooplayEpisodes(doc, defaultSeason, tmdbSeason, cine)
@@ -1049,6 +1098,25 @@ class KMMoviesProvider : MainAPI() {
     private fun collectAllPlayableLinks(doc: Document): String {
         val allLinks = mutableListOf<String>()
 
+        // Source 0: KMMovies-specific download buttons (.downloads-section a.dl-btn)
+        // On the current kmmovies.lol theme, download links live in
+        // div.downloads-section which is OUTSIDE article.movie-hero.
+        // These are the primary source of playable links.
+        val dlButtons = doc.select(".downloads-section a.dl-btn, .download-buttons a[href]")
+        if (dlButtons.isNotEmpty()) {
+            for (btn in dlButtons) {
+                val href = btn.attr("href").ifBlank { continue }
+                val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
+                if (fixedHref.isNotBlank()) {
+                    allLinks.add(fixedHref)
+                    val res = btn.selectFirst(".dl-res")?.text() ?: ""
+                    val quality = btn.selectFirst(".dl-quality")?.text() ?: ""
+                    val size = btn.selectFirst(".dl-size")?.text() ?: ""
+                    Log.d(TAG, "Download button: $res $quality $size -> $fixedHref")
+                }
+            }
+        }
+
         // Source 1: Dooplay download links table (#download .links_table table)
         val downloadTable = doc.select("#download .links_table table tbody tr, #download table tbody tr")
         if (downloadTable.isNotEmpty()) {
@@ -1062,17 +1130,20 @@ class KMMoviesProvider : MainAPI() {
                 val language = row.select("td:nth-child(3)").firstOrNull()?.text()?.trim() ?: ""
                 val size = row.select("td:nth-child(4)").firstOrNull()?.text()?.trim() ?: ""
 
-                // Build a rich label and store as a special URL format
-                // We use a marker so loadLinks can identify these
-                if (fixedHref.isNotBlank()) {
+                if (fixedHref.isNotBlank() && fixedHref !in allLinks) {
                     allLinks.add(fixedHref)
                     Log.d(TAG, "Download table: $quality $language $size -> $fixedHref")
                 }
             }
         }
 
-        // Source 2: Article / entry-content body links
-        val content = doc.selectFirst("article, .entry-content, .wp-content") ?: doc
+        // Source 2: Broader container (single-container or full doc) body links
+        // CRITICAL: Must search .single-container or doc, NOT just article,
+        // because on the current theme download links are outside article.
+        val content = doc.selectFirst(".single-container")
+            ?: doc.selectFirst(".downloads-section")
+            ?: doc.selectFirst("article, .entry-content, .wp-content")
+            ?: doc
         val bodyLinks = collectMirrorLinks(content)
         for (link in bodyLinks) {
             if (link !in allLinks) allLinks.add(link)
@@ -1198,6 +1269,14 @@ class KMMoviesProvider : MainAPI() {
                     true
                 }
 
+                // KMHD link service: links.kmhd.eu/file/ or /pack/ — use KmhdExtractor
+                url.contains("links.kmhd", ignoreCase = true) ||
+                url.contains("gd.kmhd", ignoreCase = true) ||
+                url.contains("kmhd.net", ignoreCase = true) -> {
+                    loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+
                 // Skydrop download page → call API to get video URL
                 url.contains("skydrop.sbs", ignoreCase = true) &&
                     url.contains("download.php", ignoreCase = true) -> {
@@ -1282,9 +1361,11 @@ class KMMoviesProvider : MainAPI() {
                 "Referer" to "$mainUrl/"
             ), timeout = 30).document
 
-            val allLinks = doc.select("a[href]").mapNotNull { a ->
-                val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
-                href.takeIf {
+            // Primary: look for known hoster links on the page
+            val allLinks = doc.select("a[href], a.download-button").mapNotNull { a ->
+                val href = a.attr("abs:href").ifBlank { a.attr("href") }.ifBlank { return@mapNotNull null }
+                val fixedHref = fixUrl(href)
+                fixedHref.takeIf {
                     it.startsWith("http", ignoreCase = true) &&
                     (it.contains("skydrop", ignoreCase = true) ||
                      it.contains("kmphotos", ignoreCase = true) ||
@@ -1294,9 +1375,15 @@ class KMMoviesProvider : MainAPI() {
                      it.contains("googleusercontent", ignoreCase = true) ||
                      it.contains("drive.google", ignoreCase = true) ||
                      it.contains("gdflix", ignoreCase = true) ||
-                     it.contains("pixeldrain", ignoreCase = true))
+                     it.contains("pixeldrain", ignoreCase = true) ||
+                     it.contains("fuckingfast", ignoreCase = true) ||
+                     it.contains("streamtape", ignoreCase = true) ||
+                     it.contains("send.cm", ignoreCase = true) ||
+                     it.contains("1fichier", ignoreCase = true))
                 }
             }.distinct()
+
+            Log.d(TAG, "resolveMagiclinks($url): found ${allLinks.size} hoster links")
 
             for (link in allLinks) {
                 try {
@@ -1315,6 +1402,7 @@ class KMMoviesProvider : MainAPI() {
                     }
                 }.distinct()
 
+                Log.d(TAG, "resolveMagiclinks fallback: trying ${anyLinks.size} external links")
                 for (link in anyLinks) {
                     try {
                         loadExtractor(link, mainUrl, { _ -> }, callback)
@@ -1409,12 +1497,17 @@ class KMMoviesProvider : MainAPI() {
      * Resolve kmphotos.cv URLs (online.php or download99.php).
      * online.php → 302 redirect to a player page with the R2 video URL
      * download99.php → 302 redirect to a signed download URL
+     *
+     * Also handles the redirect chain gracefully: if allowRedirects=false
+     * doesn't get a Location header (e.g. Cloudflare intercepts), we
+     * fall back to following the redirect and scraping the final page.
      */
     private suspend fun resolveKmphotos(
         url: String,
         callback: (ExtractorLink) -> Unit
     ) {
         try {
+            // Try to get the redirect without following it
             val resp = app.get(url, headers = mapOf(
                 "User-Agent" to USER_AGENT,
                 "Accept" to "text/html,*/*;q=0.8",
@@ -1441,12 +1534,90 @@ class KMMoviesProvider : MainAPI() {
                             this.referer = "$mainUrl/"
                         }
                     )
-                } else {
-                    // The redirect itself might be the video URL or another page
-                    try {
-                        dispatchExtractor(redirectUrl, { _ -> }, callback)
-                    } catch (_: Exception) {}
+                    return
                 }
+
+                // The redirect itself might be the video URL (e.g. R2 direct link)
+                if (redirectUrl.contains("r2.dev", ignoreCase = true) ||
+                    redirectUrl.contains("cloudflare", ignoreCase = true) ||
+                    redirectUrl.contains(".mp4", ignoreCase = true) ||
+                    redirectUrl.contains(".mkv", ignoreCase = true)) {
+                    val quality = guessQualityFromUrl(redirectUrl)
+                    callback(
+                        newExtractorLink(
+                            "$name Stream $quality",
+                            "$name Stream $quality",
+                            redirectUrl,
+                            INFER_TYPE
+                        ) {
+                            this.quality = getQualityInt(quality)
+                            this.referer = "$mainUrl/"
+                        }
+                    )
+                    return
+                }
+
+                // The redirect might be another page to dispatch
+                try {
+                    dispatchExtractor(redirectUrl, { _ -> }, callback)
+                } catch (_: Exception) {}
+                return
+            }
+
+            // No redirect header — maybe the page returned HTML directly.
+            // Try to follow the redirect and scrape the final page.
+            val fullResp = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
+            ), timeout = 15)
+            val finalUrl = fullResp.url
+            val doc = fullResp.document
+
+            // Check if we landed on a video player page with an R2/stream URL
+            val videoSrc = doc.selectFirst("video source[src], video[src], iframe[src]")?.attr("src")
+            if (!videoSrc.isNullOrBlank()) {
+                val fixedSrc = if (videoSrc.startsWith("http")) videoSrc else fixUrl(videoSrc)
+                val quality = guessQualityFromUrl(url)
+                callback(
+                    newExtractorLink(
+                        "$name Stream $quality",
+                        "$name Stream $quality",
+                        fixedSrc,
+                        INFER_TYPE
+                    ) {
+                        this.quality = getQualityInt(quality)
+                        this.referer = "$mainUrl/"
+                    }
+                )
+                return
+            }
+
+            // Check for videoUrl parameter in the final URL
+            val videoUrl = Regex("""videoUrl=([^&]+)""").find(finalUrl)
+                ?.groupValues?.get(1)
+                ?.let { URLDecoder.decode(it, "UTF-8") }
+            if (videoUrl != null) {
+                val quality = guessQualityFromUrl(url)
+                callback(
+                    newExtractorLink(
+                        "$name Stream $quality",
+                        "$name Stream $quality",
+                        videoUrl,
+                        INFER_TYPE
+                    ) {
+                        this.quality = getQualityInt(quality)
+                        this.referer = "$mainUrl/"
+                    }
+                )
+                return
+            }
+
+            // Last resort: try dispatching the final URL
+            if (finalUrl != url) {
+                try {
+                    dispatchExtractor(finalUrl, { _ -> }, callback)
+                } catch (_: Exception) {}
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to resolve kmphotos URL $url: ${e.message}")
