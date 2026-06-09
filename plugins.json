@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
         "status": 1,
-        "version": 4,
+        "version": 5,
         "name": "KMMovies",
         "internalName": "KMMovies",
         "authors": [
             "arena"
         ],
         "description": "Movies & TV series from KMMovies (kmmovies.lol). Dual-audio, Hindi dubbed, 4K UHD/HDR/DV, multi-season episode-wise support, TMDB metadata, dynamic domain.",
-        "fileSize": 79424,
+        "fileSize": 88343,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -43,7 +43,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.lol&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-357751a7d913c656235e80ca360506306c34f1f91a1612f573d6a279518fdfce"
+        "fileHash": "sha256-0dcc8939c63f9cef2805f26fbc52aef30a6e59fcf740b7380b39bd7f93b880c8"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.cs3",
