@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 8
+version = 9
 
 cloudstream {
     authors = listOf("arena")

@@ -169,6 +169,12 @@ open class HubCloud : ExtractorApi() {
     }
 }
 
+/** HubCloud.link domain variant — the primary live domain as of 2026-06.
+ *  hubcloud.foo is behind Cloudflare; hubcloud.link serves content directly. */
+class HubCloudLink : HubCloud() {
+    override val mainUrl = "https://hubcloud.link"
+}
+
 // ═══════════════════════════════════════════════════
 //  GDFlix Extractor (base + domain variants)
 // ═══════════════════════════════════════════════════

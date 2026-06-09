@@ -144,12 +144,12 @@ class KMMoviesProvider : MainAPI() {
             """(?i)(""" +
                     // KMMovies-specific redirectors (w1/w2/z1 subdomain variants)
                     """w\d\.magiclinks\.lol|magiclinks\.lol|episodes\.magiclinks\.lol|""" +
-                    """w\d\.skydrop\.sbs|skydrop\.sbs|""" +
+                    """w\d\.skydrop\.sbs|skydrop\.sbs|w\d\.skydrop\.live|skydrop\.live|""" +
                     """z\d\.kmphotos\.cv|kmphotos\.cv|kmphotos|""" +
                     // Dooplay link protection service
                     """savelinks\.me|linkstaker\.xyz|protectedlinks\.[a-z]+|""" +
                     // HubCloud / Hubdrive family
-                    """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive\.|katdrive|""" +
+                    """hubcloud\.[a-z]+|hubcloud\.link|hubcdn|hubstream|hubdrive\.|katdrive|""" +
                     // GDFlix family
                     """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|""" +
                     // Generic cloud/file-share hosts
@@ -247,6 +247,7 @@ class KMMoviesProvider : MainAPI() {
         /** Known hoster display names for smart labels. */
         private val HOSTER_NAMES = mapOf(
             "hubcloud" to "HubCloud",
+            "hubcloud.link" to "HubCloud",
             "hubdrive" to "HubDrive",
             "hubcdn" to "HubCDN",
             "katdrive" to "KatDrive",
@@ -1037,11 +1038,32 @@ class KMMoviesProvider : MainAPI() {
                     (it.contains("skydrop", ignoreCase = true) ||
                      it.contains("kmphotos", ignoreCase = true) ||
                      it.contains("hubcloud", ignoreCase = true) ||
+                     it.contains("hubdrive", ignoreCase = true) ||
+                     it.contains("katdrive", ignoreCase = true) ||
                      it.contains("gdflix", ignoreCase = true) ||
+                     it.contains("gdlink", ignoreCase = true) ||
+                     it.contains("gdtot", ignoreCase = true) ||
+                     it.contains("gdmirror", ignoreCase = true) ||
                      it.contains("r2.dev", ignoreCase = true) ||
                      it.contains("drive.google", ignoreCase = true) ||
+                     it.contains("pixeldrain", ignoreCase = true) ||
+                     it.contains("gofile", ignoreCase = true) ||
                      it.contains("streamtape", ignoreCase = true) ||
-                     it.contains("filemoon", ignoreCase = true))
+                     it.contains("filemoon", ignoreCase = true) ||
+                     it.contains("doodstream", ignoreCase = true) ||
+                     it.contains("mixdrop", ignoreCase = true) ||
+                     it.contains("streamwish", ignoreCase = true) ||
+                     it.contains("vidhide", ignoreCase = true) ||
+                     it.contains("voe", ignoreCase = true) ||
+                     it.contains("fuckingfast", ignoreCase = true) ||
+                     it.contains("driveseed", ignoreCase = true) ||
+                     it.contains("driveleech", ignoreCase = true) ||
+                     it.contains("send.cm", ignoreCase = true) ||
+                     it.contains("1fichier", ignoreCase = true) ||
+                     it.contains("mega", ignoreCase = true) ||
+                     it.contains("mediafire", ignoreCase = true) ||
+                     it.contains("mclinks", ignoreCase = true) ||
+                     it.contains("kmhd", ignoreCase = true))
                 }
             }.distinct()
 
@@ -1544,14 +1566,17 @@ class KMMoviesProvider : MainAPI() {
                 }
 
                 // Skydrop download page → call API to get video URL
-                url.contains("skydrop.sbs", ignoreCase = true) &&
+                // Handles both skydrop.sbs and skydrop.live domain variants
+                (url.contains("skydrop.sbs", ignoreCase = true) ||
+                    url.contains("skydrop.live", ignoreCase = true)) &&
                     url.contains("download.php", ignoreCase = true) -> {
                     resolveSkydrop(url, callback)
                     true
                 }
 
                 // Skydrop API URL directly
-                url.contains("skydrop.sbs", ignoreCase = true) &&
+                (url.contains("skydrop.sbs", ignoreCase = true) ||
+                    url.contains("skydrop.live", ignoreCase = true)) &&
                     url.contains("api.php", ignoreCase = true) -> {
                     resolveSkydropApi(url, callback)
                     true
@@ -1657,12 +1682,20 @@ class KMMoviesProvider : MainAPI() {
                     (it.contains("skydrop", ignoreCase = true) ||
                      it.contains("kmphotos", ignoreCase = true) ||
                      it.contains("hubcloud", ignoreCase = true) ||
+                     it.contains("hubdrive", ignoreCase = true) ||
+                     it.contains("katdrive", ignoreCase = true) ||
                      it.contains("gdrive", ignoreCase = true) ||
                      it.contains("r2.dev", ignoreCase = true) ||
                      it.contains("googleusercontent", ignoreCase = true) ||
                      it.contains("drive.google", ignoreCase = true) ||
                      it.contains("gdflix", ignoreCase = true) ||
+                     it.contains("gdlink", ignoreCase = true) ||
+                     it.contains("gdtot", ignoreCase = true) ||
+                     it.contains("gdmirror", ignoreCase = true) ||
                      it.contains("pixeldrain", ignoreCase = true) ||
+                     it.contains("gofile", ignoreCase = true) ||
+                     it.contains("mediafire", ignoreCase = true) ||
+                     it.contains("mega", ignoreCase = true) ||
                      it.contains("fuckingfast", ignoreCase = true) ||
                      it.contains("streamtape", ignoreCase = true) ||
                      it.contains("send.cm", ignoreCase = true) ||
@@ -1672,7 +1705,15 @@ class KMMoviesProvider : MainAPI() {
                      it.contains("filemoon", ignoreCase = true) ||
                      it.contains("doodstream", ignoreCase = true) ||
                      it.contains("mixdrop", ignoreCase = true) ||
-                     it.contains("voe", ignoreCase = true))
+                     it.contains("voe", ignoreCase = true) ||
+                     it.contains("driveseed", ignoreCase = true) ||
+                     it.contains("driveleech", ignoreCase = true) ||
+                     it.contains("streamlare", ignoreCase = true) ||
+                     it.contains("filelions", ignoreCase = true) ||
+                     it.contains("mclinks", ignoreCase = true) ||
+                     it.contains("hblinks", ignoreCase = true) ||
+                     it.contains("linkszilla", ignoreCase = true) ||
+                     it.contains("kmhd", ignoreCase = true))
                 }
             }.distinct()
 

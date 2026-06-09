@@ -28,6 +28,7 @@ class KMMoviesPlugin : BasePlugin() {
         // through magiclinks.lol → skydrop/kmphotos to these final hosters.
         // Without registering these, loadExtractor() cannot match the URLs.
         registerExtractorAPI(HubCloud())
+        registerExtractorAPI(HubCloudLink())
         registerExtractorAPI(GDFlix())
         registerExtractorAPI(GDFlixNet())
         registerExtractorAPI(GDFlixNew1())
