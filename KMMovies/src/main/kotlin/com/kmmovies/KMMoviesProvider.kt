@@ -143,7 +143,7 @@ class KMMoviesProvider : MainAPI() {
         private val LINK_HOST_REGEX = Regex(
             """(?i)(""" +
                     // KMMovies-specific redirectors (w1/w2/z1 subdomain variants)
-                    """w\d\.magiclinks\.lol|magiclinks\.lol|""" +
+                    """w\d\.magiclinks\.lol|magiclinks\.lol|episodes\.magiclinks\.lol|""" +
                     """w\d\.skydrop\.sbs|skydrop\.sbs|""" +
                     """z\d\.kmphotos\.cv|kmphotos\.cv|kmphotos|""" +
                     // Dooplay link protection service
@@ -507,7 +507,13 @@ class KMMoviesProvider : MainAPI() {
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val cleanedTitle = cleanTitle(rawTitle)
-        val isSeries = guessTvType(rawTitle) == TvType.TvSeries
+        // BUG FIX: Use BOTH title-based detection AND page structure detection.
+        // The live kmmovies.lol site uses div.download-category.tv-series as a
+        // definitive structural indicator that the page is a TV series, which is
+        // more reliable than guessing from the title alone.
+        val isSeriesByTitle = guessTvType(rawTitle) == TvType.TvSeries
+        val isSeriesByPage = doc.selectFirst("div.download-category.tv-series") != null
+        val isSeries = isSeriesByPage || isSeriesByTitle
 
         val titleSeason = SEASON_HEADER_REGEX.find(rawTitle)?.let { m ->
             (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
@@ -737,7 +743,7 @@ class KMMoviesProvider : MainAPI() {
     //  EPISODE DISCOVERY — STATEFUL DOCUMENT WALKER
     // ═══════════════════════════════════════════════════
 
-    private fun discoverEpisodes(
+    private suspend fun discoverEpisodes(
         doc: Document,
         defaultSeason: Int,
         tmdbSeason: TmdbSeason?,
@@ -752,6 +758,17 @@ class KMMoviesProvider : MainAPI() {
             ?: doc.selectFirst(".downloads-section")
             ?: doc.selectFirst("article, .entry-content, .wp-content")
             ?: doc
+
+        // ── Stage -1: KMMovies custom theme series layout (HIGHEST PRIORITY) ──
+        // The live kmmovies.lol site uses a custom WordPress theme, NOT Dooplay.
+        // Series pages have: div.season-block > div.type-content[data-type^="episodes-"]
+        //   with links to episodes.magiclinks.lol subpages that list individual episodes.
+        // Without this stage, quality links (480p/720p/1080p) get mapped as episodes.
+        val kmSeries = parseKMMoviesSeriesLayout(doc, defaultSeason, tmdbSeason, cine)
+        if (kmSeries.isNotEmpty()) {
+            Log.d(TAG, "Stage-1 (KMMovies series): ${kmSeries.size} episodes")
+            return kmSeries
+        }
 
         // Stage 0: Dooplay theme episode list (ul.episodios > li)
         val dooplayEps = parseDooplayEpisodes(doc, defaultSeason, tmdbSeason, cine)
@@ -799,6 +816,249 @@ class KMMoviesProvider : MainAPI() {
                 this.episode = idx + 1
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  KMMOVIES CUSTOM THEME — Series Episode Parser
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * Parse the KMMovies custom theme series layout.
+     *
+     * Live site structure (verified 2025-06):
+     *   div.downloads-section
+     *     div.download-category.tv-series
+     *       div.season-block
+     *         div.season-block-header
+     *           span.season-block-title → "Season N"
+     *         div.season-block-body
+     *           div.type-tabs → "Episode Wise" / "Combined" / "Zip"
+     *           div.type-content[data-type="episodes-{idx}"]
+     *             div.download-buttons
+     *               a.dl-btn → episodes.magiclinks.lol/series/{slug}-s{NN}-{quality}/
+     *
+     * Each episodes subpage (episodes.magiclinks.lol) contains:
+     *   div.ep-row
+     *     span.ep-name → "Episode 1"
+     *     a.dl-btn → w1.skydrop.sbs/download.php?id=XXX
+     *
+     * BUG FIXED: Without this parser, quality links (480p/720p/1080p) from the
+     * episodes tab get mapped as pseudo-episodes in Stage 4 fallback, showing:
+     *   Episode 1 → 480p, Episode 2 → 720p, Episode 3 → 1080p
+     * Instead of the correct:
+     *   Season 1 → Episode 1, Episode 2, Episode 3 (each with multiple quality sources)
+     */
+    private suspend fun parseKMMoviesSeriesLayout(
+        doc: Document,
+        defaultSeason: Int,
+        tmdbSeason: TmdbSeason?,
+        cine: CinemetaMeta?
+    ): List<Episode> {
+        // Quick check: is this a KMMovies custom theme series page?
+        val tvSeriesCategory = doc.selectFirst("div.download-category.tv-series")
+        if (tvSeriesCategory == null) {
+            Log.d(TAG, "No div.download-category.tv-series found — not a KMMovies series page")
+            return emptyList()
+        }
+
+        val seasonBlocks = doc.select("div.season-block")
+        if (seasonBlocks.isEmpty()) {
+            Log.d(TAG, "No div.season-block elements found")
+            return emptyList()
+        }
+
+        Log.d(TAG, "KMMovies series: found ${seasonBlocks.size} season blocks")
+
+        val map = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+
+        for ((blockIdx, block) in seasonBlocks.withIndex()) {
+            // Extract season number from title like "Season 4" or "Season 4 (7 eps)"
+            val titleEl = block.selectFirst("span.season-block-title")
+            val titleText = titleEl?.text() ?: ""
+            val seasonNum = SEASON_HEADER_REGEX.find(titleText)?.let { m ->
+                (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
+            } ?: Regex("""(\d+)""").find(titleText)?.groupValues?.get(1)?.toIntOrNull()
+            ?: defaultSeason
+
+            Log.d(TAG, "Season block $blockIdx: title='$titleText' → season=$seasonNum")
+
+            // Find ALL episode-wise links in this season block
+            // The data-type format is "episodes-{seasonIndex}" for the "Episode Wise" tab
+            val episodeTabs = block.select("div.type-content[data-type^=episodes-]")
+
+            val qualityUrls = mutableListOf<String>()
+            if (episodeTabs.isNotEmpty()) {
+                for (tab in episodeTabs) {
+                    val btns = tab.select("a.dl-btn")
+                    for (btn in btns) {
+                        val href = btn.attr("href").ifBlank { continue }
+                        val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
+                        if (fixedHref.isNotBlank() && fixedHref !in qualityUrls) {
+                            qualityUrls.add(fixedHref)
+                        }
+                    }
+                }
+            } else {
+                // Fallback: look for download buttons directly in the season block body
+                val directBtns = block.select("div.season-block-body a.dl-btn")
+                for (btn in directBtns) {
+                    val href = btn.attr("href").ifBlank { continue }
+                    val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
+                    if (fixedHref.isNotBlank() && fixedHref !in qualityUrls) {
+                        qualityUrls.add(fixedHref)
+                    }
+                }
+            }
+
+            if (qualityUrls.isEmpty()) {
+                Log.w(TAG, "No episode-wise links found for season $seasonNum")
+                continue
+            }
+
+            Log.d(TAG, "Season $seasonNum: ${qualityUrls.size} quality URLs: ${qualityUrls.map { it.substringAfterLast("/") }}")
+
+            // Sort URLs to prefer 1080p first (for faster episode discovery)
+            val sortedUrls = qualityUrls.sortedByDescending { url ->
+                when {
+                    url.contains("2160p", ignoreCase = true) -> 5
+                    url.contains("1080p", ignoreCase = true) -> 4
+                    url.contains("720p", ignoreCase = true) -> 3
+                    url.contains("480p", ignoreCase = true) -> 2
+                    else -> 1
+                }
+            }
+
+            // Fetch episode subpages to discover individual episode download links.
+            // We fetch ALL quality subpages to provide multiple quality sources per episode.
+            // Use coroutineScope for parallel fetching.
+            val perQualityEpisodes = coroutineScope {
+                sortedUrls.mapIndexed { idx, url ->
+                    idx to async {
+                        url to fetchEpisodesFromSubpage(url)
+                    }
+                }.map { it.second.await() }
+            }
+
+            // Merge all qualities: group by episode number across all quality pages
+            // perQualityEpisodes = list of (url, Map<epNum, skydropUrl>)
+            val episodeQualityMap = linkedMapOf<Int, MutableList<String>>() // epNum → [skydrop urls]
+            for ((subpageUrl, episodes) in perQualityEpisodes) {
+                for ((epNum, downloadUrl) in episodes) {
+                    val bucket = episodeQualityMap.getOrPut(epNum) { mutableListOf() }
+                    if (downloadUrl !in bucket) bucket.add(downloadUrl)
+                }
+            }
+
+            if (episodeQualityMap.isEmpty()) {
+                Log.w(TAG, "No episodes resolved from subpages for season $seasonNum")
+                continue
+            }
+
+            // Fill the main map with properly grouped episodes
+            for ((epNum, downloadUrls) in episodeQualityMap) {
+                val key = seasonNum to epNum
+                val bucket = map.getOrPut(key) { mutableListOf() }
+                for (url in downloadUrls) {
+                    if (url !in bucket) bucket.add(url)
+                }
+            }
+
+            Log.d(TAG, "Season $seasonNum: ${episodeQualityMap.size} episodes discovered")
+        }
+
+        return if (map.isNotEmpty()) buildEpisodes(map, tmdbSeason, cine) else emptyList()
+    }
+
+    /**
+     * Fetch an episodes.magiclinks.lol subpage and parse individual episode links.
+     *
+     * Page structure:
+     *   div.ep-row
+     *     span.ep-name → "Episode 1"
+     *     a.dl-btn[href] → https://w1.skydrop.sbs/download.php?id=XXX
+     *
+     * Returns a map of episode number → download URL.
+     */
+    private suspend fun fetchEpisodesFromSubpage(url: String): Map<Int, String> {
+        val result = linkedMapOf<Int, String>()
+        try {
+            val resp = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
+            ), timeout = 15)
+
+            val doc = resp.document
+
+            // Method 1: Parse div.ep-row elements (standard episodes subpage)
+            val epRows = doc.select("div.ep-row")
+            if (epRows.isNotEmpty()) {
+                for (row in epRows) {
+                    val nameEl = row.selectFirst("span.ep-name")
+                    val name = nameEl?.text()?.trim() ?: ""
+                    val epNum = EPISODE_HEADER_REGEX.find(name)?.groupValues?.get(1)?.toIntOrNull()
+                        ?: Regex("""(\d+)""").find(name)?.groupValues?.get(1)?.toIntOrNull()
+                        ?: (result.size + 1)
+
+                    val linkEl = row.selectFirst("a.dl-btn, a[href]")
+                    val href = linkEl?.attr("href")?.ifBlank { null } ?: continue
+                    val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
+
+                    result[epNum] = fixedHref
+                }
+                Log.d(TAG, "fetchEpisodesFromSubpage($url): ${result.size} episodes via ep-row")
+                return result
+            }
+
+            // Method 2: Look for any list of episode links
+            val allLinks = doc.select("a[href]").mapNotNull { a ->
+                val href = a.attr("abs:href").ifBlank { a.attr("href") }.ifBlank { return@mapNotNull null }
+                val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
+                val text = a.text().trim()
+                val epNum = EPISODE_HEADER_REGEX.find(text)?.groupValues?.get(1)?.toIntOrNull()
+                if (epNum != null && fixedHref.startsWith("http")) {
+                    epNum to fixedHref
+                } else null
+            }
+
+            if (allLinks.isNotEmpty()) {
+                for ((epNum, href) in allLinks) {
+                    result[epNum] = href
+                }
+                Log.d(TAG, "fetchEpisodesFromSubpage($url): ${result.size} episodes via link scan")
+                return result
+            }
+
+            // Method 3: Broad fallback — all external download links
+            val downloadLinks = doc.select("a[href]").mapNotNull { a ->
+                val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
+                href.takeIf {
+                    it.startsWith("http", ignoreCase = true) &&
+                    (it.contains("skydrop", ignoreCase = true) ||
+                     it.contains("kmphotos", ignoreCase = true) ||
+                     it.contains("hubcloud", ignoreCase = true) ||
+                     it.contains("gdflix", ignoreCase = true) ||
+                     it.contains("r2.dev", ignoreCase = true) ||
+                     it.contains("drive.google", ignoreCase = true) ||
+                     it.contains("streamtape", ignoreCase = true) ||
+                     it.contains("filemoon", ignoreCase = true))
+                }
+            }.distinct()
+
+            if (downloadLinks.isNotEmpty()) {
+                for ((idx, link) in downloadLinks.withIndex()) {
+                    result[idx + 1] = link
+                }
+                Log.d(TAG, "fetchEpisodesFromSubpage($url): ${result.size} episodes via broad fallback")
+            }
+
+            if (result.isEmpty()) {
+                Log.w(TAG, "fetchEpisodesFromSubpage($url): 0 episodes found")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to fetch episodes subpage $url: ${e.message}")
+        }
+        return result
     }
 
     /**
@@ -1102,7 +1362,12 @@ class KMMoviesProvider : MainAPI() {
         // On the current kmmovies.lol theme, download links live in
         // div.downloads-section which is OUTSIDE article.movie-hero.
         // These are the primary source of playable links.
-        val dlButtons = doc.select(".downloads-section a.dl-btn, .download-buttons a[href]")
+        // Live site structure: div.download-category.encoded/webdl → div.download-buttons → a.dl-btn
+        // Each a.dl-btn has: span.dl-res (resolution), span.dl-quality, span.dl-size
+        val dlButtons = doc.select(
+            ".downloads-section a.dl-btn, .download-buttons a.dl-btn, " +
+            ".download-buttons a[href], .download-category a.dl-btn"
+        )
         if (dlButtons.isNotEmpty()) {
             for (btn in dlButtons) {
                 val href = btn.attr("href").ifBlank { continue }
@@ -1117,8 +1382,9 @@ class KMMoviesProvider : MainAPI() {
             }
         }
 
-        // Source 1: Dooplay download links table (#download .links_table table)
-        val downloadTable = doc.select("#download .links_table table tbody tr, #download table tbody tr")
+        // Source 1: Dooplay download links table (#download or #download-links .links_table table)
+        // BUG FIX: Live kmmovies.lol uses #download-links (with hyphen), not #download
+        val downloadTable = doc.select("#download .links_table table tbody tr, #download table tbody tr, #download-links .links_table table tbody tr, #download-links table tbody tr")
         if (downloadTable.isNotEmpty()) {
             for (row in downloadTable) {
                 val link = row.selectFirst("a[href]")
@@ -1264,9 +1530,9 @@ class KMMoviesProvider : MainAPI() {
                 }
 
                 // KMMovies redirector: magiclinks.lol → page with actual links
+                // BUG FIX: Return actual result instead of always true, which masked failures
                 url.contains("magiclinks.lol", ignoreCase = true) -> {
                     resolveMagiclinks(url, callback)
-                    true
                 }
 
                 // KMHD link service: links.kmhd.eu/file/ or /pack/ — use KmhdExtractor
@@ -1349,12 +1615,32 @@ class KMMoviesProvider : MainAPI() {
     /**
      * Resolve a magiclinks.lol page. These pages contain links to
      * skydrop/kmphotos (actual download/stream sources).
+     * Also handles episodes.magiclinks.lol subpages that list individual episodes.
+     * Returns true if at least one stream was produced.
      */
     private suspend fun resolveMagiclinks(
         url: String,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
+        var anyProduced = false
         try {
+            // If this is an episodes subpage (episodes.magiclinks.lol), parse it differently
+            if (url.contains("episodes.magiclinks.lol", ignoreCase = true)) {
+                val episodes = fetchEpisodesFromSubpage(url)
+                if (episodes.isEmpty()) {
+                    Log.w(TAG, "episodes subpage had 0 episodes: $url")
+                    return false
+                }
+                // Dispatch each episode's download link
+                for ((epNum, downloadUrl) in episodes) {
+                    try {
+                        val ok = dispatchExtractor(downloadUrl, { _ -> }, callback)
+                        if (ok) anyProduced = true
+                    } catch (_: Exception) {}
+                }
+                return anyProduced
+            }
+
             val doc = app.get(url, headers = mapOf(
                 "User-Agent" to USER_AGENT,
                 "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -1362,7 +1648,8 @@ class KMMoviesProvider : MainAPI() {
             ), timeout = 30).document
 
             // Primary: look for known hoster links on the page
-            val allLinks = doc.select("a[href], a.download-button").mapNotNull { a ->
+            // BUG FIX: Also check a.download-button, .btn, and any anchor with href
+            val allLinks = doc.select("a[href], a.download-button, a.btn").mapNotNull { a ->
                 val href = a.attr("abs:href").ifBlank { a.attr("href") }.ifBlank { return@mapNotNull null }
                 val fixedHref = fixUrl(href)
                 fixedHref.takeIf {
@@ -1379,7 +1666,13 @@ class KMMoviesProvider : MainAPI() {
                      it.contains("fuckingfast", ignoreCase = true) ||
                      it.contains("streamtape", ignoreCase = true) ||
                      it.contains("send.cm", ignoreCase = true) ||
-                     it.contains("1fichier", ignoreCase = true))
+                     it.contains("1fichier", ignoreCase = true) ||
+                     it.contains("streamwish", ignoreCase = true) ||
+                     it.contains("vidhide", ignoreCase = true) ||
+                     it.contains("filemoon", ignoreCase = true) ||
+                     it.contains("doodstream", ignoreCase = true) ||
+                     it.contains("mixdrop", ignoreCase = true) ||
+                     it.contains("voe", ignoreCase = true))
                 }
             }.distinct()
 
@@ -1387,7 +1680,8 @@ class KMMoviesProvider : MainAPI() {
 
             for (link in allLinks) {
                 try {
-                    dispatchExtractor(link, { _ -> }, callback)
+                    val ok = dispatchExtractor(link, { _ -> }, callback)
+                    if (ok) anyProduced = true
                 } catch (_: Exception) {}
             }
 
@@ -1405,13 +1699,15 @@ class KMMoviesProvider : MainAPI() {
                 Log.d(TAG, "resolveMagiclinks fallback: trying ${anyLinks.size} external links")
                 for (link in anyLinks) {
                     try {
-                        loadExtractor(link, mainUrl, { _ -> }, callback)
+                        val ok = loadExtractor(link, mainUrl, { _ -> }, callback)
+                        if (ok) anyProduced = true
                     } catch (_: Exception) {}
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to resolve magiclinks page $url: ${e.message}")
         }
+        return anyProduced
     }
 
     /**
