@@ -43,6 +43,7 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.select.Elements
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -143,6 +144,8 @@ class KMMoviesProvider : MainAPI() {
             """(?i)(""" +
                     // KMMovies-specific redirectors
                     """magiclinks\.lol|skydrop\.sbs|kmphotos\.cv|kmphotos|z\d\.kmphotos|""" +
+                    // Dooplay link protection service
+                    """savelinks\.me|linkstaker\.xyz|protectedlinks\.[a-z]+|""" +
                     // HubCloud / Hubdrive family
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive\.|katdrive|""" +
                     // GDFlix family
@@ -165,7 +168,10 @@ class KMMoviesProvider : MainAPI() {
                     """)"""
         )
 
-        /** Hosts that are NEVER stream sources — filtered out during permissive pass. */
+        /** Hosts that are NEVER stream sources — filtered out during permissive pass.
+         *  NOTE: kmmovies.* domains are NOT here because /links/{shortcode}/ URLs
+         *  on the same domain are Dooplay download redirect pages that lead to
+         *  actual hoster links via savelinks.me. We need to follow them. */
         private val IGNORE_HOST_REGEX = Regex(
             """(?i)(""" +
                     """imdb\.com|themoviedb\.org|wikipedia\.org|""" +
@@ -174,15 +180,19 @@ class KMMoviesProvider : MainAPI() {
                     """facebook\.com|fb\.com|twitter\.com|(?<![a-z])x\.com|instagram\.com|""" +
                     """pinterest\.|reddit\.com|tumblr\.com|""" +
                     """katimages|catimages|imgur|i\.imgur|postimg|imgbox|""" +
-                    """wp-content|wp-includes|wp-json|wp-admin|wp-login|""" +
-                    """kmmovies\.lol|kmmovies\.life|kmmovies\.icu|kmmovies\.sbs|kmmovies\.store|""" +
                     """gstatic|googletagmanager|google-analytics|""" +
                     """jsdelivr|cloudflare\.com|gravatar|""" +
                     """fonts\.googleapis|fonts\.gstatic|""" +
                     """\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|""" +
-                    """\.css|\.js\?|/feed/|#|/comment""" +
+                    """\.css|\.js\?|/feed/|#|/comment|""" +
+                    // kmmovies pages that are NOT download links
+                    """/category/|/page/|/tag/|/genre/|/year/|/director/|/writer/|""" +
+                    """wp-content|wp-includes|wp-json|wp-admin|wp-login""" +
                     """)"""
         )
+
+        /** Dooplay internal /links/ URL pattern — these redirect to savelinks.me → actual hoster */
+        private val DOOPLAY_LINKS_REGEX = Regex("""/links/[a-zA-Z0-9]+/?$""")
 
         // ═══════════════════════════════════════════════════
         //  EPISODE / SEASON DETECTION REGEX
@@ -530,9 +540,15 @@ class KMMoviesProvider : MainAPI() {
                 }
             }
         } else {
-            // For movies: combine AJAX links + article body links
+            // For movies: combine AJAX links + download table + article body links
             val bodyLinks = collectAllPlayableLinks(doc)
-            val allLinks = if (ajaxLinks.isNotEmpty()) ajaxLinks.joinToString("\n") else bodyLinks
+            val allLinks = buildString {
+                if (ajaxLinks.isNotEmpty()) {
+                    append(ajaxLinks.joinToString("\n"))
+                    if (bodyLinks.isNotBlank()) append("\n")
+                }
+                if (bodyLinks.isNotBlank()) append(bodyLinks)
+            }
             return newMovieLoadResponse(title, url, TvType.Movie, allLinks) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl)
@@ -580,16 +596,29 @@ class KMMoviesProvider : MainAPI() {
      * endpoint that returns an iframe embed URL.
      */
     private suspend fun extractDooPlayAjaxLinks(doc: Document): List<String> {
-        val playerOptions = doc.select("#playeroptionsul > li")
-        if (playerOptions.isEmpty()) return emptyList()
+        // Try both selectors: the class-based .dooplay_player_option and the generic #playeroptionsul > li
+        val playerOptions = doc.select("#playeroptionsul li.dooplay_player_option")
+        if (playerOptions.isEmpty()) {
+            // Fallback: any li inside #playeroptionsul
+            val fallback = doc.select("#playeroptionsul > li")
+            if (fallback.isEmpty()) return emptyList()
+            return extractAjaxFromOptions(fallback)
+        }
+        return extractAjaxFromOptions(playerOptions)
+    }
 
+    private suspend fun extractAjaxFromOptions(options: Elements): List<String> {
         val links = mutableListOf<String>()
-        for (option in playerOptions) {
+        for (option in options) {
             val dataPost = option.attr("data-post").ifBlank { continue }
             val dataNume = option.attr("data-nume").ifBlank { "1" }
             val dataType = option.attr("data-type").ifBlank { "movie" }
 
+            // Skip trailer-only options (they just embed YouTube)
+            if (dataNume.equals("trailer", ignoreCase = true)) continue
+
             try {
+                // Method 1: admin-ajax.php (most common Dooplay AJAX endpoint)
                 val response = app.post(
                     "$mainUrl/wp-admin/admin-ajax.php",
                     headers = mapOf(
@@ -610,16 +639,52 @@ class KMMoviesProvider : MainAPI() {
                 val json = response.text
                 if (json.isNotBlank()) {
                     val jsonObj = JSONObject(json)
-                    val embedUrl = jsonObj.optString("embed_url", "")
+                    var embedUrl = jsonObj.optString("embed_url", "")
+
+                    // Try alternative JSON keys
+                    if (embedUrl.isBlank()) {
+                        embedUrl = jsonObj.optString("iframe", "")
+                    }
+                    if (embedUrl.isBlank()) {
+                        embedUrl = jsonObj.optString("url", "")
+                    }
+
                     if (embedUrl.isNotBlank()) {
                         // Extract iframe src from embed_url (may be HTML or direct URL)
                         val iframeSrc = Regex("""src=["']([^"']+)["']""").find(embedUrl)
                             ?.groupValues?.get(1) ?: embedUrl
-                        links.add(iframeSrc)
+                        if (iframeSrc.isNotBlank() &&
+                            !iframeSrc.contains("youtube.com", ignoreCase = true) &&
+                            !iframeSrc.contains("youtu.be", ignoreCase = true)) {
+                            links.add(iframeSrc)
+                        }
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "DooPlay AJAX failed for post=$dataPost: ${e.message}")
+                Log.w(TAG, "DooPlay AJAX failed for post=$dataPost nume=$dataNume: ${e.message}")
+
+                // Method 2: Try REST API fallback /wp-json/dooplayer/v2/
+                try {
+                    val restUrl = "$mainUrl/wp-json/dooplayer/v2/$dataPost/$dataType/$dataNume"
+                    val restResp = app.get(restUrl, headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Accept" to "application/json",
+                        "Referer" to "$mainUrl/"
+                    ), timeout = 10)
+                    val restJson = restResp.text
+                    if (restJson.isNotBlank()) {
+                        val restObj = JSONObject(restJson)
+                        val embedUrl = restObj.optString("embed_url", "")
+                            .ifBlank { restObj.optString("iframe", "") }
+                            .ifBlank { restObj.optString("url", "") }
+                        if (embedUrl.isNotBlank() &&
+                            !embedUrl.contains("youtube.com", ignoreCase = true)) {
+                            val iframeSrc = Regex("""src=["']([^"']+)["']""").find(embedUrl)
+                                ?.groupValues?.get(1) ?: embedUrl
+                            links.add(iframeSrc)
+                        }
+                    }
+                } catch (_: Exception) {}
             }
         }
         Log.d(TAG, "DooPlay AJAX: found ${links.size} player links")
@@ -798,9 +863,11 @@ class KMMoviesProvider : MainAPI() {
             val ep = currentEpisode
             if (ep != null && tag == "a") {
                 val href = node.attr("href")
-                if (href.isNotBlank() && LINK_HOST_REGEX.containsMatchIn(href)) {
+                if (href.isNotBlank() && (LINK_HOST_REGEX.containsMatchIn(href) ||
+                        DOOPLAY_LINKS_REGEX.containsMatchIn(href))) {
+                    val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
                     val bucket = map.getOrPut(currentSeason to ep) { mutableListOf() }
-                    if (href !in bucket) bucket.add(href)
+                    if (fixedHref !in bucket) bucket.add(fixedHref)
                 }
             }
         }
@@ -839,7 +906,9 @@ class KMMoviesProvider : MainAPI() {
                     // Collect links from all cells in this row
                     val links = row.select("a[href]")
                         .map { it.attr("href") }
-                        .filter { it.isNotBlank() && LINK_HOST_REGEX.containsMatchIn(it) }
+                        .filter { it.isNotBlank() && (LINK_HOST_REGEX.containsMatchIn(it) ||
+                                DOOPLAY_LINKS_REGEX.containsMatchIn(it)) }
+                        .map { if (it.startsWith("http")) it else fixUrl(it) }
                         .distinct()
 
                     if (links.isNotEmpty()) {
@@ -863,12 +932,26 @@ class KMMoviesProvider : MainAPI() {
      *                        not on the blacklist and not the site itself.
      */
     private fun collectMirrorLinks(container: Element): List<String> {
-        val all = container.select("a[href]")
-            .mapNotNull { it.attr("href").takeIf { h -> h.startsWith("http", ignoreCase = true) } }
-            .distinct()
+        // Collect all hrefs, including relative /links/ URLs from Dooplay
+        val all = container.select("a[href]").mapNotNull { a ->
+            val href = a.attr("href")
+            when {
+                href.startsWith("http", ignoreCase = true) -> href
+                DOOPLAY_LINKS_REGEX.containsMatchIn(href) -> fixUrl(href)
+                else -> null
+            }
+        }.distinct()
 
+        // Pass 1 (strict): URLs matching LINK_HOST_REGEX (known-good hosts)
         val strict = all.filter { LINK_HOST_REGEX.containsMatchIn(it) }
         if (strict.isNotEmpty()) return strict
+
+        // Pass 1.5: Dooplay /links/ redirect URLs (will be resolved in loadLinks)
+        val dooplayLinks = all.filter { DOOPLAY_LINKS_REGEX.containsMatchIn(it) }
+        if (dooplayLinks.isNotEmpty()) {
+            Log.d(TAG, "Found ${dooplayLinks.size} Dooplay /links/ redirect URLs")
+            return dooplayLinks
+        }
 
         // Pass 2: anything not obviously junk
         val permissive = all.filter { url ->
@@ -964,10 +1047,39 @@ class KMMoviesProvider : MainAPI() {
     }
 
     private fun collectAllPlayableLinks(doc: Document): String {
+        val allLinks = mutableListOf<String>()
+
+        // Source 1: Dooplay download links table (#download .links_table table)
+        val downloadTable = doc.select("#download .links_table table tbody tr, #download table tbody tr")
+        if (downloadTable.isNotEmpty()) {
+            for (row in downloadTable) {
+                val link = row.selectFirst("a[href]")
+                val href = link?.attr("href")?.ifBlank { null } ?: continue
+                val fixedHref = if (href.startsWith("http")) href else fixUrl(href)
+
+                // Extract quality/size/language from the table row for smart labels
+                val quality = row.select("strong.quality, td:nth-child(2)").firstOrNull()?.text()?.trim() ?: ""
+                val language = row.select("td:nth-child(3)").firstOrNull()?.text()?.trim() ?: ""
+                val size = row.select("td:nth-child(4)").firstOrNull()?.text()?.trim() ?: ""
+
+                // Build a rich label and store as a special URL format
+                // We use a marker so loadLinks can identify these
+                if (fixedHref.isNotBlank()) {
+                    allLinks.add(fixedHref)
+                    Log.d(TAG, "Download table: $quality $language $size -> $fixedHref")
+                }
+            }
+        }
+
+        // Source 2: Article / entry-content body links
         val content = doc.selectFirst("article, .entry-content, .wp-content") ?: doc
-        val links = collectMirrorLinks(content)
-        Log.d(TAG, "collectAllPlayableLinks(): ${links.size} links")
-        return links.joinToString("\n")
+        val bodyLinks = collectMirrorLinks(content)
+        for (link in bodyLinks) {
+            if (link !in allLinks) allLinks.add(link)
+        }
+
+        Log.d(TAG, "collectAllPlayableLinks(): ${allLinks.size} total links")
+        return allLinks.joinToString("\n")
     }
 
     private fun buildEpisodes(
@@ -1030,7 +1142,12 @@ class KMMoviesProvider : MainAPI() {
 
         var anyDispatched = false
         urls.amap { rawUrl ->
-            val ok = dispatchExtractor(rawUrl, subtitleCallback, callback)
+            val ok = if (DOOPLAY_LINKS_REGEX.containsMatchIn(rawUrl)) {
+                // Dooplay /links/ redirect → resolve through savelinks.me to get actual hoster
+                resolveDooplayLinksPage(rawUrl, subtitleCallback, callback)
+            } else {
+                dispatchExtractor(rawUrl, subtitleCallback, callback)
+            }
             if (ok) anyDispatched = true
         }
 
@@ -1064,6 +1181,17 @@ class KMMoviesProvider : MainAPI() {
 
         return try {
             when {
+                // Dooplay internal /links/ redirect → resolve through savelinks.me
+                DOOPLAY_LINKS_REGEX.containsMatchIn(url) -> {
+                    resolveDooplayLinksPage(url, subtitleCallback, callback)
+                }
+
+                // savelinks.me / link protection pages → extract hoster links
+                url.contains("savelinks.me", ignoreCase = true) ||
+                url.contains("linkstaker", ignoreCase = true) -> {
+                    resolveDooplayLinksPage(url, subtitleCallback, callback)
+                }
+
                 // KMMovies redirector: magiclinks.lol → page with actual links
                 url.contains("magiclinks.lol", ignoreCase = true) -> {
                     resolveMagiclinks(url, callback)
@@ -1408,6 +1536,116 @@ class KMMoviesProvider : MainAPI() {
         } catch (e: Exception) {
             Log.w(TAG, "Redirect chain failed at depth $depth for $url: ${e.message}")
         }
+    }
+
+    /**
+     * Resolve a Dooplay /links/{shortcode}/ redirect page.
+     * These pages redirect to savelinks.me or similar link protection services,
+     * which then contain the actual hoster URLs (hubcloud, gdflix, etc.).
+     *
+     * Flow: /links/abc123/ → savelinks.me page → hubcloud.foo/video/xxx
+     */
+    private suspend fun resolveDooplayLinksPage(
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        var dispatched = false
+        try {
+            Log.d(TAG, "Resolving Dooplay /links/ page: $url")
+            val resp = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8",
+                "Referer" to "$mainUrl/"
+            ), timeout = 15, allowRedirects = true)
+
+            val finalUrl = resp.url
+            val doc = resp.document
+
+            // Case 1: Redirected to savelinks.me or similar link protection page
+            // Extract all external links that match known hoster patterns
+            val hosterLinks = doc.select("a[href]").mapNotNull { a ->
+                val href = a.attr("abs:href").ifBlank { a.attr("href") }.ifBlank { return@mapNotNull null }
+                val fixedHref = fixUrl(href)
+                fixedHref.takeIf {
+                    it.startsWith("http", ignoreCase = true) &&
+                    LINK_HOST_REGEX.containsMatchIn(it) &&
+                    !it.contains("savelinks", ignoreCase = true)
+                }
+            }.distinct()
+
+            if (hosterLinks.isNotEmpty()) {
+                Log.d(TAG, "Dooplay /links/ page: found ${hosterLinks.size} hoster URLs")
+                for (link in hosterLinks) {
+                    try {
+                        val ok = dispatchExtractor(link, subtitleCallback, callback)
+                        if (ok) dispatched = true
+                    } catch (_: Exception) {}
+                }
+                return dispatched
+            }
+
+            // Case 2: The redirect page itself might be a hoster page (hubcloud, etc.)
+            if (LINK_HOST_REGEX.containsMatchIn(finalUrl) &&
+                !finalUrl.contains("savelinks", ignoreCase = true)) {
+                val ok = dispatchExtractor(finalUrl, subtitleCallback, callback)
+                if (ok) dispatched = true
+                return dispatched
+            }
+
+            // Case 3: Try ALL external links on the page (permissive fallback)
+            val allExternal = doc.select("a[href]").mapNotNull { a ->
+                val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
+                href.takeIf {
+                    it.startsWith("http", ignoreCase = true) &&
+                    !IGNORE_HOST_REGEX.containsMatchIn(it) &&
+                    !it.equals(url, ignoreCase = true) &&
+                    !it.contains("savelinks", ignoreCase = true)
+                }
+            }.distinct()
+
+            if (allExternal.isNotEmpty()) {
+                Log.d(TAG, "Dooplay /links/ fallback: trying ${allExternal.size} external links")
+                for (link in allExternal) {
+                    try {
+                        val ok = dispatchExtractor(link, subtitleCallback, callback)
+                        if (ok) dispatched = true
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // Case 4: Check for JavaScript redirects or meta-refresh
+            val metaRefresh = doc.selectFirst("meta[http-equiv=refresh]")
+            val content = metaRefresh?.attr("content") ?: ""
+            val refreshUrl = Regex("""url=(.+)""", RegexOption.IGNORE_CASE)
+                .find(content)?.groupValues?.get(1)?.trim()?.trim('"', '\'')
+            if (!refreshUrl.isNullOrBlank()) {
+                val ok = dispatchExtractor(fixUrl(refreshUrl), subtitleCallback, callback)
+                if (ok) dispatched = true
+            }
+
+            // Case 5: Look for JavaScript variables with URLs
+            val scripts = doc.select("script")
+            for (script in scripts) {
+                val js = script.html()
+                val jsUrl = Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]""")
+                    .find(js)?.groupValues?.get(1)
+                if (!jsUrl.isNullOrBlank()) {
+                    val ok = dispatchExtractor(fixUrl(jsUrl), subtitleCallback, callback)
+                    if (ok) dispatched = true
+                }
+                val locUrl = Regex("""window\.location\s*=\s*['"]([^'"]+)['"]""")
+                    .find(js)?.groupValues?.get(1)
+                if (!locUrl.isNullOrBlank()) {
+                    val ok = dispatchExtractor(fixUrl(locUrl), subtitleCallback, callback)
+                    if (ok) dispatched = true
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.w(TAG, "Dooplay /links/ resolution failed for $url: ${e.message}")
+        }
+        return dispatched
     }
 
     /**
