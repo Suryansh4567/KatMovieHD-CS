@@ -1,6 +1,7 @@
 {
   "katmoviehd": "https://new1.katmoviehd.cymru",
   "olamovies": "https://v2.olamovies.mov",
-  "_comment": "Update either URL if the site moves to a new domain. Both plugins re-read this file every 6 hours, so users don't need to rebuild or reinstall when sites rotate. The katmovie4k key was removed since that site is unmaintained.",
-  "_updated": "2026-06-04"
+  "kmmovies": "https://kmmovies.lol",
+  "_comment": "Update any URL if the site moves to a new domain. All plugins re-read this file every 6 hours, so users don't need to rebuild or reinstall when sites rotate. The katmovie4k key was removed since that site is unmaintained.",
+  "_updated": "2026-06-09"
 }
