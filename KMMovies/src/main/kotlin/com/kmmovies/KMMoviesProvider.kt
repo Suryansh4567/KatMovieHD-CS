@@ -1562,7 +1562,6 @@ class KMMoviesProvider : MainAPI() {
                 url.contains("gd.kmhd", ignoreCase = true) ||
                 url.contains("kmhd.net", ignoreCase = true) -> {
                     loadExtractor(url, mainUrl, subtitleCallback, callback)
-                    true
                 }
 
                 // Skydrop download page → call API to get video URL
@@ -1571,7 +1570,6 @@ class KMMoviesProvider : MainAPI() {
                     url.contains("skydrop.live", ignoreCase = true)) &&
                     url.contains("download.php", ignoreCase = true) -> {
                     resolveSkydrop(url, callback)
-                    true
                 }
 
                 // Skydrop API URL directly
@@ -1579,13 +1577,11 @@ class KMMoviesProvider : MainAPI() {
                     url.contains("skydrop.live", ignoreCase = true)) &&
                     url.contains("api.php", ignoreCase = true) -> {
                     resolveSkydropApi(url, callback)
-                    true
                 }
 
                 // kmphotos stream/download
                 url.contains("kmphotos", ignoreCase = true) -> {
                     resolveKmphotos(url, callback)
-                    true
                 }
 
                 // Shorteners/redirectors: mclinks, hblinks, linkszilla
@@ -1593,14 +1589,12 @@ class KMMoviesProvider : MainAPI() {
                 url.contains("hblinks", ignoreCase = true) ||
                 url.contains("linkszilla", ignoreCase = true) -> {
                     resolveRedirectChain(url, callback)
-                    true
                 }
 
                 // HubCloud family — may need page scraping
                 url.contains("hubcloud", ignoreCase = true) ||
                 url.contains("hubdrive", ignoreCase = true) -> {
                     resolveHubCloud(url, subtitleCallback, callback)
-                    true
                 }
 
                 // Direct video URL (R2, Google Drive, etc.)
@@ -1624,12 +1618,11 @@ class KMMoviesProvider : MainAPI() {
                 // Everything else: try CloudStream's stock extractor registry
                 else -> {
                     loadExtractor(url, mainUrl, subtitleCallback, callback)
-                    true
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Extractor crashed for $url: ${e.message}")
-            true
+            false
         }
     }
 
@@ -1757,14 +1750,16 @@ class KMMoviesProvider : MainAPI() {
     private suspend fun resolveSkydrop(
         url: String,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
+        var found = false
         try {
-            val id = Regex("""[?&]id=([^&]+)""").find(url)?.groupValues?.get(1) ?: return
-            val base = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1) ?: return
-            resolveSkydropApi("$base/api.php?id=$id", callback)
+            val id = Regex("""[?&]id=([^&]+)""").find(url)?.groupValues?.get(1) ?: return false
+            val base = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1) ?: return false
+            found = resolveSkydropApi("$base/api.php?id=$id", callback)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to resolve skydrop URL $url: ${e.message}")
         }
+        return found
     }
 
     /**
@@ -1774,7 +1769,8 @@ class KMMoviesProvider : MainAPI() {
     private suspend fun resolveSkydropApi(
         apiUrl: String,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
+        var found = false
         try {
             val response = app.get(apiUrl, headers = mapOf(
                 "User-Agent" to USER_AGENT,
@@ -1797,6 +1793,7 @@ class KMMoviesProvider : MainAPI() {
                             this.referer = "$mainUrl/"
                         }
                     )
+                    found = true
                 }
 
                 // Also try the download URL via redirect
@@ -1821,6 +1818,7 @@ class KMMoviesProvider : MainAPI() {
                                     this.referer = "$mainUrl/"
                                 }
                             )
+                            found = true
                         }
                     } catch (_: Exception) {}
                 }
@@ -1828,6 +1826,7 @@ class KMMoviesProvider : MainAPI() {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to resolve skydrop API $apiUrl: ${e.message}")
         }
+        return found
     }
 
     /**
@@ -1842,7 +1841,8 @@ class KMMoviesProvider : MainAPI() {
     private suspend fun resolveKmphotos(
         url: String,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
+        var found = false
         try {
             // Try to get the redirect without following it
             val resp = app.get(url, headers = mapOf(
@@ -1871,7 +1871,7 @@ class KMMoviesProvider : MainAPI() {
                             this.referer = "$mainUrl/"
                         }
                     )
-                    return
+                    return true
                 }
 
                 // The redirect itself might be the video URL (e.g. R2 direct link)
@@ -1891,14 +1891,15 @@ class KMMoviesProvider : MainAPI() {
                             this.referer = "$mainUrl/"
                         }
                     )
-                    return
+                    return true
                 }
 
                 // The redirect might be another page to dispatch
                 try {
-                    dispatchExtractor(redirectUrl, { _ -> }, callback)
+                    val ok = dispatchExtractor(redirectUrl, { _ -> }, callback)
+                    if (ok) found = true
                 } catch (_: Exception) {}
-                return
+                return found
             }
 
             // No redirect header — maybe the page returned HTML directly.
@@ -1927,7 +1928,7 @@ class KMMoviesProvider : MainAPI() {
                         this.referer = "$mainUrl/"
                     }
                 )
-                return
+                return true
             }
 
             // Check for videoUrl parameter in the final URL
@@ -1947,18 +1948,20 @@ class KMMoviesProvider : MainAPI() {
                         this.referer = "$mainUrl/"
                     }
                 )
-                return
+                return true
             }
 
             // Last resort: try dispatching the final URL
             if (finalUrl != url) {
                 try {
-                    dispatchExtractor(finalUrl, { _ -> }, callback)
+                    val ok = dispatchExtractor(finalUrl, { _ -> }, callback)
+                    if (ok) found = true
                 } catch (_: Exception) {}
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to resolve kmphotos URL $url: ${e.message}")
         }
+        return found
     }
 
     // ═══════════════════════════════════════════════════
@@ -1974,10 +1977,11 @@ class KMMoviesProvider : MainAPI() {
         url: String,
         callback: (ExtractorLink) -> Unit,
         depth: Int = 0
-    ) {
+    ): Boolean {
+        var found = false
         if (depth >= MAX_REDIRECT_DEPTH) {
             Log.w(TAG, "Redirect chain too deep ($depth) for $url")
-            return
+            return false
         }
 
         try {
@@ -1997,10 +2001,12 @@ class KMMoviesProvider : MainAPI() {
                     !fixedLocation.contains("hblinks", ignoreCase = true) &&
                     !fixedLocation.contains("linkszilla", ignoreCase = true)) {
                     // Reached final hoster — dispatch it
-                    dispatchExtractor(fixedLocation, { _ -> }, callback)
+                    val ok = dispatchExtractor(fixedLocation, { _ -> }, callback)
+                    if (ok) found = true
                 } else {
                     // Still a redirect — follow the chain
-                    resolveRedirectChain(fixedLocation, callback, depth + 1)
+                    val ok = resolveRedirectChain(fixedLocation, callback, depth + 1)
+                    if (ok) found = true
                 }
             } else {
                 // No redirect header — this might be an HTML page with links
@@ -2016,7 +2022,8 @@ class KMMoviesProvider : MainAPI() {
                 if (pageLinks.isNotEmpty()) {
                     for (link in pageLinks) {
                         try {
-                            dispatchExtractor(link, { _ -> }, callback)
+                            val ok = dispatchExtractor(link, { _ -> }, callback)
+                            if (ok) found = true
                         } catch (_: Exception) {}
                     }
                 } else {
@@ -2026,7 +2033,8 @@ class KMMoviesProvider : MainAPI() {
                     val refreshUrl = Regex("""url=(.+)""", RegexOption.IGNORE_CASE)
                         .find(content)?.groupValues?.get(1)?.trim()?.trim('"', '\'')
                     if (!refreshUrl.isNullOrBlank()) {
-                        resolveRedirectChain(fixUrl(refreshUrl), callback, depth + 1)
+                        val ok = resolveRedirectChain(fixUrl(refreshUrl), callback, depth + 1)
+                        if (ok) found = true
                     } else {
                         // Try JavaScript variable extraction
                         val scripts = doc.select("script")
@@ -2034,7 +2042,8 @@ class KMMoviesProvider : MainAPI() {
                             val jsUrl = Regex("""var\s+url\s*=\s*['"]([^'"]+)['"]""")
                                 .find(script.html())?.groupValues?.get(1)
                             if (!jsUrl.isNullOrBlank()) {
-                                dispatchExtractor(fixUrl(jsUrl), { _ -> }, callback)
+                                val ok = dispatchExtractor(fixUrl(jsUrl), { _ -> }, callback)
+                                if (ok) found = true
                                 break
                             }
                         }
@@ -2044,6 +2053,7 @@ class KMMoviesProvider : MainAPI() {
         } catch (e: Exception) {
             Log.w(TAG, "Redirect chain failed at depth $depth for $url: ${e.message}")
         }
+        return found
     }
 
     /**
@@ -2164,7 +2174,8 @@ class KMMoviesProvider : MainAPI() {
         url: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ): Boolean {
+        var found = false
         try {
             val doc = app.get(url, headers = mapOf(
                 "User-Agent" to USER_AGENT,
@@ -2180,7 +2191,8 @@ class KMMoviesProvider : MainAPI() {
 
             for (link in downloadLinks) {
                 try {
-                    dispatchExtractor(link, subtitleCallback, callback)
+                    val ok = dispatchExtractor(link, subtitleCallback, callback)
+                    if (ok) found = true
                 } catch (_: Exception) {}
             }
 
@@ -2198,13 +2210,15 @@ class KMMoviesProvider : MainAPI() {
 
                 for (link in allLinks) {
                     try {
-                        loadExtractor(link, mainUrl, subtitleCallback, callback)
+                        val ok = loadExtractor(link, mainUrl, subtitleCallback, callback)
+                        if (ok) found = true
                     } catch (_: Exception) {}
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "HubCloud resolve failed for $url: ${e.message}")
         }
+        return found
     }
 
     // ═══════════════════════════════════════════════════
