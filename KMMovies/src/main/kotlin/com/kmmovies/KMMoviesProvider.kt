@@ -1579,7 +1579,8 @@ class KMMoviesProvider : MainAPI() {
                     resolveSkydropApi(url, callback)
                 }
 
-                // kmphotos stream/download
+                // kmphotos stream/download — handles 3 URL patterns:
+                // /nf/index.php?videoUrl= (no HTTP needed), /download99.php, /clouddownload.php
                 url.contains("kmphotos", ignoreCase = true) -> {
                     resolveKmphotos(url, callback)
                 }
@@ -1837,6 +1838,11 @@ class KMMoviesProvider : MainAPI() {
      * Also handles the redirect chain gracefully: if allowRedirects=false
      * doesn't get a Location header (e.g. Cloudflare intercepts), we
      * fall back to following the redirect and scraping the final page.
+     *
+     * Handles 3 URL patterns from live magiclinks pages:
+     *  P1: /nf/index.php?videoUrl=<R2_URL>  — video URL in query param (no HTTP needed)
+     *  P2: /download99.php?file=...          — 302 → signed download → HTML with R2 buttons
+     *  P3: /clouddownload.php?file_id=...    — 200 → JS with buzzheavier/fuckingfast URL
      */
     private suspend fun resolveKmphotos(
         url: String,
@@ -1844,122 +1850,270 @@ class KMMoviesProvider : MainAPI() {
     ): Boolean {
         var found = false
         try {
-            // Try to get the redirect without following it
-            val resp = app.get(url, headers = mapOf(
-                "User-Agent" to USER_AGENT,
-                "Accept" to "text/html,*/*;q=0.8",
-                "Referer" to "$mainUrl/"
-            ), timeout = 15, allowRedirects = false)
-
-            val redirectUrl = resp.headers["location"] ?: ""
-            if (redirectUrl.isNotBlank()) {
-                // Check if redirect URL contains a videoUrl parameter
-                val videoUrl = Regex("""videoUrl=([^&]+)""").find(redirectUrl)
-                    ?.groupValues?.get(1)
-                    ?.let { URLDecoder.decode(it, "UTF-8") }
-
-                if (videoUrl != null) {
+            // ═══════════════════════════════════════════════════════
+            //  Pattern 1: /nf/index.php?videoUrl=<R2_URL>
+            //  The video URL is already embedded in the href query param.
+            //  No HTTP request needed — fastest & most reliable path.
+            // ═══════════════════════════════════════════════════════
+            if (url.contains("/nf/index.php", ignoreCase = true) && url.contains("videoUrl=")) {
+                val rawVideoUrl = url.substringAfter("videoUrl=")
+                    .substringBefore("&")
+                    .let { URLDecoder.decode(it, "UTF-8") }
+                if (rawVideoUrl.startsWith("http") &&
+                    (rawVideoUrl.contains("r2.dev", ignoreCase = true) ||
+                     rawVideoUrl.contains("googleusercontent", ignoreCase = true) ||
+                     rawVideoUrl.contains(".mkv", ignoreCase = true) ||
+                     rawVideoUrl.contains(".mp4", ignoreCase = true))) {
                     val quality = guessQualityFromUrl(url)
                     callback(
                         newExtractorLink(
                             "$name Stream $quality",
-                            "$name Stream $quality",
-                            videoUrl,
+                            "$name [KMPhotos] $quality",
+                            rawVideoUrl,
                             INFER_TYPE
                         ) {
                             this.quality = getQualityInt(quality)
-                            this.referer = "$mainUrl/"
+                            this.referer = "https://z1.kmphotos.cv/"
                         }
                     )
                     return true
                 }
+                // videoUrl param present but not a direct video link — fall through
+                // to HTTP-based resolution (page may contain JWPlayer with the URL)
+            }
 
-                // The redirect itself might be the video URL (e.g. R2 direct link)
-                if (redirectUrl.contains("r2.dev", ignoreCase = true) ||
-                    redirectUrl.contains("cloudflare", ignoreCase = true) ||
-                    redirectUrl.contains(".mp4", ignoreCase = true) ||
-                    redirectUrl.contains(".mkv", ignoreCase = true)) {
-                    val quality = guessQualityFromUrl(redirectUrl)
+            // ═══════════════════════════════════════════════════════
+            //  Pattern 2 & 3: need HTTP to resolve
+            //  /download99.php?file=...  → 302 → HTML with R2/Worker buttons
+            //  /clouddownload.php?file_id=... → 200 → JS with buzzheavier URL
+            // ═══════════════════════════════════════════════════════
+            val resp = app.get(url, headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,*/*;q=0.8",
+                "Referer" to "https://w1.magiclinks.lol/"
+            ), timeout = 15, allowRedirects = false)
+
+            // Case A: 302 redirect
+            val location = resp.headers["location"] ?: resp.headers["Location"]
+            if (!location.isNullOrBlank()) {
+                // Resolve relative URLs (e.g. "?file=...&exp=...&sig=...")
+                val resolvedLocation = if (location.startsWith("http")) {
+                    location
+                } else {
+                    val base = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.get(1) ?: ""
+                    val path = url.substringBefore("?", url)
+                    if (location.startsWith("/")) {
+                        "$base$location"
+                    } else if (location.startsWith("?")) {
+                        "$path$location"
+                    } else {
+                        "$base/$location"
+                    }
+                }
+
+                // Sub-case A1: Location contains videoUrl param
+                if (resolvedLocation.contains("videoUrl=")) {
+                    val videoUrl = resolvedLocation.substringAfter("videoUrl=")
+                        .substringBefore("&")
+                        .let { URLDecoder.decode(it, "UTF-8") }
+                    if (videoUrl.startsWith("http")) {
+                        val quality = guessQualityFromUrl(url)
+                        callback(
+                            newExtractorLink(
+                                "$name Stream $quality",
+                                "$name [KMPhotos] $quality",
+                                videoUrl,
+                                INFER_TYPE
+                            ) {
+                                this.quality = getQualityInt(quality)
+                                this.referer = "https://z1.kmphotos.cv/"
+                            }
+                        )
+                        return true
+                    }
+                }
+
+                // Sub-case A2: Location is a direct R2/CDN link
+                if (resolvedLocation.contains("r2.dev", ignoreCase = true) ||
+                    resolvedLocation.contains("googleusercontent", ignoreCase = true) ||
+                    resolvedLocation.contains(".mp4", ignoreCase = true) ||
+                    resolvedLocation.contains(".mkv", ignoreCase = true) ||
+                    resolvedLocation.contains(".m3u8", ignoreCase = true)) {
+                    val quality = guessQualityFromUrl(resolvedLocation)
                     callback(
                         newExtractorLink(
                             "$name Stream $quality",
-                            "$name Stream $quality",
-                            redirectUrl,
+                            "$name [KMPhotos] $quality",
+                            resolvedLocation,
                             INFER_TYPE
                         ) {
                             this.quality = getQualityInt(quality)
-                            this.referer = "$mainUrl/"
+                            this.referer = "https://z1.kmphotos.cv/"
                         }
                     )
                     return true
                 }
 
-                // The redirect might be another page to dispatch
-                try {
-                    val ok = dispatchExtractor(redirectUrl, { _ -> }, callback)
-                    if (ok) found = true
-                } catch (_: Exception) {}
-                return found
+                // Sub-case A3: Redirect to another kmphotos page — recurse once
+                if (resolvedLocation.contains("kmphotos", ignoreCase = true)) {
+                    found = resolveKmphotos(resolvedLocation, callback)
+                    return found
+                }
+
+                // Sub-case A4: Redirect to any other hoster — dispatch normally
+                if (resolvedLocation.startsWith("http")) {
+                    found = dispatchExtractor(resolvedLocation, { _ -> }, callback)
+                    return found
+                }
+
+                // Relative redirect that didn't resolve — follow the full chain
+                Log.w(TAG, "resolveKmphotos: unresolvable redirect $location from $url")
             }
 
-            // No redirect header — maybe the page returned HTML directly.
-            // Try to follow the redirect and scrape the final page.
-            val fullResp = app.get(url, headers = mapOf(
-                "User-Agent" to USER_AGENT,
-                "Accept" to "text/html,*/*;q=0.8",
-                "Referer" to "$mainUrl/"
-            ), timeout = 15)
-            val finalUrl = fullResp.url
-            val doc = fullResp.document
+            // Case B: 200 response — parse HTML for video URL
+            val doc = resp.document
 
-            // Check if we landed on a video player page with an R2/stream URL
-            val videoSrc = doc.selectFirst("video source[src], video[src], iframe[src]")?.attr("src")
-            if (!videoSrc.isNullOrBlank()) {
-                val fixedSrc = if (videoSrc.startsWith("http")) videoSrc else fixUrl(videoSrc)
-                val quality = guessQualityFromUrl(url)
-                callback(
-                    newExtractorLink(
-                        "$name Stream $quality",
-                        "$name Stream $quality",
-                        fixedSrc,
-                        INFER_TYPE
-                    ) {
-                        this.quality = getQualityInt(quality)
-                        this.referer = "$mainUrl/"
-                    }
-                )
-                return true
-            }
-
-            // Check for videoUrl parameter in the final URL
-            val videoUrl = Regex("""videoUrl=([^&]+)""").find(finalUrl)
+            // B1: JWPlayer setup — file: "https://...r2.dev/...mkv"
+            val jwFile = Regex("""file:\s*["']([^"']+)["']""").find(doc.html())
                 ?.groupValues?.get(1)
-                ?.let { URLDecoder.decode(it, "UTF-8") }
-            if (videoUrl != null) {
-                val quality = guessQualityFromUrl(url)
+            if (!jwFile.isNullOrBlank() && jwFile.startsWith("http")) {
+                val quality = guessQualityFromUrl(jwFile)
                 callback(
                     newExtractorLink(
                         "$name Stream $quality",
-                        "$name Stream $quality",
-                        videoUrl,
+                        "$name [KMPhotos] $quality",
+                        jwFile,
                         INFER_TYPE
                     ) {
                         this.quality = getQualityInt(quality)
-                        this.referer = "$mainUrl/"
+                        this.referer = url
                     }
                 )
                 return true
             }
 
-            // Last resort: try dispatching the final URL
-            if (finalUrl != url) {
+            // B2: HTML5 video/source tag
+            val videoSrc = doc.selectFirst("video source[src]")?.attr("abs:src")
+                ?: doc.selectFirst("video[src]")?.attr("abs:src")
+            if (!videoSrc.isNullOrBlank() && videoSrc.startsWith("http")) {
+                val quality = guessQualityFromUrl(videoSrc)
+                callback(
+                    newExtractorLink(
+                        "$name Stream $quality",
+                        "$name [KMPhotos] $quality",
+                        videoSrc,
+                        INFER_TYPE
+                    ) {
+                        this.quality = getQualityInt(quality)
+                        this.referer = url
+                    }
+                )
+                return true
+            }
+
+            // B3: Pattern 2 — download page with R2/Worker buttons
+            // Parse <a class="btn btn-primary" href="?file=...&dl=r2&exp=...&sig=...">
+            val dlButtons = doc.select("a.btn[href], a.download-button[href]")
+            for (btn in dlButtons) {
+                val href = btn.attr("href").ifBlank { continue }
+                // Resolve relative href
+                val resolvedHref = when {
+                    href.startsWith("http") -> href
+                    href.startsWith("/") -> "https://z1.kmphotos.cv$href"
+                    href.startsWith("?") -> "${url.substringBefore("?")}$href"
+                    else -> continue
+                }
+                // Try to follow this download link
                 try {
-                    val ok = dispatchExtractor(finalUrl, { _ -> }, callback)
+                    val dlResp = app.get(resolvedHref, headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Accept" to "text/html,*/*;q=0.8",
+                        "Referer" to url
+                    ), timeout = 15, allowRedirects = true)
+
+                    val dlUrl = dlResp.url
+                    // Check if the final URL is a direct video link
+                    if (dlUrl.contains("r2.dev", ignoreCase = true) ||
+                        dlUrl.contains(".mkv", ignoreCase = true) ||
+                        dlUrl.contains(".mp4", ignoreCase = true)) {
+                        val quality = guessQualityFromUrl(dlUrl)
+                        callback(
+                            newExtractorLink(
+                                "$name Stream $quality",
+                                "$name [KMPhotos DL] $quality",
+                                dlUrl,
+                                INFER_TYPE
+                            ) {
+                                this.quality = getQualityInt(quality)
+                                this.referer = url
+                            }
+                        )
+                        found = true
+                        break
+                    }
+                    // Check if the response body has a redirect to R2
+                    val dlDoc = dlResp.document
+                    val dlJwFile = Regex("""file:\s*["']([^"']+)["']""").find(dlDoc.html())
+                        ?.groupValues?.get(1)
+                    if (!dlJwFile.isNullOrBlank() && dlJwFile.startsWith("http")) {
+                        val quality = guessQualityFromUrl(dlJwFile)
+                        callback(
+                            newExtractorLink(
+                                "$name Stream $quality",
+                                "$name [KMPhotos DL] $quality",
+                                dlJwFile,
+                                INFER_TYPE
+                            ) {
+                                this.quality = getQualityInt(quality)
+                                this.referer = resolvedHref
+                            }
+                        )
+                        found = true
+                        break
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "resolveKmphotos: download button follow failed: ${e.message}")
+                }
+            }
+            if (found) return true
+
+            // B4: Pattern 3 — clouddownload page with buzzheavier/fuckingfast JS
+            // Extract file ID and construct the buzzheavier download URL
+            val fileId = Regex("""["'](\w{10,})["']""").find(doc.html())
+                ?.groupValues?.get(1)
+                ?: Regex("""file_id[=:]\s*["']?([^"'\s&]+)""").find(doc.html())
+                    ?.groupValues?.get(1)
+                ?: Regex("""/(?:buzzheavier|bzzhr|fuckingfast)/(\w+)""").find(doc.html())
+                    ?.groupValues?.get(1)
+            if (!fileId.isNullOrBlank()) {
+                // Try known Buzzheavier mirror domains
+                val mirrors = listOf("buzzheavier.com", "bzzhr.co", "fuckingfast.net")
+                for (mirror in mirrors) {
+                    try {
+                        val mirrorUrl = "https://$mirror/$fileId"
+                        val ok = loadExtractor(mirrorUrl, url, { _ -> }, callback)
+                        if (ok) {
+                            found = true
+                            break
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (found) return true
+            }
+
+            // B5: Fallback — check for any direct video link in the page
+            val allAnchors = doc.select("a[href]").mapNotNull { a ->
+                a.attr("abs:href").ifBlank { null }
+            }.filter { it.startsWith("http") && LINK_HOST_REGEX.containsMatchIn(it) }
+            for (link in allAnchors) {
+                try {
+                    val ok = dispatchExtractor(link, { _ -> }, callback)
                     if (ok) found = true
                 } catch (_: Exception) {}
             }
+
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to resolve kmphotos URL $url: ${e.message}")
+            Log.w(TAG, "resolveKmphotos failed for $url: ${e.message}")
         }
         return found
     }
