@@ -137,6 +137,20 @@ class KMMoviesProvider : MainAPI() {
         /** Maximum redirect chain depth to prevent infinite loops. */
         private const val MAX_REDIRECT_DEPTH = 5
 
+        /** KMPhotos R2/CDN link headers — realistic mobile browser headers that
+         *  bypass Cloudflare bot detection on R2 bucket URLs. Without these,
+         *  Cloudflare returns 403 HTML and ExoPlayer throws
+         *  ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED (3003). */
+        private val KMPHOTOS_HEADERS = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",
+            "Accept" to "video/*, application/*;q=0.9",
+            "Accept-Language" to "en-US,en;q=0.9",
+            "Sec-Fetch-Mode" to "navigate",
+            "Sec-Fetch-Site" to "cross-site",
+            "Referer" to "https://z1.kmphotos.cv/"
+        )
+
         // ═══════════════════════════════════════════════════
         //  LINK HOST REGEX — Known stream/download hosts
         // ═══════════════════════════════════════════════════
@@ -1866,12 +1880,31 @@ class KMMoviesProvider : MainAPI() {
                      rawVideoUrl.contains(".mkv", ignoreCase = true) ||
                      rawVideoUrl.contains(".mp4", ignoreCase = true))) {
                     val quality = guessQualityFromUrl(url)
+
+                    // ── HEAD request verification (optional, resilient) ──────────
+                    // Proactively check that the R2 URL is reachable with our
+                    // anti-CF headers. If we get 403, log a warning but still
+                    // emit the link — the user may have a VPN/proxy that helps.
+                    try {
+                        val headResp = app.head(rawVideoUrl, headers = KMPHOTOS_HEADERS, timeout = 10)
+                        if (headResp.code == 403) {
+                            Log.w(TAG, "resolveKmphotos P1: R2 URL returned 403 — " +
+                                    "Cloudflare may block this link: $rawVideoUrl")
+                        }
+                    } catch (e: Exception) {
+                        Log.d(TAG, "resolveKmphotos P1: HEAD verification failed: ${e.message}")
+                    }
+
                     // Use ExtractorLinkType.VIDEO explicitly instead of INFER_TYPE.
-                    // INFER_TYPE resolves to VIDEO anyway, but being explicit ensures
-                    // ExoPlayer creates a ProgressiveMediaSource that tries ALL extractors
-                    // (including MatroskaExtractor for .mkv files), not just MP4.
-                    // The referer is set to the kmphotos player page so R2/CDN can
-                    // validate the request origin if they check Referer headers.
+                    // INFER_TYPE relies on URL extension detection, which can fail
+                    // if query params appear after .mkv. VIDEO tells ExoPlayer to
+                    // create a ProgressiveMediaSource with MatroskaExtractor for
+                    // .mkv files.
+                    //
+                    // KMPHOTOS_HEADERS provide realistic mobile browser headers
+                    // that bypass Cloudflare bot detection on R2 bucket URLs.
+                    // Without these, CF returns 403 HTML → ExoPlayer throws
+                    // ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED (3003).
                     callback(
                         newExtractorLink(
                             "$name Stream $quality",
@@ -1880,7 +1913,8 @@ class KMMoviesProvider : MainAPI() {
                             ExtractorLinkType.VIDEO
                         ) {
                             this.quality = getQualityInt(quality)
-                            this.referer = url
+                            this.referer = "https://z1.kmphotos.cv/"
+                            this.headers = KMPHOTOS_HEADERS
                         }
                     )
                     return true
@@ -1930,10 +1964,11 @@ class KMMoviesProvider : MainAPI() {
                                 "$name Stream $quality",
                                 "$name [KMPhotos] $quality",
                                 videoUrl,
-                                INFER_TYPE
+                                ExtractorLinkType.VIDEO
                             ) {
                                 this.quality = getQualityInt(quality)
                                 this.referer = "https://z1.kmphotos.cv/"
+                                this.headers = KMPHOTOS_HEADERS
                             }
                         )
                         return true
@@ -1947,15 +1982,18 @@ class KMMoviesProvider : MainAPI() {
                     resolvedLocation.contains(".mkv", ignoreCase = true) ||
                     resolvedLocation.contains(".m3u8", ignoreCase = true)) {
                     val quality = guessQualityFromUrl(resolvedLocation)
+                    val linkType = if (resolvedLocation.contains(".m3u8", ignoreCase = true))
+                        ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                     callback(
                         newExtractorLink(
                             "$name Stream $quality",
                             "$name [KMPhotos] $quality",
                             resolvedLocation,
-                            INFER_TYPE
+                            linkType
                         ) {
                             this.quality = getQualityInt(quality)
                             this.referer = "https://z1.kmphotos.cv/"
+                            this.headers = KMPHOTOS_HEADERS
                         }
                     )
                     return true
@@ -1990,10 +2028,11 @@ class KMMoviesProvider : MainAPI() {
                         "$name Stream $quality",
                         "$name [KMPhotos] $quality",
                         jwFile,
-                        INFER_TYPE
+                        ExtractorLinkType.VIDEO
                     ) {
                         this.quality = getQualityInt(quality)
-                        this.referer = url
+                        this.referer = "https://z1.kmphotos.cv/"
+                        this.headers = KMPHOTOS_HEADERS
                     }
                 )
                 return true
@@ -2009,10 +2048,11 @@ class KMMoviesProvider : MainAPI() {
                         "$name Stream $quality",
                         "$name [KMPhotos] $quality",
                         videoSrc,
-                        INFER_TYPE
+                        ExtractorLinkType.VIDEO
                     ) {
                         this.quality = getQualityInt(quality)
-                        this.referer = url
+                        this.referer = "https://z1.kmphotos.cv/"
+                        this.headers = KMPHOTOS_HEADERS
                     }
                 )
                 return true
@@ -2049,10 +2089,11 @@ class KMMoviesProvider : MainAPI() {
                                 "$name Stream $quality",
                                 "$name [KMPhotos DL] $quality",
                                 dlUrl,
-                                INFER_TYPE
+                                ExtractorLinkType.VIDEO
                             ) {
                                 this.quality = getQualityInt(quality)
-                                this.referer = url
+                                this.referer = "https://z1.kmphotos.cv/"
+                                this.headers = KMPHOTOS_HEADERS
                             }
                         )
                         found = true
@@ -2069,10 +2110,11 @@ class KMMoviesProvider : MainAPI() {
                                 "$name Stream $quality",
                                 "$name [KMPhotos DL] $quality",
                                 dlJwFile,
-                                INFER_TYPE
+                                ExtractorLinkType.VIDEO
                             ) {
                                 this.quality = getQualityInt(quality)
-                                this.referer = resolvedHref
+                                this.referer = "https://z1.kmphotos.cv/"
+                                this.headers = KMPHOTOS_HEADERS
                             }
                         )
                         found = true
