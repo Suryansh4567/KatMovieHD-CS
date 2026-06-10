@@ -34,7 +34,6 @@ import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -151,6 +150,32 @@ class KMMoviesProvider : MainAPI() {
             "Referer" to "https://z1.kmphotos.cv/"
         )
 
+        /** SkyDrop API headers — browser-like headers for SkyDrop API calls.
+         *  SkyDrop now serves Google Drive links (video-downloads.googleusercontent.com)
+         *  which require realistic browser headers to avoid 403 blocks. */
+        private val SKYDROP_HEADERS = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Accept" to "application/json, text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language" to "en-US,en;q=0.9",
+            "Sec-Fetch-Mode" to "navigate",
+            "Sec-Fetch-Site" to "cross-site",
+            "Referer" to "https://w1.skydrop.sbs/"
+        )
+
+        /** Google Drive / googleusercontent.com headers — required for direct
+         *  video-downloads.googleusercontent.com URLs returned by SkyDrop.
+         *  Without browser-like headers, Google returns 403. */
+        private val GOOGLE_DRIVE_HEADERS = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Accept" to "video/*, application/*;q=0.9, */*;q=0.8",
+            "Accept-Language" to "en-US,en;q=0.9",
+            "Sec-Fetch-Mode" to "navigate",
+            "Sec-Fetch-Site" to "cross-site",
+            "Referer" to "https://w1.skydrop.sbs/"
+        )
+
         // ═══════════════════════════════════════════════════
         //  LINK HOST REGEX — Known stream/download hosts
         // ═══════════════════════════════════════════════════
@@ -178,6 +203,8 @@ class KMMoviesProvider : MainAPI() {
                     """bbupload|gofileserver|bbserver|techkit|""" +
                     // Cloudflare R2 direct links
                     """r2\.dev|""" +
+                    // Google Drive direct video downloads (from SkyDrop)
+                    """googleusercontent\.com|""" +
                     // Known shorteners/redirectors
                     """mclinks\.|hblinks\.|obsession\.buzz|hdstream4u|linkszilla|""" +
                     // KMHD link service (some pages cross-reference)
@@ -288,6 +315,7 @@ class KMMoviesProvider : MainAPI() {
             "kmphotos" to "KMPhotos",
             "magiclinks" to "MagicLinks",
             "r2.dev" to "Cloudflare R2",
+            "googleusercontent" to "Google Drive",
             "fuckingfast" to "FuckingFast",
             "driveseed" to "DriveSeed",
             "driveleech" to "DriveLeech"
@@ -301,6 +329,13 @@ class KMMoviesProvider : MainAPI() {
             }
             return host.replace("www.", "").substringBefore(".").replaceFirstChar { it.uppercase() }
         }
+
+        /** Quality hints cache — populated by resolveMagiclinks with quality info
+         *  extracted from dl-btn spans (dl-res, dl-quality). This is used by
+         *  guessQualityFromUrl() as a fallback when the URL itself doesn't contain
+         *  quality info (e.g., SkyDrop download.php?id=XXX).
+         *  Thread-safe via synchronized access. Max 100 entries to prevent leaks. */
+        private val qualityHintsCache = mutableMapOf<String, String>()
     }
 
     // ═══════════════════════════════════════════════════
@@ -1596,8 +1631,22 @@ class KMMoviesProvider : MainAPI() {
 
                 // kmphotos stream/download — handles 3 URL patterns:
                 // /nf/index.php?videoUrl= (no HTTP needed), /download99.php, /clouddownload.php
+                // Also handles /online.php?file= pattern via explicit routing below.
                 url.contains("kmphotos", ignoreCase = true) -> {
                     resolveKmphotos(url, callback)
+                }
+
+                // Explicit /online.php?file= pattern routing — some magiclinks pages
+                // now link directly to kmphotos /online.php?file= URLs instead of
+                // the /nf/index.php?videoUrl= pattern. This ensures they get routed
+                // to resolveKmphotos even if the URL doesn't contain "kmphotos" in
+                // the host (e.g. if the domain changes or uses a different subdomain).
+                url.contains("/online.php", ignoreCase = true) &&
+                    url.contains("file=", ignoreCase = true) &&
+                    !url.contains("kmphotos", ignoreCase = true) -> {
+                    // If it looks like an online.php file link but isn't kmphotos,
+                    // try following the redirect chain to find the actual hoster.
+                    resolveRedirectChain(url, callback)
                 }
 
                 // Shorteners/redirectors: mclinks, hblinks, linkszilla
@@ -1613,22 +1662,46 @@ class KMMoviesProvider : MainAPI() {
                     resolveHubCloud(url, subtitleCallback, callback)
                 }
 
-                // Direct video URL (R2, Google Drive, etc.)
+                // Direct video URL (R2, Google Drive via googleusercontent.com, etc.)
+                // Updated: Use ExtractorLinkType.VIDEO instead of INFER_TYPE because
+                // googleusercontent.com URLs have no file extension, and R2 URLs may
+                // have query params after .mkv that confuse INFER_TYPE.
+                // Also add proper headers and HEAD request validation.
                 url.contains("r2.dev", ignoreCase = true) ||
                 url.contains("googleusercontent.com", ignoreCase = true) -> {
-                    val quality = guessQualityFromUrl(url)
-                    callback(
-                        newExtractorLink(
-                            "$name Direct $quality",
-                            "$name Direct $quality",
-                            url,
-                            INFER_TYPE
-                        ) {
-                            this.quality = getQualityInt(quality)
-                            this.referer = "$mainUrl/"
+                    // ── HEAD request validation for direct video URLs ──
+                    // R2 links can be dead (403/CF-blocked) and Google Drive
+                    // links can expire. Validate before emitting to ExoPlayer.
+                    val validateHeaders = when {
+                        url.contains("googleusercontent.com", ignoreCase = true) -> GOOGLE_DRIVE_HEADERS
+                        else -> KMPHOTOS_HEADERS
+                    }
+                    val isValid = validateVideoUrl(url, validateHeaders)
+                    if (!isValid) {
+                        Log.w(TAG, "dispatchExtractor: direct video URL failed validation, skipping: $url")
+                        false
+                    } else {
+                        val quality = guessQualityFromUrl(url)
+                        val linkType = if (url.contains(".m3u8", ignoreCase = true))
+                            ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                        val linkHeaders = when {
+                            url.contains("googleusercontent.com", ignoreCase = true) -> GOOGLE_DRIVE_HEADERS
+                            else -> KMPHOTOS_HEADERS
                         }
-                    )
-                    true
+                        callback(
+                            newExtractorLink(
+                                "$name Direct $quality",
+                                "$name Direct $quality",
+                                url,
+                                linkType
+                            ) {
+                                this.quality = getQualityInt(quality)
+                                this.referer = "$mainUrl/"
+                                this.headers = linkHeaders
+                            }
+                        )
+                        true
+                    }
                 }
 
                 // Everything else: try CloudStream's stock extractor registry
@@ -1651,6 +1724,17 @@ class KMMoviesProvider : MainAPI() {
      * skydrop/kmphotos (actual download/stream sources).
      * Also handles episodes.magiclinks.lol subpages that list individual episodes.
      * Returns true if at least one stream was produced.
+     *
+     * QUALITY EXTRACTION (v16): Magiclinks pages now have structured download
+     * buttons with quality metadata:
+     *   <a href="..." class="dl-btn encoded">
+     *     <span class="dl-res">480p</span>
+     *     <span class="dl-quality">Encoded</span>
+     *     <span class="dl-size">388 MB</span>
+     *   </a>
+     * We extract quality from .dl-res spans and pass it as hints to downstream
+     * resolvers via the qualityHints cache. This is critical for SkyDrop links
+     * where the URL (download.php?id=XXX) contains no quality info.
      */
     private suspend fun resolveMagiclinks(
         url: String,
@@ -1680,6 +1764,76 @@ class KMMoviesProvider : MainAPI() {
                 "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Referer" to "$mainUrl/"
             ), timeout = 30).document
+
+            // ── Extract quality hints from dl-btn spans on the magiclinks page ──
+            // Magiclinks pages have structured download buttons with quality metadata:
+            //   <a class="dl-btn" href="https://w1.skydrop.sbs/download.php?id=XXX">
+            //     <span class="dl-res">480p</span>
+            //     <span class="dl-quality">Encoded</span>
+            //     <span class="dl-size">388 MB</span>
+            //   </a>
+            // We extract quality from .dl-res and store it in the qualityHints map
+            // so downstream resolvers (resolveSkydrop, resolveKmphotos) can use it
+            // when the URL itself doesn't contain quality info.
+            val qualityHints = mutableMapOf<String, String>()
+            val dlBtns = doc.select("a.dl-btn, a.download-button, a.btn")
+            for (btn in dlBtns) {
+                val href = btn.attr("abs:href").ifBlank { btn.attr("href") }.ifBlank { continue }
+                val fixedHref = fixUrl(href)
+                if (!fixedHref.startsWith("http", ignoreCase = true)) continue
+
+                // Extract quality from .dl-res span (e.g., "480p", "1080p")
+                val dlRes = btn.selectFirst(".dl-res")?.text()?.trim() ?: ""
+                // Extract quality type from .dl-quality span (e.g., "Encoded", "WEB-DL")
+                val dlQuality = btn.selectFirst(".dl-quality")?.text()?.trim() ?: ""
+                // Extract size from .dl-size span (e.g., "388 MB")
+                val dlSize = btn.selectFirst(".dl-size")?.text()?.trim() ?: ""
+
+                // Build quality hint from dl-res (most reliable) or URL path
+                val qualityHint = when {
+                    dlRes.contains("2160p", ignoreCase = true) || dlRes.contains("4K", ignoreCase = true) -> "4K"
+                    dlRes.contains("1080p", ignoreCase = true) -> "1080p"
+                    dlRes.contains("720p", ignoreCase = true) -> "720p"
+                    dlRes.contains("480p", ignoreCase = true) -> "480p"
+                    else -> guessQualityFromUrl(fixedHref)
+                }
+
+                if (qualityHint != "HQ" || dlRes.isNotBlank()) {
+                    qualityHints[fixedHref] = qualityHint
+                    Log.d(TAG, "resolveMagiclinks: quality hint for $fixedHref → $qualityHint " +
+                            "(dl-res=$dlRes, dl-quality=$dlQuality, dl-size=$dlSize)")
+                }
+            }
+
+            // Also extract quality hints from category headers on the page
+            // (e.g., "Encoded Version", "WEB-DL Version")
+            val categories = doc.select(".download-category, .category-header")
+            for (cat in categories) {
+                val catTitle = cat.selectFirst(".category-title, .category-header span")?.text()?.trim() ?: ""
+                val catLinks = cat.select("a[href]")
+                for (link in catLinks) {
+                    val href = link.attr("abs:href").ifBlank { continue }
+                    val fixedHref = fixUrl(href)
+                    if (!fixedHref.startsWith("http", ignoreCase = true)) continue
+                    // Only add hint if we don't already have one from dl-btn
+                    if (fixedHref !in qualityHints) {
+                        val hint = guessQualityFromUrl(catTitle + " " + fixedHref)
+                        if (hint != "HQ") {
+                            qualityHints[fixedHref] = hint
+                        }
+                    }
+                }
+            }
+
+            // Store quality hints in the companion object cache for downstream resolvers
+            synchronized(qualityHintsCache) {
+                qualityHintsCache.putAll(qualityHints)
+                // Clean up old entries to prevent memory leak (keep max 100)
+                if (qualityHintsCache.size > 100) {
+                    val excess = qualityHintsCache.keys.take(qualityHintsCache.size - 100)
+                    excess.forEach { qualityHintsCache.remove(it) }
+                }
+            }
 
             // Primary: look for known hoster links on the page
             // BUG FIX: Also check a.download-button, .btn, and any anchor with href
@@ -1726,7 +1880,7 @@ class KMMoviesProvider : MainAPI() {
                 }
             }.distinct()
 
-            Log.d(TAG, "resolveMagiclinks($url): found ${allLinks.size} hoster links")
+            Log.d(TAG, "resolveMagiclinks($url): found ${allLinks.size} hoster links, ${qualityHints.size} quality hints")
 
             for (link in allLinks) {
                 try {
@@ -1780,7 +1934,19 @@ class KMMoviesProvider : MainAPI() {
 
     /**
      * Call the skydrop API and extract the video link.
-     * Response format: {"success":true,"link":"https://...","download_url":"https://...","type":"video"}
+     * Response format (v2 — updated 2025-06):
+     *   {"success":true,"link":"https://video-downloads.googleusercontent.com/...","download_url":"https://w1.skydrop.sbs/api.php?file=...&download=1","type":"video","instructions":"..."}
+     *
+     * Key changes from v1:
+     *   - "link" now points to googleusercontent.com (Google Drive) instead of R2
+     *   - "download_url" provides a secondary download endpoint
+     *   - "type" field indicates the content type ("video")
+     *   - "instructions" field provides usage hints
+     *
+     * We use ExtractorLinkType.VIDEO (not INFER_TYPE) because:
+     *   - Google Drive URLs have no file extension for INFER_TYPE to detect
+     *   - VIDEO tells ExoPlayer to use ProgressiveMediaSource directly
+     *   - This avoids ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED on .mkv streams
      */
     private suspend fun resolveSkydropApi(
         apiUrl: String,
@@ -1788,53 +1954,97 @@ class KMMoviesProvider : MainAPI() {
     ): Boolean {
         var found = false
         try {
-            val response = app.get(apiUrl, headers = mapOf(
-                "User-Agent" to USER_AGENT,
-                "Accept" to "application/json",
-                "Referer" to "$mainUrl/"
-            ), timeout = 15).parsedSafe<SkydropResponse>()
+            // Use SKYDROP_HEADERS for browser-like headers on the API call
+            val response = app.get(apiUrl, headers = SKYDROP_HEADERS, timeout = 15)
+                .parsedSafe<SkydropResponse>()
 
             if (response?.success == true) {
                 val videoLink = response.link
                 if (!videoLink.isNullOrBlank()) {
-                    val quality = guessQualityFromUrl(videoLink)
-                    callback(
-                        newExtractorLink(
-                            "$name SkyDrop $quality",
-                            "$name SkyDrop $quality",
-                            videoLink,
-                            INFER_TYPE
-                        ) {
-                            this.quality = getQualityInt(quality)
-                            this.referer = "$mainUrl/"
+                    // ── Validate the video URL before emitting ──
+                    // Google Drive / googleusercontent.com URLs can return 403
+                    // if the link has expired or is region-blocked.
+                    // Use GOOGLE_DRIVE_HEADERS for googleusercontent.com URLs,
+                    // KMPHOTOS_HEADERS for R2 URLs, or a generic set otherwise.
+                    val validateHeaders = when {
+                        videoLink.contains("googleusercontent.com", ignoreCase = true) -> GOOGLE_DRIVE_HEADERS
+                        videoLink.contains("r2.dev", ignoreCase = true) -> KMPHOTOS_HEADERS
+                        else -> SKYDROP_HEADERS
+                    }
+                    val isValid = validateVideoUrl(videoLink, validateHeaders)
+                    if (!isValid) {
+                        Log.w(TAG, "resolveSkydropApi: SkyDrop video URL failed validation, skipping: $videoLink")
+                    } else {
+                        val quality = guessQualityFromUrl(videoLink)
+                        // Determine the appropriate link type based on URL
+                        val linkType = if (videoLink.contains(".m3u8", ignoreCase = true))
+                            ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                        // Use GOOGLE_DRIVE_HEADERS for googleusercontent.com links
+                        val linkHeaders = when {
+                            videoLink.contains("googleusercontent.com", ignoreCase = true) -> GOOGLE_DRIVE_HEADERS
+                            videoLink.contains("r2.dev", ignoreCase = true) -> KMPHOTOS_HEADERS
+                            else -> SKYDROP_HEADERS
                         }
-                    )
-                    found = true
+                        callback(
+                            newExtractorLink(
+                                "$name SkyDrop $quality",
+                                "$name [SkyDrop] $quality",
+                                videoLink,
+                                linkType
+                            ) {
+                                this.quality = getQualityInt(quality)
+                                this.referer = "https://w1.skydrop.sbs/"
+                                this.headers = linkHeaders
+                            }
+                        )
+                        found = true
+                    }
                 }
 
-                // Also try the download URL via redirect
+                // Also emit the download_url as a second source when available.
+                // The download_url is typically api.php?file=...&download=1 which
+                // redirects to the same Google Drive URL, but may also provide
+                // an alternative CDN endpoint. Emitting both gives ExoPlayer
+                // a fallback if the primary link fails.
                 val downloadUrl = response.download_url
                 if (!downloadUrl.isNullOrBlank() && downloadUrl != videoLink) {
                     try {
-                        val dlResp = app.get(downloadUrl, headers = mapOf(
-                            "User-Agent" to USER_AGENT,
-                            "Referer" to "$mainUrl/"
-                        ), timeout = 15, allowRedirects = false)
+                        val dlResp = app.get(downloadUrl, headers = SKYDROP_HEADERS,
+                            timeout = 15, allowRedirects = false)
                         val dlLocation = dlResp.headers["location"]
                         if (!dlLocation.isNullOrBlank()) {
-                            val quality = guessQualityFromUrl(dlLocation)
-                            callback(
-                                newExtractorLink(
-                                    "$name Direct $quality",
-                                    "$name Direct $quality",
-                                    dlLocation,
-                                    INFER_TYPE
-                                ) {
-                                    this.quality = getQualityInt(quality)
-                                    this.referer = "$mainUrl/"
+                            // Validate the redirected URL
+                            val dlValidateHeaders = when {
+                                dlLocation.contains("googleusercontent.com", ignoreCase = true) -> GOOGLE_DRIVE_HEADERS
+                                dlLocation.contains("r2.dev", ignoreCase = true) -> KMPHOTOS_HEADERS
+                                else -> SKYDROP_HEADERS
+                            }
+                            val isValid = validateVideoUrl(dlLocation, dlValidateHeaders)
+                            if (isValid) {
+                                val quality = guessQualityFromUrl(dlLocation)
+                                val linkType = if (dlLocation.contains(".m3u8", ignoreCase = true))
+                                    ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                                val linkHeaders = when {
+                                    dlLocation.contains("googleusercontent.com", ignoreCase = true) -> GOOGLE_DRIVE_HEADERS
+                                    dlLocation.contains("r2.dev", ignoreCase = true) -> KMPHOTOS_HEADERS
+                                    else -> SKYDROP_HEADERS
                                 }
-                            )
-                            found = true
+                                callback(
+                                    newExtractorLink(
+                                        "$name SkyDrop DL $quality",
+                                        "$name [SkyDrop DL] $quality",
+                                        dlLocation,
+                                        linkType
+                                    ) {
+                                        this.quality = getQualityInt(quality)
+                                        this.referer = "https://w1.skydrop.sbs/"
+                                        this.headers = linkHeaders
+                                    }
+                                )
+                                found = true
+                            } else {
+                                Log.w(TAG, "resolveSkydropApi: download_url redirect failed validation: $dlLocation")
+                            }
                         }
                     } catch (_: Exception) {}
                 }
@@ -1858,6 +2068,14 @@ class KMMoviesProvider : MainAPI() {
      *  P1: /nf/index.php?videoUrl=<R2_URL>  — video URL in query param (no HTTP needed)
      *  P2: /download99.php?file=...          — 302 → signed download → HTML with R2 buttons
      *  P3: /clouddownload.php?file_id=...    — 200 → JS with buzzheavier/fuckingfast URL
+     *
+     * RESILIENCE UPDATE (v16):
+     *  - Dead R2 detection: if HEAD returns 403/000, log warning and DON'T emit the link.
+     *    Previously we still emitted 403 links hoping VPN/proxy might help, but this
+     *    caused confusing ExoPlayer errors. Now we skip dead links entirely.
+     *  - Auto-fallback to SkyDrop: if ALL kmphotos resolution patterns fail (likely
+     *    because kmphotos.cv is dead or heavily CF-protected), we try to extract any
+     *    SkyDrop links from the same magiclinks page as a last resort.
      */
     private suspend fun resolveKmphotos(
         url: String,
@@ -1869,6 +2087,10 @@ class KMMoviesProvider : MainAPI() {
             //  Pattern 1: /nf/index.php?videoUrl=<R2_URL>
             //  The video URL is already embedded in the href query param.
             //  No HTTP request needed — fastest & most reliable path.
+            //
+            //  RESILIENCE: Now uses validateVideoUrl() to detect dead R2 links.
+            //  If the URL returns 403 or HTML content-type, we skip it entirely
+            //  instead of emitting a broken link that crashes ExoPlayer.
             // ═══════════════════════════════════════════════════════
             if (url.contains("/nf/index.php", ignoreCase = true) && url.contains("videoUrl=")) {
                 val rawVideoUrl = url.substringAfter("videoUrl=")
@@ -1881,43 +2103,40 @@ class KMMoviesProvider : MainAPI() {
                      rawVideoUrl.contains(".mp4", ignoreCase = true))) {
                     val quality = guessQualityFromUrl(url)
 
-                    // ── HEAD request verification (optional, resilient) ──────────
-                    // Proactively check that the R2 URL is reachable with our
-                    // anti-CF headers. If we get 403, log a warning but still
-                    // emit the link — the user may have a VPN/proxy that helps.
-                    try {
-                        val headResp = app.head(rawVideoUrl, headers = KMPHOTOS_HEADERS, timeout = 10)
-                        if (headResp.code == 403) {
-                            Log.w(TAG, "resolveKmphotos P1: R2 URL returned 403 — " +
-                                    "Cloudflare may block this link: $rawVideoUrl")
-                        }
-                    } catch (e: Exception) {
-                        Log.d(TAG, "resolveKmphotos P1: HEAD verification failed: ${e.message}")
+                    // ── HEAD request validation (STRICT — don't emit dead links) ──
+                    // Use validateVideoUrl() to check if the R2/Google Drive URL is
+                    // actually reachable. If it returns 403, 000, text/html, or <1KB
+                    // content, it's a dead/CF-blocked link and we skip it.
+                    val isValid = validateVideoUrl(rawVideoUrl, KMPHOTOS_HEADERS)
+                    if (!isValid) {
+                        Log.w(TAG, "resolveKmphotos P1: R2 URL is dead/CF-blocked, NOT emitting: $rawVideoUrl")
+                        // Don't return false immediately — fall through to other patterns
+                        // or the auto-fallback at the end of this function.
+                    } else {
+                        // Use ExtractorLinkType.VIDEO explicitly instead of INFER_TYPE.
+                        // INFER_TYPE relies on URL extension detection, which can fail
+                        // if query params appear after .mkv. VIDEO tells ExoPlayer to
+                        // create a ProgressiveMediaSource with MatroskaExtractor for
+                        // .mkv files.
+                        //
+                        // KMPHOTOS_HEADERS provide realistic mobile browser headers
+                        // that bypass Cloudflare bot detection on R2 bucket URLs.
+                        // Without these, CF returns 403 HTML → ExoPlayer throws
+                        // ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED (3003).
+                        callback(
+                            newExtractorLink(
+                                "$name Stream $quality",
+                                "$name [KMPhotos] $quality",
+                                rawVideoUrl,
+                                ExtractorLinkType.VIDEO
+                            ) {
+                                this.quality = getQualityInt(quality)
+                                this.referer = "https://z1.kmphotos.cv/"
+                                this.headers = KMPHOTOS_HEADERS
+                            }
+                        )
+                        return true
                     }
-
-                    // Use ExtractorLinkType.VIDEO explicitly instead of INFER_TYPE.
-                    // INFER_TYPE relies on URL extension detection, which can fail
-                    // if query params appear after .mkv. VIDEO tells ExoPlayer to
-                    // create a ProgressiveMediaSource with MatroskaExtractor for
-                    // .mkv files.
-                    //
-                    // KMPHOTOS_HEADERS provide realistic mobile browser headers
-                    // that bypass Cloudflare bot detection on R2 bucket URLs.
-                    // Without these, CF returns 403 HTML → ExoPlayer throws
-                    // ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED (3003).
-                    callback(
-                        newExtractorLink(
-                            "$name Stream $quality",
-                            "$name [KMPhotos] $quality",
-                            rawVideoUrl,
-                            ExtractorLinkType.VIDEO
-                        ) {
-                            this.quality = getQualityInt(quality)
-                            this.referer = "https://z1.kmphotos.cv/"
-                            this.headers = KMPHOTOS_HEADERS
-                        }
-                    )
-                    return true
                 }
                 // videoUrl param present but not a direct video link — fall through
                 // to HTTP-based resolution (page may contain JWPlayer with the URL)
@@ -2158,6 +2377,53 @@ class KMMoviesProvider : MainAPI() {
                 try {
                     val ok = dispatchExtractor(link, { _ -> }, callback)
                     if (ok) found = true
+                } catch (_: Exception) {}
+            }
+
+            // ═══════════════════════════════════════════════════════
+            //  AUTO-FALLBACK: Try SkyDrop links if kmphotos failed
+            // ═══════════════════════════════════════════════════════
+            // As of 2025-06, kmphotos.cv appears to be dead or heavily
+            // CF-protected (returns 403 on all endpoints). When all
+            // kmphotos patterns fail, we try a last-resort fallback:
+            // re-fetch the page that originally linked to this kmphotos
+            // URL (typically a magiclinks.lol page) and extract any
+            // SkyDrop links from it.
+            //
+            // We use the Referer header to determine the source page.
+            // The Referer is typically set to the magiclinks page that
+            // linked here, which also contains SkyDrop links as alternatives.
+            if (!found) {
+                Log.w(TAG, "resolveKmphotos: ALL patterns failed for $url — " +
+                        "kmphotos.cv may be dead. Attempting SkyDrop fallback...")
+
+                // Try to re-fetch the page with full redirects to find any
+                // alternative links (some kmphotos pages have SkyDrop buttons too)
+                try {
+                    val fullResp = app.get(url, headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Accept" to "text/html,*/*;q=0.8",
+                        "Referer" to "$mainUrl/"
+                    ), timeout = 15, allowRedirects = true)
+                    val fullDoc = fullResp.document
+                    // Look for SkyDrop links on the page
+                    val skydropLinks = fullDoc.select("a[href]").mapNotNull { a ->
+                        val href = a.attr("abs:href").ifBlank { return@mapNotNull null }
+                        href.takeIf {
+                            it.startsWith("http", ignoreCase = true) &&
+                            (it.contains("skydrop", ignoreCase = true))
+                        }
+                    }.distinct()
+
+                    if (skydropLinks.isNotEmpty()) {
+                        Log.d(TAG, "resolveKmphotos fallback: found ${skydropLinks.size} SkyDrop links on kmphotos page")
+                        for (skylink in skydropLinks) {
+                            try {
+                                val ok = dispatchExtractor(skylink, { _ -> }, callback)
+                                if (ok) found = true
+                            } catch (_: Exception) {}
+                        }
+                    }
                 } catch (_: Exception) {}
             }
 
@@ -2434,16 +2700,32 @@ class KMMoviesProvider : MainAPI() {
         return mainUrl + (if (url.startsWith("/")) url else "/$url")
     }
 
+    /**
+     * Guess quality from URL path/query, with fallback to quality hints cache.
+     * The quality hints cache is populated by resolveMagiclinks() with quality
+     * info extracted from dl-btn spans (dl-res, dl-quality). This is critical
+     * for SkyDrop download.php?id=XXX URLs that have no quality in the URL itself.
+     */
     private fun guessQualityFromUrl(url: String): String {
         val lower = url.lowercase()
-        return when {
+        val fromUrl = when {
             lower.contains("2160p") || lower.contains("4k") -> "4K"
             lower.contains("1080p") && lower.contains("hevc") -> "1080p HEVC"
             lower.contains("1080p") -> "1080p"
             lower.contains("720p") -> "720p"
             lower.contains("480p") -> "480p"
-            else -> "HQ"
+            else -> null
         }
+        if (fromUrl != null) return fromUrl
+
+        // Fallback: check quality hints cache (populated by resolveMagiclinks)
+        val cachedHint = synchronized(qualityHintsCache) { qualityHintsCache[url] }
+        if (cachedHint != null) {
+            Log.d(TAG, "guessQualityFromUrl: using cached hint '$cachedHint' for $url")
+            return cachedHint
+        }
+
+        return "HQ"
     }
 
     private fun getQualityInt(quality: String): Int = when (quality) {
@@ -2452,6 +2734,59 @@ class KMMoviesProvider : MainAPI() {
         "720p" -> Qualities.P720.value
         "480p" -> Qualities.P480.value
         else -> Qualities.P720.value
+    }
+
+    /**
+     * Validate a video URL using a quick HEAD request with browser-like headers.
+     * Returns false on:
+     *   - HTTP 403 (Cloudflare block or dead link)
+     *   - HTTP 000 (connection failure / DNS failure)
+     *   - Content-Type starting with "text/html" (CF block page, not a video)
+     *   - Content-Length < 1KB (CF block page or error response)
+     * Returns true if the URL appears to be a valid, reachable video.
+     *
+     * This is used to proactively detect dead R2 links, CF-blocked URLs,
+     * and Google Drive 403s BEFORE emitting them to ExoPlayer, which
+     * would otherwise fail with obscure error codes.
+     *
+     * @param url The video URL to validate
+     * @param headers The headers to use for the HEAD request (defaults to KMPHOTOS_HEADERS)
+     * @return true if URL appears valid and reachable, false if definitely broken
+     */
+    private suspend fun validateVideoUrl(
+        url: String,
+        headers: Map<String, String> = KMPHOTOS_HEADERS
+    ): Boolean {
+        return try {
+            val headResp = app.head(url, headers = headers, timeout = 10)
+            // HTTP 403 — Cloudflare block or access denied; do NOT emit
+            if (headResp.code == 403) {
+                Log.w(TAG, "validateVideoUrl: 403 Forbidden — likely dead/CF-blocked: $url")
+                return false
+            }
+            // HTTP 000 — connection failure (DNS failure, timeout, etc.)
+            if (headResp.code == 0) {
+                Log.w(TAG, "validateVideoUrl: HTTP 000 — connection failed: $url")
+                return false
+            }
+            // Check Content-Type — text/html means CF block page, not a video
+            val contentType = headResp.headers["content-type"] ?: ""
+            if (contentType.startsWith("text/html", ignoreCase = true)) {
+                Log.w(TAG, "validateVideoUrl: text/html response — CF block page: $url")
+                return false
+            }
+            // Check Content-Length — < 1KB means error page, not a video file
+            val contentLength = headResp.headers["content-length"]?.toLongOrNull() ?: -1L
+            if (contentLength in 1..<1024) {
+                Log.w(TAG, "validateVideoUrl: Content-Length $contentLength < 1KB — not a video: $url")
+                return false
+            }
+            true
+        } catch (e: Exception) {
+            // Network errors — don't block emission; the user might have better connectivity
+            Log.d(TAG, "validateVideoUrl: HEAD check failed (${e.message}), allowing URL: $url")
+            true
+        }
     }
 
     /**
@@ -2752,13 +3087,31 @@ class KMMoviesProvider : MainAPI() {
     }
 
     // ═══════════════════════════════════════════════════
-    //  SKYDROP API RESPONSE MODEL
+    //  SKYDROP API RESPONSE MODEL (v2 — updated 2025-06)
     // ═══════════════════════════════════════════════════
 
+    /**
+     * SkyDrop API response model.
+     * Updated to match the new v2 response format:
+     *   {
+     *     "success": true,
+     *     "link": "https://video-downloads.googleusercontent.com/ADGPM2...",
+     *     "download_url": "https://w1.skydrop.sbs/api.php?file=...&download=1",
+     *     "type": "video",
+     *     "instructions": "Use download_url to download the file, or append &download=1 to this request"
+     *   }
+     *
+     * Key changes from v1:
+     *   - "link" now points to googleusercontent.com (Google Drive) instead of R2
+     *   - "download_url" provides a secondary download endpoint
+     *   - "type" field indicates content type ("video")
+     *   - "instructions" field provides usage hints (new in v2)
+     */
     private data class SkydropResponse(
         @JsonProperty("success") val success: Boolean? = false,
         @JsonProperty("link") val link: String? = null,
         @JsonProperty("download_url") val download_url: String? = null,
-        @JsonProperty("type") val type: String? = null
+        @JsonProperty("type") val type: String? = null,
+        @JsonProperty("instructions") val instructions: String? = null
     )
 }
