@@ -33,6 +33,7 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -1865,15 +1866,21 @@ class KMMoviesProvider : MainAPI() {
                      rawVideoUrl.contains(".mkv", ignoreCase = true) ||
                      rawVideoUrl.contains(".mp4", ignoreCase = true))) {
                     val quality = guessQualityFromUrl(url)
+                    // Use ExtractorLinkType.VIDEO explicitly instead of INFER_TYPE.
+                    // INFER_TYPE resolves to VIDEO anyway, but being explicit ensures
+                    // ExoPlayer creates a ProgressiveMediaSource that tries ALL extractors
+                    // (including MatroskaExtractor for .mkv files), not just MP4.
+                    // The referer is set to the kmphotos player page so R2/CDN can
+                    // validate the request origin if they check Referer headers.
                     callback(
                         newExtractorLink(
                             "$name Stream $quality",
                             "$name [KMPhotos] $quality",
                             rawVideoUrl,
-                            INFER_TYPE
+                            ExtractorLinkType.VIDEO
                         ) {
                             this.quality = getQualityInt(quality)
-                            this.referer = "https://z1.kmphotos.cv/"
+                            this.referer = url
                         }
                     )
                     return true
