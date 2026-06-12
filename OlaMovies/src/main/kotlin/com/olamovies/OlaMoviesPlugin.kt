@@ -15,8 +15,11 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
  *
  * CRITICAL: Custom extractors MUST be registered here so that
  * CloudStream's loadExtractor() can find them by URL prefix.
- * OlaMovies uses OMDrive (links.ol-am.top) for link generation
- * and play.ol-am.top for direct streaming.
+ * OlaMovies uses OMDrive (links.ol-am.top / links.olamovies.mov)
+ * for link generation.
+ *
+ * NOTE: play.ol-am.top is NOT registered as an extractor because
+ * it only serves a tutorial video — it is NOT a streaming endpoint.
  */
 @CloudstreamPlugin
 class OlaMoviesPlugin : BasePlugin() {
@@ -27,12 +30,9 @@ class OlaMoviesPlugin : BasePlugin() {
         // OMDrive extractor handles links.ol-am.top/{id} URLs.
         // These are the link generator pages that resolve to
         // Google Drive / Mega / direct download URLs.
+        // On Android, WebViewResolver handles CF challenges automatically.
         registerExtractorAPI(OMDriveExtractor())
         registerExtractorAPI(OMDriveExtractorAlt())
-
-        // play.ol-am.top direct streaming extractor.
-        // Serves MKV files directly with Range support, no CF.
-        registerExtractorAPI(OlaPlayExtractor())
     }
 
     companion object {

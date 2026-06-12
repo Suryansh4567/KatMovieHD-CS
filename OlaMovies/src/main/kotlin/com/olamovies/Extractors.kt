@@ -22,8 +22,23 @@ import org.jsoup.nodes.Document
  * OMDrive is OlaMovies' link generator. Each ID maps to a page
  * containing download links (Google Drive, Mega, direct MKV/MP4).
  *
- * On Android, CloudStream's WebViewResolver handles CF challenges
- * automatically when fetching these pages.
+ * IMPORTANT ARCHITECTURE NOTE:
+ * The link generator page (links.olamovies.mov) is a Next.js RSC app
+ * that is Cloudflare-protected. The page flow is:
+ *   1. CF challenge (WebViewResolver handles on Android)
+ *   2. Countdown timer (~10 seconds)
+ *   3. "Visit Now" button → shortener URL (madurird.com/...)
+ *   4. Shortener → ad pages → eventual redirect to GDrive/Mega
+ *
+ * Since the actual download URLs are NOT in the HTML (they're behind
+ * the shortener), this extractor:
+ *   - Uses WebViewResolver (via loadExtractor) which handles CF on Android
+ *   - Scans the page for any directly embedded URLs (GDrive, Mega, MKV)
+ *   - If the page has a "Visit Now" button, tries to follow the shortener
+ *   - Falls back to scanning the final redirected URL
+ *
+ * On Android, CloudStream's WebViewResolver automatically handles CF
+ * challenges, so users can access the link generator transparently.
  */
 open class OMDriveExtractor : ExtractorApi() {
     override val name = "OMDrive"
@@ -40,15 +55,11 @@ open class OMDriveExtractor : ExtractorApi() {
             """(?i)(4K|2160p|1080p|720p|480p|UHD|FHD|HD|SD|Remux|BluRay|WEB-DL|DV|Dolby\s*Vision)"""
         )
 
-        private val PLAY_HEADERS = mapOf(
-            "User-Agent" to UA,
-            "Accept" to "video/*,application/octet-stream,*/*;q=0.9",
-            "Sec-Fetch-Dest" to "video",
-            "Sec-Fetch-Mode" to "no-cors",
-        )
-
         /** Known video file extensions for URL matching */
         private val VIDEO_EXT_REGEX = Regex("""\.(?:mkv|mp4|avi|ts|m4v)(?:\?|$)""", RegexOption.IGNORE_CASE)
+
+        /** R2 tutorial bucket — must be filtered out */
+        private const val R2_TUTORIAL_BUCKET = "pub-bef22e7488a04766bdf11e3bc7498ba4.r2.dev"
     }
 
     override suspend fun getUrl(
@@ -58,102 +69,130 @@ open class OMDriveExtractor : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
+            // First, try direct fetch (may fail if CF-protected)
             val doc = app.get(url, headers = mapOf("User-Agent" to UA), timeout = 15).document
-            val pageText = doc.html()
+            extractFromPage(doc, url, callback, subtitleCallback)
+        } catch (e: Exception) {
+            Log.d(TAG, "Direct fetch failed for $url (likely CF-protected): ${e.message}")
+            // On Android, WebViewResolver will handle CF. We rely on loadExtractor
+            // fallback chain from the provider's resolveLinkId() method.
+        }
+    }
 
-            // --- Strategy 1: Google Drive URLs ---
-            Regex("""https?://(?:drive\.google\.com|drive\.usercontent\.google\.com|video-downloads\.googleusercontent\.com)/[^\s"'<>]+""")
-                .findAll(pageText).forEach { match ->
-                    val gUrl = match.value.replace("\\u0026", "&")
-                    val qHint = extractQualityFromContext(pageText, match.value) ?: "HD"
+    /**
+     * Extract video URLs from a link generator page document.
+     */
+    private suspend fun extractFromPage(
+        doc: Document,
+        pageUrl: String,
+        callback: (ExtractorLink) -> Unit,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ) {
+        val pageText = doc.html()
+
+        // --- Strategy 1: Google Drive URLs ---
+        Regex("""https?://(?:drive\.google\.com|drive\.usercontent\.google\.com|video-downloads\.googleusercontent\.com)/[^\s"'<>]+""")
+            .findAll(pageText).forEach { match ->
+                val gUrl = match.value.replace("\\u0026", "&")
+                val qHint = extractQualityFromContext(pageText, match.value) ?: "HD"
+                callback.invoke(
+                    newExtractorLink(
+                        name,
+                        "$name GDrive $qHint",
+                        gUrl,
+                        ExtractorLinkType.VIDEO
+                    ) {
+                        this.quality = getQualityFromName(qHint)
+                        this.referer = pageUrl
+                    }
+                )
+            }
+
+        // --- Strategy 2: Direct video file URLs (.mkv, .mp4) ---
+        // FILTER OUT the R2 tutorial bucket
+        Regex("""https?://[^\s"'<>]+\.(?:mkv|mp4|avi|ts|m4v)""")
+            .findAll(pageText).forEach { match ->
+                val vUrl = match.value
+                if (!vUrl.contains(R2_TUTORIAL_BUCKET) &&
+                    !vUrl.contains(".js") && !vUrl.contains(".css") &&
+                    !vUrl.contains(".json")) {
+                    val qHint = extractQualityFromUrl(vUrl)
                     callback.invoke(
                         newExtractorLink(
-                            name,
-                            "$name GDrive $qHint",
-                            gUrl,
+                            "$name Direct",
+                            "$name $qHint",
+                            vUrl,
                             ExtractorLinkType.VIDEO
                         ) {
                             this.quality = getQualityFromName(qHint)
-                            this.referer = url
+                            this.referer = pageUrl
                         }
                     )
-                }
-
-            // --- Strategy 2: play.ol-am.top direct stream URLs ---
-            doc.select("a[href*=play.ol-am.top], video source[src], a[href*=play.olamovies]")
-                .forEach { el ->
-                    val src = el.attr("abs:href")
-                        .ifBlank { el.attr("abs:src").ifBlank { el.attr("src") } }
-                    if (src.isNotBlank() && src.startsWith("http")) {
-                        val qHint = extractQualityFromUrl(src)
-                        callback.invoke(
-                            newExtractorLink(
-                                "$name Stream",
-                                "$name $qHint",
-                                src,
-                                ExtractorLinkType.VIDEO
-                            ) {
-                                this.quality = getQualityFromName(qHint)
-                                this.referer = "https://v2.olamovies.mov"
-                                this.headers = PLAY_HEADERS
-                            }
-                        )
-                    }
-                }
-
-            // --- Strategy 3: Direct video file URLs (.mkv, .mp4) ---
-            Regex("""https?://[^\s"'<>]+\.(?:mkv|mp4|avi|ts|m4v)""")
-                .findAll(pageText).forEach { match ->
-                    val vUrl = match.value
-                    if (!vUrl.contains(".js") && !vUrl.contains(".css") && !vUrl.contains(".json")) {
-                        val qHint = extractQualityFromUrl(vUrl)
-                        callback.invoke(
-                            newExtractorLink(
-                                "$name Direct",
-                                "$name $qHint",
-                                vUrl,
-                                ExtractorLinkType.VIDEO
-                            ) {
-                                this.quality = getQualityFromName(qHint)
-                                this.referer = url
-                            }
-                        )
-                    }
-                }
-
-            // --- Strategy 4: Mega URLs ---
-            Regex("""https?://mega\.(?:nz|co\.nz)/[^\s"'<>]+""")
-                .findAll(pageText).forEach { match ->
-                    callback.invoke(
-                        newExtractorLink(
-                            "$name Mega",
-                            "$name Mega",
-                            match.value,
-                            ExtractorLinkType.VIDEO
-                        ) {
-                            this.quality = Qualities.Unknown.value
-                            this.referer = url
-                        }
-                    )
-                }
-
-            // --- Strategy 5: Other known hoster URLs ---
-            doc.select("a[href]").mapNotNull { a ->
-                val href = a.attr("abs:href").ifBlank { a.attr("href") }
-                if (href.startsWith("http") && !href.contains("ol-am.top") &&
-                    !href.contains("olamovies.mov") && VIDEO_EXT_REGEX.containsMatchIn(href)) {
-                    href
-                } else null
-            }.distinct().forEach { hostUrl ->
-                try {
-                    loadExtractor(hostUrl, url, subtitleCallback, callback)
-                } catch (e: Exception) {
-                    Log.d(TAG, "Could not dispatch to extractor: $hostUrl — ${e.message}")
                 }
             }
 
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed for $url: ${e.message}")
+        // --- Strategy 3: Mega URLs ---
+        Regex("""https?://mega\.(?:nz|co\.nz)/[^\s"'<>]+""")
+            .findAll(pageText).forEach { match ->
+                callback.invoke(
+                    newExtractorLink(
+                        "$name Mega",
+                        "$name Mega",
+                        match.value,
+                        ExtractorLinkType.VIDEO
+                    ) {
+                        this.quality = Qualities.Unknown.value
+                        this.referer = pageUrl
+                    }
+                )
+            }
+
+        // --- Strategy 4: Try to find "Visit Now" / shortener links ---
+        // The link generator has a button that redirects to the shortener.
+        // We look for href attributes containing known shortener domains.
+        val shortenerPatterns = listOf(
+            "madurird.com",
+            "olamovies.click",
+            "clk.asia",
+            "ouo.io",
+            "linkshrink.net",
+            "adbull.me",
+            "adshort.pro",
+        )
+
+        doc.select("a[href]").forEach { a ->
+            val href = a.attr("abs:href").ifBlank { a.attr("href") }
+            if (href.startsWith("http")) {
+                val isShortener = shortenerPatterns.any { href.contains(it) }
+                val isKnownHoster = href.contains("hubcloud") || href.contains("gdflix") ||
+                    href.contains("katdrive") || href.contains("hglink")
+
+                if (isShortener || isKnownHoster) {
+                    try {
+                        loadExtractor(href, pageUrl, subtitleCallback, callback)
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Could not dispatch shortener/hoster: $href — ${e.message}")
+                    }
+                }
+            }
+        }
+
+        // --- Strategy 5: Other known hoster URLs ---
+        doc.select("a[href]").mapNotNull { a ->
+            val href = a.attr("abs:href").ifBlank { a.attr("href") }
+            if (href.startsWith("http") &&
+                !href.contains("ol-am.top") &&
+                !href.contains("olamovies.mov") &&
+                !href.contains("r2.dev") &&
+                VIDEO_EXT_REGEX.containsMatchIn(href)) {
+                href
+            } else null
+        }.distinct().forEach { hostUrl ->
+            try {
+                loadExtractor(hostUrl, pageUrl, subtitleCallback, callback)
+            } catch (e: Exception) {
+                Log.d(TAG, "Could not dispatch to extractor: $hostUrl — ${e.message}")
+            }
         }
     }
 
@@ -191,8 +230,8 @@ open class OMDriveExtractor : ExtractorApi() {
 /**
  * Alternate domain variant for OMDrive.
  * OlaMovies link generator URLs can appear under either:
- *   - links.ol-am.top (current)
- *   - links.olamovies.mov (legacy/alternate)
+ *   - links.ol-am.top (current, redirects 301 → links.olamovies.mov)
+ *   - links.olamovies.mov (canonical, CF-protected Next.js app)
  * Both resolve to the same OMDrive backend.
  *
  * CloudStream's loadExtractor() matches by URL prefix,
@@ -200,92 +239,4 @@ open class OMDriveExtractor : ExtractorApi() {
  */
 class OMDriveExtractorAlt : OMDriveExtractor() {
     override val mainUrl = "https://links.olamovies.mov"
-}
-
-// ═══════════════════════════════════════════════════
-//  OlaPlay Extractor — play.ol-am.top direct MKV
-// ═══════════════════════════════════════════════════
-
-/**
- * Handles play.ol-am.top direct streaming URLs.
- *
- * play.ol-am.top serves MKV/MP4 files directly with:
- *   - HTTP 200 OK (no CF protection)
- *   - Range header support for seeking
- *   - Direct video streaming without any intermediate page
- *
- * URLs typically look like:
- *   play.ol-am.top/path/to/movie.720p.BluRay.mkv
- *   play.ol-am.top/path/to/movie.1080p.WEB-DL.mkv
- */
-class OlaPlayExtractor : ExtractorApi() {
-    override val name = "OlaPlay"
-    override val mainUrl = "https://play.ol-am.top"
-    override val requiresReferer = false
-
-    companion object {
-        private const val TAG = "OlaPlay"
-        private const val UA =
-            "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/125.0.6422.113 Mobile Safari/537.36"
-
-        private val QUALITY_REGEX = Regex(
-            """(?i)(4K|2160p|1080p|720p|480p|UHD|FHD|HD|SD|Remux|BluRay|WEB-DL|DV|Dolby\s*Vision|60fps)"""
-        )
-
-        private val PLAY_HEADERS = mapOf(
-            "User-Agent" to UA,
-            "Accept" to "video/*,application/octet-stream,*/*;q=0.9",
-            "Sec-Fetch-Dest" to "video",
-            "Sec-Fetch-Mode" to "no-cors",
-        )
-    }
-
-    override suspend fun getUrl(
-        url: String,
-        referer: String?,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        try {
-            val qHint = extractQualityFromUrl(url)
-            val fileName = url.substringAfterLast("/").substringBefore("?")
-
-            callback.invoke(
-                newExtractorLink(
-                    name,
-                    "$name $qHint — $fileName",
-                    url,
-                    ExtractorLinkType.VIDEO
-                ) {
-                    this.quality = getQualityFromName(qHint)
-                    this.referer = "https://v2.olamovies.mov"
-                    this.headers = PLAY_HEADERS
-                }
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed for $url: ${e.message}")
-        }
-    }
-
-    private fun extractQualityFromUrl(url: String): String {
-        return QUALITY_REGEX.find(url)?.groupValues?.get(1) ?: "HD"
-    }
-
-    private fun getQualityFromName(name: String?): Int {
-        if (name.isNullOrBlank()) return Qualities.Unknown.value
-        return when {
-            name.contains("4K", ignoreCase = true) -> Qualities.P2160.value
-            name.contains("2160p", ignoreCase = true) -> Qualities.P2160.value
-            name.contains("UHD", ignoreCase = true) -> Qualities.P2160.value
-            name.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
-            name.contains("FHD", ignoreCase = true) -> Qualities.P1080.value
-            name.contains("Remux", ignoreCase = true) -> Qualities.P1080.value
-            name.contains("720p", ignoreCase = true) -> Qualities.P720.value
-            name.contains("HD", ignoreCase = true) -> Qualities.P720.value
-            name.contains("480p", ignoreCase = true) -> Qualities.P480.value
-            name.contains("SD", ignoreCase = true) -> Qualities.P480.value
-            else -> Qualities.Unknown.value
-        }
-    }
 }

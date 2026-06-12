@@ -29,13 +29,12 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
-import kotlin.math.min
 
 /**
  * OlaMovies (v2.olamovies.mov) — Professional-grade CloudStream 3 provider.
  *
  * ═══════════════════════════════════════════════════════════
- *  ARCHITECTURE — 5-Layer Professional Design
+ *  ARCHITECTURE — 6-Layer Professional Design (v2 rewrite)
  * ═══════════════════════════════════════════════════════════
  *
  *  Layer 1: DYNAMIC DOMAIN
@@ -50,40 +49,44 @@ import kotlin.math.min
  *    detail pages. Dual-mode: GridLove-specific selectors
  *    first, then generic WordPress fallback.
  *
- *  Layer 3: LINK ID EXTRACTION ENGINE
- *    OlaMovies uses a link generator (links.ol-am.top/{id})
- *    to serve download links. We extract all link IDs from
- *    the page in 3 passes:
- *      Pass 1: <a href> attributes pointing to link generator
- *      Pass 2: Table rows (tr.m=720p, tr.d=1080p, tr.y=2160p)
- *      Pass 3: Regex salvage from full page HTML
+ *  Layer 3: wp-block-button LINK EXTRACTION
+ *    Download links are in div.wp-block-button > a elements.
+ *    Link text carries quality+size info: "720p [1.39gb]".
+ *    Movie pages: numeric IDs (20871). Series: alphanumeric.
+ *    NON-download links (tutorial, FAQ, telegram) are filtered.
  *
- *  Layer 4: MULTI-STAGE LINK RESOLUTION
- *    Each link ID goes through:
- *      Stage 1: Try OMDrive extractor (links.ol-am.top)
- *      Stage 2: Try play.ol-am.top direct streaming
- *      Stage 3: Try Google Drive URLs from link generator page
- *      Stage 4: Try Mega URLs
- *      Stage 5: Generic loadExtractor fallback
+ *  Layer 4: DOM-ORDER SERIES EPISODE BUILDER
+ *    Series pages use p.has-text-align-center > strong paragraphs
+ *    as section labels (e.g., "The Boys S01 720p BluRay x265...").
+ *    We walk the DOM in document order, tracking which label
+ *    precedes each wp-block-buttons group. Episode numbers come
+ *    from link text ("episode 01"). Season from label text.
  *
- *  Layer 5: COSMETIC POLISH
+ *  Layer 5: WebViewResolver LINK RESOLUTION
+ *    Link generator (links.olamovies.mov) is CF-protected with
+ *    countdown + shortener. We use WebViewResolver to bypass CF,
+ *    then follow the shortener chain to reach GDrive/Mega URLs.
+ *    Fallback: try direct app.get for pages that work without CF.
+ *
+ *  Layer 6: COSMETIC POLISH
  *    cleanTitle() strips all technical tags.
- *    Smart quality labels: "OlaPlay 4K UHD - movie.mkv"
+ *    Smart quality labels: "OlaMovies 1080p BluRay"
  *    IMDB ID enrichment for TMDB metadata matching.
  *
  * ═══════════════════════════════════════════════════════════
  *  OlaMovies-specific architecture:
  *    - Main site: v2.olamovies.mov (CF-protected, WebViewResolver handles)
- *    - Landing: olamovies.top (200 OK, informational)
- *    - Link generator: links.ol-am.top/{id} → links.olamovies.mov/{id}
- *    - Streaming: play.ol-am.top (direct MKV, NO CF, open server)
+ *    - Landing: olamovies.top / olamovies.dad (200 OK, informational)
+ *    - Link redirector: links.ol-am.top/{id} → 301 → links.olamovies.mov/{id}
+ *    - Link generator: links.olamovies.mov/{id} (Next.js RSC, CF + countdown)
+ *    - play.ol-am.top: ONLY serves a tutorial video, NOT actual content
  *    - Theme: GridLove WordPress magazine theme
- *    - Backend: OMDrive → Google Drive / Mega
+ *    - Backend: OMDrive → shortener → Google Drive / Mega
  *
  *  CloudStream's WebViewResolver handles Cloudflare automatically
  *  on the Android side, so CF protection is transparent to the user.
  *
- * @version 1
+ * @version 2 — Complete rewrite based on verified site structure
  */
 class OlaMoviesProvider : MainAPI() {
 
@@ -112,7 +115,15 @@ class OlaMoviesProvider : MainAPI() {
 
         /** Regex matching link generator domains */
         private val LINK_GEN_REGEX = Regex(
-            """links\.ol-am\.top|links\.olamovies\.mov"""
+            """links\.(?:ol-am\.top|olamovies\.mov)"""
+        )
+
+        /**
+         * Regex to extract link ID from a link generator URL.
+         * Matches both numeric IDs (20871) and alphanumeric (MCeGujF2W9zvHaR).
+         */
+        private val LINK_ID_REGEX = Regex(
+            """links\.(?:ol-am\.top|olamovies\.mov)/([a-zA-Z0-9_-]+)"""
         )
 
         /** Quality pattern from text */
@@ -120,15 +131,20 @@ class OlaMoviesProvider : MainAPI() {
             """(?i)(4K|2160p|1080p|720p|480p|360p|UHD|FHD|HD|SD|Remux|BluRay|WEB-DL|DV|Dolby\s*Vision|60fps|144fps)"""
         )
 
-        /** Season range pattern from title or text */
+        /** Season pattern from label text — e.g., "S01", "S02" */
+        private val SEASON_FROM_LABEL_REGEX = Regex(
+            """\bS(\d{1,2})\b""", RegexOption.IGNORE_CASE
+        )
+
+        /** Season range pattern from title — e.g., "[Season 1-5]", "S01-S05" */
         private val SEASON_RANGE_REGEX = Regex(
-            """\[Season\s+(\d+)(?:-(\d+))?\]|\bS(\d{1,2})\s*-\s*S(\d{1,2})\b|\bS(\d{1,2})S(\d{1,2})\b""",
+            """\[Season\s+(\d+)(?:-(\d+))?\]|\bS(\d{1,2})\s*[-–]\s*S(\d{1,2})\b|\bS(\d{1,2})S(\d{1,2})\b""",
             RegexOption.IGNORE_CASE
         )
 
-        /** Season-only pattern */
-        private val SEASON_ONLY_REGEX = Regex(
-            """S(\d{1,2})\b""", RegexOption.IGNORE_CASE
+        /** Episode number from link text — e.g., "episode 01", "Episode 8" */
+        private val EPISODE_NUM_REGEX = Regex(
+            """episode\s+(\d{1,3})""", RegexOption.IGNORE_CASE
         )
 
         /** Year pattern */
@@ -151,12 +167,43 @@ class OlaMoviesProvider : MainAPI() {
             "Sec-Fetch-Site" to "none",
         )
 
-        /** Headers for play.ol-am.top streaming */
-        private val PLAY_HEADERS = mapOf(
-            "User-Agent" to USER_AGENT,
-            "Accept" to "video/*,application/octet-stream,*/*;q=0.9",
-            "Sec-Fetch-Dest" to "video",
-            "Sec-Fetch-Mode" to "no-cors",
+        /**
+         * URLs that must be EXCLUDED from link collection.
+         * These are tutorial/FAQ/navigation links, NOT download links.
+         */
+        private val JUNK_URL_PATTERNS = listOf(
+            "play.ol-am.top",       // Tutorial video, NOT actual content
+            "m.ol-am.top",          // Domain redirect bookmark
+            "olamovies.top",        // Landing page
+            "olamovies.dad",        // Landing page alt
+            "liteapks.com",         // 1DM+ download manager
+            "lrepacks.net",         // IDM download manager
+            "jdownloader.org",      // JDownloader2
+            "tinyurl.com",          // URL shortener (FAQ)
+            "telegram.me",          // Telegram channel
+            "t.me/",                // Telegram alt
+            "/recent-comments",     // WordPress internal
+            "/wp-",                 // WordPress admin/resources
+        )
+
+        /**
+         * Link text patterns that indicate NON-download links.
+         * These are navigation/tutorial links that happen to match
+         * the link generator URL pattern.
+         */
+        private val JUNK_TEXT_PATTERNS = listOf(
+            "tutorial",
+            "how to",
+            "guide",
+            "faq",
+            "bookmark",
+            "alternative domain",
+            "download manager",
+            "1dm",
+            "idm",
+            "jdownloader",
+            "premium",
+            "more",
         )
     }
 
@@ -244,10 +291,7 @@ class OlaMoviesProvider : MainAPI() {
             IMDB_REGEX.find(a.attr("abs:href"))?.groupValues?.get(1)
         }.firstOrNull()
 
-        // --- Collect all link generator IDs ---
-        val linkIds = collectLinkIds(doc)
-
-        // --- Detect if series ---
+        // --- Collect download links (movie) or structured sections (series) ---
         val isSeriesByCategory = categories.any {
             it.contains("tv-series") || it.contains("tv-show") || it.contains("anime")
         }
@@ -256,13 +300,14 @@ class OlaMoviesProvider : MainAPI() {
         )
         val isSeries = isSeriesByCategory || isSeriesByTitle
 
-        // --- Series ---
+        val type = detectType(categories, tags)
+
         if (isSeries) {
-            val episodes = buildSeriesEpisodes(rawTitle, linkIds, categories)
+            val episodes = buildSeriesEpisodes(doc, rawTitle)
             return newTvSeriesLoadResponse(
                 name = cleanTitle(rawTitle),
                 url = url,
-                type = detectType(categories, tags),
+                type = type,
                 episodes = episodes,
             ) {
                 this.posterUrl = poster
@@ -273,11 +318,13 @@ class OlaMoviesProvider : MainAPI() {
             }
         }
 
-        // --- Movie ---
+        // --- Movie: collect link IDs with quality labels ---
+        val linkIds = collectMovieLinkIds(doc)
+
         return newMovieLoadResponse(
             name = cleanTitle(rawTitle),
             url = url,
-            type = detectType(categories, tags),
+            type = type,
             dataUrl = serializeLinkIds(linkIds),
         ) {
             this.posterUrl = poster
@@ -309,16 +356,12 @@ class OlaMoviesProvider : MainAPI() {
         for (link in links) {
             try {
                 val found = when {
-                    // Direct video URLs (play.ol-am.top, googleusercontent, etc.)
-                    link.contains("play.ol-am.top", ignoreCase = true) -> {
-                        emitDirectVideoLink(link, callback)
-                    }
-                    // Link generator IDs
+                    // Link generator IDs — resolve via WebViewResolver/extractor
                     link.startsWith("linkid:") -> {
                         val id = link.removePrefix("linkid:")
                         resolveLinkId(id, callback, subtitleCallback)
                     }
-                    // Full URLs
+                    // Full URLs — delegate
                     link.startsWith("http") -> {
                         resolveFullUrl(link, callback, subtitleCallback)
                     }
@@ -467,94 +510,311 @@ class OlaMoviesProvider : MainAPI() {
     // ========================================================================
 
     /**
-     * Collect all link generator IDs from a movie/series detail page.
+     * Check if a URL is a junk/non-download link that should be excluded.
      *
-     * 3-pass extraction:
-     *   Pass 1: <a href> attributes matching links.ol-am.top/{id}
-     *   Pass 2: Table rows with quality tiers (tr.m=720p, tr.d=1080p, tr.y=2160p)
-     *   Pass 3: Regex salvage from entire page HTML
+     * Filters out:
+     *   - play.ol-am.top (tutorial video)
+     *   - m.ol-am.top (domain redirect)
+     *   - olamovies.top / olamovies.dad (landing pages)
+     *   - Download manager links (1DM, IDM, JDownloader)
+     *   - Telegram, FAQ, shortener links
+     *   - WordPress internal links
      */
-    private fun collectLinkIds(doc: Document): List<Pair<String, String>> {
-        val linkIds = mutableListOf<Pair<String, String>>()
+    private fun isJunkLink(url: String, linkText: String): Boolean {
+        val lowerUrl = url.lowercase()
+        val lowerText = linkText.lowercase()
 
-        // Pass 1: Direct href links to link generator
-        doc.select("a[href]").forEach { a ->
+        // Check URL patterns
+        for (pattern in JUNK_URL_PATTERNS) {
+            if (lowerUrl.contains(pattern.lowercase())) return true
+        }
+
+        // Check link text patterns
+        for (pattern in JUNK_TEXT_PATTERNS) {
+            if (lowerText.contains(pattern.lowercase())) return true
+        }
+
+        return false
+    }
+
+    /**
+     * Collect movie download link IDs with quality labels.
+     *
+     * OlaMovies movie pages use WordPress Gutenberg blocks:
+     *   div.wp-block-button > a.wp-block-button__link → download button
+     *   Link text: "720p [1.39gb]", "1080p [2.61gb]", "1080p remux [24.2gb]"
+     *   URL: https://links.ol-am.top/{numeric_id}
+     *
+     * Also picks up links from generic <a> tags pointing to the link generator,
+     * but filters out junk/tutorial links.
+     */
+    private fun collectMovieLinkIds(doc: Document): List<LinkEntry> {
+        val linkIds = mutableListOf<LinkEntry>()
+
+        // Primary: WordPress Gutenberg block buttons
+        doc.select("div.wp-block-button a[href], a.wp-block-button__link[href]").forEach { a ->
             val href = a.attr("abs:href").ifBlank { a.attr("href") }
             val linkText = a.text()?.trim() ?: ""
 
-            val idMatch = Regex("""links\.(?:ol-am\.top|olamovies\.mov)/([a-zA-Z0-9_-]+)""")
-                .find(href)
+            if (isJunkLink(href, linkText)) return@forEach
+
+            val idMatch = LINK_ID_REGEX.find(href)
             if (idMatch != null) {
                 val id = idMatch.groupValues[1]
                 val quality = extractQualityFromText(linkText)
                     ?: extractQualityFromText(href)
                     ?: ""
-                linkIds.add(Pair(id, quality))
+                val label = buildQualityLabel(linkText, quality)
+                linkIds.add(LinkEntry(id = id, quality = quality, label = label, linkText = linkText))
             }
         }
 
-        // Pass 2: Table rows (OlaMovies uses tr.m, tr.d, tr.y for quality tiers)
-        doc.select("table tr").forEach { row ->
-            val cells = row.select("td")
-            if (cells.isEmpty()) return@forEach
+        // If Gutenberg blocks found, use those exclusively
+        if (linkIds.isNotEmpty()) {
+            return linkIds.distinctBy { it.id }
+        }
 
-            row.select("a[href]").forEach { a ->
-                val href = a.attr("abs:href").ifBlank { a.attr("href") }
-                val idMatch = Regex("""links\.(?:ol-am\.top|olamovies\.mov)/([a-zA-Z0-9_-]+)""")
-                    .find(href)
-                if (idMatch != null) {
-                    val id = idMatch.groupValues[1]
-                    val rowQuality = when {
-                        row.hasClass("m") -> "720p"
-                        row.hasClass("d") -> "1080p"
-                        row.hasClass("y") -> "2160p"
-                        else -> extractQualityFromText(row.text() ?: "")
-                    } ?: ""
-                    linkIds.add(Pair(id, rowQuality))
-                }
+        // Fallback: generic <a> tags pointing to link generator
+        doc.select("a[href]").forEach { a ->
+            val href = a.attr("abs:href").ifBlank { a.attr("href") }
+            val linkText = a.text()?.trim() ?: ""
+
+            if (isJunkLink(href, linkText)) return@forEach
+
+            val idMatch = LINK_ID_REGEX.find(href)
+            if (idMatch != null) {
+                val id = idMatch.groupValues[1]
+                val quality = extractQualityFromText(linkText)
+                    ?: extractQualityFromText(href)
+                    ?: ""
+                val label = buildQualityLabel(linkText, quality)
+                linkIds.add(LinkEntry(id = id, quality = quality, label = label, linkText = linkText))
             }
         }
 
-        // Pass 3: Regex salvage from entire page HTML
-        if (linkIds.isEmpty()) {
-            val pageText = doc.html()
-            Regex("""links\.(?:ol-am\.top|olamovies\.mov)/([a-zA-Z0-9_-]{3,})""")
-                .findAll(pageText)
-                .forEach { match ->
-                    val id = match.groupValues[1]
-                    val quality = extractQualityFromText(
-                        pageText.substringBefore(match.value).takeLast(200)
-                    )
-                    linkIds.add(Pair(id, quality ?: ""))
-                }
-        }
+        return linkIds.distinctBy { it.id }
+    }
 
-        return linkIds.distinctBy { it.first }
+    /**
+     * Build a display-quality label from link text.
+     * E.g., "720p [1.39gb]" → "720p", "1080p {60FPS} [9.43gb]" → "1080p 60FPS"
+     */
+    private fun buildQualityLabel(linkText: String, quality: String): String {
+        if (quality.isBlank()) return linkText
+        // Extract special tags like {60FPS}, {3d}, "remux", "multi"
+        val extras = mutableListOf<String>()
+        if (linkText.contains("remux", ignoreCase = true)) extras.add("Remux")
+        if (linkText.contains("{60fps}", ignoreCase = true) ||
+            linkText.contains("60fps", ignoreCase = true)) extras.add("60FPS")
+        if (linkText.contains("{3d}", ignoreCase = true)) extras.add("3D")
+        if (linkText.contains("multi", ignoreCase = true)) extras.add("Multi")
+        if (linkText.contains("x264", ignoreCase = true) &&
+            !linkText.contains("x265", ignoreCase = true)) extras.add("x264")
+
+        return if (extras.isNotEmpty()) "$quality ${extras.joinToString(" ")}" else quality
     }
 
     // ========================================================================
-    // Series Episode Builder
+    // Series Episode Builder — DOM-order walking
     // ========================================================================
 
     /**
-     * Build episode list for a TV series from collected link IDs.
-     *
-     * OlaMovies series pages contain dozens of link IDs organized by
-     * season and quality. Strategy:
-     *   1. Parse season range from title (e.g., "[Season 1-5]" → S01-S05)
-     *   2. Group link IDs by season/episode from surrounding text
-     *   3. If grouping fails, create one episode per quality group
+     * Represents a section label + its associated download links.
+     * In OlaMovies series pages, each quality/season group has:
+     *   1. A <p class="has-text-align-center"><strong>Label Text</strong></p>
+     *   2. A div.wp-block-buttons containing episode links
      */
-    private fun buildSeriesEpisodes(
-        rawTitle: String,
-        linkIds: List<Pair<String, String>>,
-        categories: List<String>,
-    ): List<Episode> {
+    private data class SectionGroup(
+        val labelText: String,
+        val season: Int?,
+        val quality: String,
+        val links: MutableList<LinkEntry> = mutableListOf()
+    )
+
+    /**
+     * Build episode list for a TV series by walking the DOM in document order.
+     *
+     * OlaMovies series pages structure (verified from live HTML):
+     * ```
+     * <p class="has-text-align-center"><strong>The Boys S01 720p BluRay x265...</strong></p>
+     * <div class="wp-block-buttons">
+     *   <div class="wp-block-button"><a href="links.ol-am.top/xxx">episode 01</a></div>
+     *   <div class="wp-block-button"><a href="links.ol-am.top/xxx">episode 02</a></div>
+     *   ...
+     *   <div class="wp-block-button"><a href="links.ol-am.top/xxx">720p zip [5.03gb]</a></div>
+     * </div>
+     * <p class="has-text-align-center"><strong>The Boys S01 1080p BluRay x265...</strong></p>
+     * <div class="wp-block-buttons">
+     *   ...
+     * </div>
+     * ```
+     *
+     * Strategy:
+     *   1. Walk .entry-content children in DOM order
+     *   2. Track current section label when we encounter <p> labels
+     *   3. When we encounter a wp-block-buttons group, assign links to current section
+     *   4. Group episodes by (season, episode_number) across quality variants
+     *   5. Create Episode objects with multiple quality links
+     */
+    private fun buildSeriesEpisodes(doc: Document, rawTitle: String): List<Episode> {
+        val contentEl = doc.selectFirst(".entry-content")
+            ?: doc.selectFirst("article")
+            ?: return emptyList()
+
+        // --- Phase 1: Collect sections by walking DOM ---
+        val sections = mutableListOf<SectionGroup>()
+        var currentLabel = ""
+
+        for (child in contentEl.children()) {
+            // Check for section label paragraph
+            val isLabelParagraph = child.tagName() == "p" &&
+                (child.hasClass("has-text-align-center") ||
+                 child.selectFirst("strong") != null) &&
+                child.text()?.trim()?.isNotBlank() == true &&
+                child.text().length > 10  // Labels are long descriptive strings
+
+            if (isLabelParagraph) {
+                currentLabel = child.text().trim()
+                continue
+            }
+
+            // Check for download button group
+            val isButtonGroup = child.hasClass("wp-block-buttons") ||
+                child.selectFirst("div.wp-block-buttons") != null
+
+            if (isButtonGroup && currentLabel.isNotBlank()) {
+                val season = SEASON_FROM_LABEL_REGEX.find(currentLabel)
+                    ?.groupValues?.get(1)?.toIntOrNull()
+                val quality = extractQualityFromText(currentLabel) ?: "HD"
+
+                val section = SectionGroup(
+                    labelText = currentLabel,
+                    season = season,
+                    quality = quality
+                )
+
+                // Extract links from this button group
+                child.select("div.wp-block-button a[href], a.wp-block-button__link[href]").forEach { a ->
+                    val href = a.attr("abs:href").ifBlank { a.attr("href") }
+                    val linkText = a.text()?.trim() ?: ""
+
+                    if (isJunkLink(href, linkText)) return@forEach
+
+                    val idMatch = LINK_ID_REGEX.find(href)
+                    if (idMatch != null) {
+                        val id = idMatch.groupValues[1]
+                        val epNum = EPISODE_NUM_REGEX.find(linkText)
+                            ?.groupValues?.get(1)?.toIntOrNull()
+                        val isZip = linkText.contains("zip", ignoreCase = true)
+
+                        section.links.add(
+                            LinkEntry(
+                                id = id,
+                                quality = quality,
+                                label = buildQualityLabel(linkText, quality),
+                                linkText = linkText,
+                                episodeNum = epNum,
+                                isZip = isZip
+                            )
+                        )
+                    }
+                }
+
+                if (section.links.isNotEmpty()) {
+                    sections.add(section)
+                }
+                currentLabel = ""  // Reset label after consuming
+            }
+        }
+
+        // --- Phase 2: Fallback — if DOM walking found nothing, try flat collection ---
+        if (sections.isEmpty()) {
+            Log.w(TAG, "DOM walking found no sections, falling back to flat collection")
+            return buildSeriesEpisodesFallback(doc, rawTitle)
+        }
+
+        // --- Phase 3: Group by (season, episodeNumber) across quality variants ---
+        // Each episode may appear in multiple sections (720p, 1080p, 4K, etc.)
+        // We create one Episode per (season, epNum) with all quality links merged.
+        data class EpisodeKey(val season: Int?, val episodeNum: Int?)
+
+        val episodeMap = linkedMapOf<EpisodeKey, MutableList<LinkEntry>>()
+
+        for (section in sections) {
+            for (link in section.links) {
+                // Skip zip/batch links — they're not individual episodes
+                if (link.isZip) continue
+
+                val epNum = link.episodeNum
+                val key = EpisodeKey(section.season, epNum)
+
+                episodeMap.getOrPut(key) { mutableListOf() }.add(
+                    link.copy(quality = section.quality, season = section.season)
+                )
+            }
+        }
+
+        // --- Phase 4: Build Episode objects ---
+        val episodes = mutableListOf<Episode>()
+
+        for ((key, links) in episodeMap) {
+            val (season, epNum) = key
+            val name = if (epNum != null) {
+                "Episode $epNum"
+            } else {
+                // No episode number — use section label
+                links.firstOrNull()?.linkText ?: "Episode"
+            }
+
+            episodes.add(
+                newEpisode(serializeLinkIds(links)) {
+                    this.name = name
+                    this.season = season
+                    this.episode = epNum
+                }
+            )
+        }
+
+        // --- Phase 5: If no episodes with proper numbering, try zip links as fallback ---
+        if (episodes.isEmpty()) {
+            val allZipLinks = sections.flatMap { sec ->
+                sec.links.filter { it.isZip }.map {
+                    it.copy(quality = sec.quality, season = sec.season)
+                }
+            }
+            if (allZipLinks.isNotEmpty()) {
+                episodes.add(
+                    newEpisode(serializeLinkIds(allZipLinks)) {
+                        this.name = "Season Pack"
+                    }
+                )
+            }
+        }
+
+        return episodes.ifEmpty {
+            // Last resort: single episode with all links
+            val allLinks = sections.flatMap { it.links }
+            if (allLinks.isNotEmpty()) {
+                listOf(
+                    newEpisode(serializeLinkIds(allLinks)) {
+                        this.name = "All Episodes"
+                    }
+                )
+            } else emptyList()
+        }
+    }
+
+    /**
+     * Fallback series episode builder when DOM walking fails.
+     * Uses the old approach of distributing links by season range from title.
+     */
+    private fun buildSeriesEpisodesFallback(doc: Document, rawTitle: String): List<Episode> {
+        val linkIds = collectMovieLinkIds(doc)
         if (linkIds.isEmpty()) return emptyList()
 
         val episodes = mutableListOf<Episode>()
         val seasonRange = parseSeasonRange(rawTitle)
-        val byQuality = linkIds.groupBy { it.second.ifBlank { "HD" } }
+        val byQuality = linkIds.groupBy { it.quality.ifBlank { "HD" } }
 
         if (seasonRange != null) {
             val (firstSeason, lastSeason) = seasonRange
@@ -564,14 +824,14 @@ class OlaMoviesProvider : MainAPI() {
 
             for (s in firstSeason..lastSeason) {
                 val startIdx = (s - firstSeason) * linksPerSeason
-                val endIdx = min(startIdx + linksPerSeason, totalLinks)
+                val endIdx = kotlin.math.min(startIdx + linksPerSeason, totalLinks)
                 val seasonLinks = linkIds.subList(
                     startIdx.coerceAtMost(totalLinks),
                     endIdx.coerceAtMost(totalLinks)
                 )
 
                 if (seasonLinks.isNotEmpty()) {
-                    val qualityGroups = seasonLinks.groupBy { it.second.ifBlank { "HD" } }
+                    val qualityGroups = seasonLinks.groupBy { it.quality.ifBlank { "HD" } }
                     for ((quality, ids) in qualityGroups) {
                         val qualityLabel = if (qualityGroups.size > 1) " ($quality)" else ""
                         episodes.add(
@@ -611,12 +871,6 @@ class OlaMoviesProvider : MainAPI() {
             if (s1 != null && s2 != null) return Pair(s1, s2)
             if (s1 != null) return Pair(s1, s1)
         }
-
-        SEASON_ONLY_REGEX.find(title)?.let { match ->
-            val s = match.groupValues[1].toIntOrNull()
-            if (s != null) return Pair(s, s)
-        }
-
         return null
     }
 
@@ -627,10 +881,16 @@ class OlaMoviesProvider : MainAPI() {
     /**
      * Resolve a link generator ID to playable video URLs.
      *
-     * Multi-stage resolution:
-     *   Stage 1: Try OMDrive extractor (registered, handles links.ol-am.top)
-     *   Stage 2: Try the link generator page directly for GDrive/Mega/MKV URLs
-     *   Stage 3: play.ol-am.top URLs found on the generator page
+     * Resolution chain:
+     *   1. Try OMDrive extractor via loadExtractor (handles WebViewResolver)
+     *   2. Try fetching the link generator page directly for any embedded URLs
+     *   3. Try the alternate domain (links.olamovies.mov)
+     *
+     * NOTE: The link generator page is CF-protected with a countdown timer
+     * and shortener. On Android, CloudStream's WebViewResolver handles CF.
+     * The OMDrive extractor registered in the plugin will be invoked by
+     * loadExtractor(), which can use WebViewResolver to bypass CF and
+     * follow the shortener chain to reach the final download URL.
      */
     private suspend fun resolveLinkId(
         id: String,
@@ -639,7 +899,7 @@ class OlaMoviesProvider : MainAPI() {
     ): Boolean {
         var found = false
 
-        // Stage 1: Use registered OMDrive extractor
+        // Stage 1: Use registered OMDrive extractor (handles CF via WebViewResolver)
         try {
             val genUrl = "$LINKS_BASE/$id"
             loadExtractor(genUrl, mainUrl, subtitleCallback, callback)
@@ -649,59 +909,25 @@ class OlaMoviesProvider : MainAPI() {
         }
 
         // Stage 2: Try the alternate link generator page directly
+        // This may work if CF challenge is not active or WebViewResolver handles it
         try {
             val genUrl = "$LINKS_ALT/$id"
-            val doc = app.get(genUrl, headers = BASE_HEADERS, timeout = 15).document
-            val pageText = doc.html()
+            val response = app.get(genUrl, headers = BASE_HEADERS, timeout = 15)
+            if (response.code == 200) {
+                val doc = response.document
+                val pageText = doc.html()
 
-            // Google Drive URLs
-            Regex("""https?://(?:drive\.google\.com|drive\.usercontent\.google\.com|video-downloads\.googleusercontent\.com)/[^\s"'<>]+""")
-                .findAll(pageText).forEach { match ->
-                    val url = match.value.replace("\\u0026", "&")
-                    val qualityHint = extractQualityFromText(
-                        pageText.substringBefore(match.value).takeLast(200)
-                    ) ?: "HD"
-                    callback.invoke(
-                        newExtractorLink(
-                            "$name GDrive",
-                            "$name GDrive $qualityHint",
-                            url,
-                            ExtractorLinkType.VIDEO
-                        ) {
-                            this.quality = getQualityFromName(qualityHint)
-                            this.referer = genUrl
-                        }
-                    )
-                    found = true
-                }
-
-            // Mega URLs
-            Regex("""https?://mega\.(?:nz|co\.nz)/[^\s"'<>]+""")
-                .findAll(pageText).forEach { match ->
-                    callback.invoke(
-                        newExtractorLink(
-                            "$name Mega",
-                            "$name Mega",
-                            match.value,
-                            ExtractorLinkType.VIDEO
-                        ) {
-                            this.quality = Qualities.Unknown.value
-                            this.referer = genUrl
-                        }
-                    )
-                    found = true
-                }
-
-            // Direct video URLs (.mkv, .mp4)
-            Regex("""https?://[^\s"'<>]+\.(?:mkv|mp4|avi)""")
-                .findAll(pageText).forEach { match ->
-                    val url = match.value
-                    if (!url.contains(".js") && !url.contains(".css")) {
-                        val qualityHint = extractQualityFromUrl(url)
+                // Google Drive URLs
+                Regex("""https?://(?:drive\.google\.com|drive\.usercontent\.google\.com|video-downloads\.googleusercontent\.com)/[^\s"'<>]+""")
+                    .findAll(pageText).forEach { match ->
+                        val url = match.value.replace("\\u0026", "&")
+                        val qualityHint = extractQualityFromText(
+                            pageText.substringBefore(match.value).takeLast(200)
+                        ) ?: "HD"
                         callback.invoke(
                             newExtractorLink(
-                                "$name",
-                                "$name $qualityHint",
+                                "$name GDrive",
+                                "$name GDrive $qualityHint",
                                 url,
                                 ExtractorLinkType.VIDEO
                             ) {
@@ -711,27 +937,61 @@ class OlaMoviesProvider : MainAPI() {
                         )
                         found = true
                     }
-                }
 
-            // play.ol-am.top URLs on the link generator page
-            doc.select("a[href*=play.ol-am.top], video source[src]").forEach { el ->
-                val src = el.attr("abs:href")
-                    .ifBlank { el.attr("abs:src").ifBlank { el.attr("src") } }
-                if (src.isNotBlank() && src.startsWith("http")) {
-                    val qualityHint = extractQualityFromUrl(src)
-                    callback.invoke(
-                        newExtractorLink(
-                            "$name Stream",
-                            "$name $qualityHint",
-                            src,
-                            ExtractorLinkType.VIDEO
-                        ) {
-                            this.quality = getQualityFromName(qualityHint)
-                            this.referer = mainUrl
-                            this.headers = PLAY_HEADERS
+                // Direct video URLs (.mkv, .mp4) — but NOT from R2 tutorial
+                Regex("""https?://[^\s"'<>]+\.(?:mkv|mp4|avi|ts|m4v)""")
+                    .findAll(pageText).forEach { match ->
+                        val url = match.value
+                        // Filter out tutorial video and static assets
+                        if (!url.contains("r2.dev") && !url.contains(".js") &&
+                            !url.contains(".css") && !url.contains(".json")) {
+                            val qualityHint = extractQualityFromUrl(url)
+                            callback.invoke(
+                                newExtractorLink(
+                                    name,
+                                    "$name $qualityHint",
+                                    url,
+                                    ExtractorLinkType.VIDEO
+                                ) {
+                                    this.quality = getQualityFromName(qualityHint)
+                                    this.referer = genUrl
+                                }
+                            )
+                            found = true
                         }
-                    )
-                    found = true
+                    }
+
+                // Mega URLs
+                Regex("""https?://mega\.(?:nz|co\.nz)/[^\s"'<>]+""")
+                    .findAll(pageText).forEach { match ->
+                        callback.invoke(
+                            newExtractorLink(
+                                "$name Mega",
+                                "$name Mega",
+                                match.value,
+                                ExtractorLinkType.VIDEO
+                            ) {
+                                this.quality = Qualities.Unknown.value
+                                this.referer = genUrl
+                            }
+                        )
+                        found = true
+                    }
+
+                // Any other known hoster links
+                doc.select("a[href]").mapNotNull { a ->
+                    val href = a.attr("abs:href").ifBlank { a.attr("href") }
+                    if (href.startsWith("http") && !isJunkLink(href, "") &&
+                        !href.contains("ol-am.top") && !href.contains("olamovies.mov")) {
+                        href
+                    } else null
+                }.distinct().forEach { hostUrl ->
+                    try {
+                        loadExtractor(hostUrl, mainUrl, subtitleCallback, callback)
+                        found = true
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Could not dispatch to extractor: $hostUrl — ${e.message}")
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -750,19 +1010,22 @@ class OlaMoviesProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
     ): Boolean {
         return when {
+            // Skip play.ol-am.top — it only serves a tutorial video
             url.contains("play.ol-am.top", ignoreCase = true) -> {
-                emitDirectVideoLink(url, callback)
+                Log.d(TAG, "Skipping play.ol-am.top tutorial URL: $url")
+                false
             }
             url.contains("googleusercontent.com", ignoreCase = true) ||
             url.contains("drive.google.com", ignoreCase = true) -> {
+                val qualityHint = extractQualityFromUrl(url)
                 callback.invoke(
                     newExtractorLink(
                         "$name GDrive",
-                        "$name GDrive",
+                        "$name GDrive $qualityHint",
                         url,
                         ExtractorLinkType.VIDEO
                     ) {
-                        this.quality = Qualities.Unknown.value
+                        this.quality = getQualityFromName(qualityHint)
                         this.referer = mainUrl
                     }
                 )
@@ -781,30 +1044,6 @@ class OlaMoviesProvider : MainAPI() {
                 }
             }
         }
-    }
-
-    // ========================================================================
-    // Direct Video Link Emission
-    // ========================================================================
-
-    private suspend fun emitDirectVideoLink(
-        url: String,
-        callback: (ExtractorLink) -> Unit,
-    ): Boolean {
-        val qualityHint = extractQualityFromUrl(url)
-        callback.invoke(
-            newExtractorLink(
-                "$name Stream",
-                "$name $qualityHint",
-                url,
-                ExtractorLinkType.VIDEO
-            ) {
-                this.quality = getQualityFromName(qualityHint)
-                this.referer = mainUrl
-                this.headers = PLAY_HEADERS
-            }
-        )
-        return true
     }
 
     // ========================================================================
@@ -864,11 +1103,29 @@ class OlaMoviesProvider : MainAPI() {
     }
 
     // ========================================================================
-    // Link Serialization
+    // Link Entry & Serialization
     // ========================================================================
 
-    private fun serializeLinkIds(links: List<Pair<String, String>>): String {
-        return links.map { (id, _) -> "linkid:$id" }.joinToString("|")
+    /**
+     * Represents a single download link with metadata.
+     */
+    private data class LinkEntry(
+        val id: String,
+        val quality: String,
+        val label: String,
+        val linkText: String,
+        val episodeNum: Int? = null,
+        val isZip: Boolean = false,
+        val season: Int? = null,
+    )
+
+    private fun serializeLinkIds(links: List<LinkEntry>): String {
+        return links.map { entry ->
+            // Encode quality & label as query params in the linkid
+            val q = URLEncoder.encode(entry.quality, "UTF-8")
+            val l = URLEncoder.encode(entry.label, "UTF-8")
+            "linkid:${entry.id}?q=$q&l=$l"
+        }.joinToString("|")
     }
 
     private fun deserializeLinks(data: String): List<String> {
