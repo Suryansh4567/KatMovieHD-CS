@@ -97,15 +97,15 @@
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
-        "status": 3,
-        "version": 1,
+        "status": 2,
+        "version": 2,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / HDR / Dolby Vision movies & TV series from OlaMovies v2 (olamovies.mov). Dual-audio, multi-quality links, play.ol-am.top direct streaming, dynamic domain.",
-        "fileSize": 44282,
+        "description": "4K UHD / HDR / Dolby Vision movies & TV series from OlaMovies v2 (olamovies.mov). wp-block-button link extraction, DOM-order series episode builder, OMDrive WebViewResolver, dynamic domain.",
+        "fileSize": 49202,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -117,6 +117,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-08c4ad88dac9e3c6eb40e149a0c5b7ca9fa3047b555a9816fd52c72f17fc3011"
+        "fileHash": "sha256-7ef516ee99275c56afdd80bda485c3a7a7e85ee497273efb70a9d4400eda950c"
     }
 ]
