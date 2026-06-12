@@ -94,5 +94,29 @@
         "jarFileSize": 313679,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
         "jarHash": "sha256-1ae96cddf106abd512d84e2b472024b92f0e41664526789d83ba2fa5caf9ac47"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
+        "status": 3,
+        "version": 1,
+        "name": "OlaMovies",
+        "internalName": "OlaMovies",
+        "authors": [
+            "arena"
+        ],
+        "description": "4K UHD / HDR / Dolby Vision movies & TV series from OlaMovies v2 (olamovies.mov). Dual-audio, multi-quality links, play.ol-am.top direct streaming, dynamic domain.",
+        "fileSize": 44282,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "en",
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime",
+            "Documentary",
+            "AsianDrama"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
+        "apiVersion": 1,
+        "fileHash": "sha256-08c4ad88dac9e3c6eb40e149a0c5b7ca9fa3047b555a9816fd52c72f17fc3011"
     }
 ]
