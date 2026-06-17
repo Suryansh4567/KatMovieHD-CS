@@ -2,13 +2,13 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 19,
+        "version": 20,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain, wp-json search API + regex link-salvage fallback.",
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. Multi-season aware, supports pack-only pages, TMDB + Cinemeta metadata, dynamic domain, wp-json search API + regex link-salvage fallback. v20: verified live against new1.katmoviehd.cymru.",
         "fileSize": 88073,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
@@ -20,18 +20,18 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-c8e41f33c9fe0d62056d239555800a21913c8fc95661a21f32edd998c0e30839"
+        "fileHash": "sha256-6e84b627274a62e4c9d40c187d9b813013495954a1c3d1d0d7199baa0c58e0a2"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
         "status": 1,
-        "version": 16,
+        "version": 17,
         "name": "KMMovies",
         "internalName": "KMMovies",
         "authors": [
             "arena"
         ],
-        "description": "Movies & TV series from KMMovies (kmmovies.lol). Dual-audio, Hindi dubbed, 4K UHD/HDR/DV, multi-season episode-wise support, TMDB metadata, dynamic domain.",
+        "description": "Movies & TV series from KMMovies (kmmovies.lol). Dual-audio, Hindi dubbed, 4K UHD/HDR/DV, multi-season episode-wise support, TMDB metadata, dynamic domain. v17: CF sites verified reachable from residential Android.",
         "fileSize": 141996,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
@@ -43,43 +43,43 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.lol&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-e12d7e6e51445403620d0c8ab5af80c5887e593ee440ed1bf2fce184c24754a2"
+        "fileHash": "sha256-22cb310cbbc0f10c6f983a69231e3a8a14d7e883a826ab0d1e6ff80027899e40"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.cs3",
         "status": 1,
-        "version": 3,
+        "version": 4,
         "name": "MkvHub",
         "internalName": "MkvHub",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MkvHub \u2014 Bollywood, Hollywood, Dual Audio, South Indian, Punjabi Movies & Web Series (720p/1080p/4K)",
-        "fileSize": 30885,
+        "description": "MkvHub \u2014 Bollywood, Hollywood, Dual Audio, South Indian, Punjabi Movies & Web Series (720p/1080p/4K). v4: domain moved to mkvhub.best (.beer is parked); added DOMAIN_TLDS fallback chain.",
+        "fileSize": 32218,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
             "Movie",
             "TvSeries"
         ],
-        "iconUrl": "https://www.mkvhub.beer/wp-content/uploads/2018/06/MkvHub-Icon.png",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=mkvhub.best&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-832315d65f4308e7f3bac5de08df1799324893c4499d6fc1db9ea3ab2c9ce797",
-        "jarFileSize": 110040,
+        "fileHash": "sha256-7e4236d7dff031db06b33337cf5e2205441d4c8a8c5a84668b0e754fbb845e6b",
+        "jarFileSize": 114635,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.jar",
-        "jarHash": "sha256-d97eb52e7554e766aedb83f41c446b68cf62897c746f7565c608193ab7460fcc"
+        "jarHash": "sha256-692006cbe5ef61bc5361b1f0cf81a40ab71427781e12b940199812acf5ca6f5a"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
         "status": 1,
-        "version": 34,
+        "version": 35,
         "name": "MoviesCounter",
         "internalName": "MoviesCounter",
         "authors": [
             "Suryansh4567"
         ],
-        "description": "MoviesCounter \u2014 v34: Built from scratch by studying ACTUAL site HTML. Fixed: HUBCDN mainUrl now hubcdn.sbs (was hubcdn.fans). Fixed: Mclinks now correctly handles image-based links. Fixed: HubDrive checks multiple button selectors. Added: Direct video handling for obsession.buzz URLs. Added: TMDB episode names/posters/descriptions.",
-        "fileSize": 72434,
+        "description": "MoviesCounter \u2014 v35: Updated all custom extractors to current live domains (hubdrive.fit, hubcloud.ink, hubcdn.cloud). resolveLink() now uses substring host-family matching so future TLD rotations don't break link dispatch.",
+        "fileSize": 72306,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -90,24 +90,24 @@
         ],
         "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
         "apiVersion": 1,
-        "fileHash": "sha256-7184eb910ac34982ef5dcb6e9b8836132536c0ad12bdf44b5911c555f1123947",
-        "jarFileSize": 313679,
+        "fileHash": "sha256-003ffa3a65290c652cb2adf3cf735958b2af349d8801bf5b2d9cd48cc296e76f",
+        "jarFileSize": 313339,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-1ae96cddf106abd512d84e2b472024b92f0e41664526789d83ba2fa5caf9ac47"
+        "jarHash": "sha256-51a0819d3e1c7fdf82932c087cea65735dcf4375433e04594152ecf2008f3781"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
         "status": 2,
-        "version": 2,
+        "version": 4,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / HDR / Dolby Vision movies & TV series from OlaMovies v2 (olamovies.mov). wp-block-button link extraction, DOM-order series episode builder, OMDrive WebViewResolver, dynamic domain.",
-        "fileSize": 49202,
+        "description": "4K UHD / HDR / DV movies & TV series from OlaMovies (v2.olamovies.mov). CF-protected \u2014 uses WebViewResolver. Gutenberg wp-block-button links, DOM-order series, OMDrive extractor with CF killer + shortener chain. v4: fixed compile errors (WebViewResolver import path, INFER_TYPE, suspend extractFromHtml).",
+        "fileSize": 53141,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "en",
+        "language": "hi",
         "tvTypes": [
             "Movie",
             "TvSeries",
@@ -117,6 +117,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-7ef516ee99275c56afdd80bda485c3a7a7e85ee497273efb70a9d4400eda950c"
+        "fileHash": "sha256-a633bf525c2dbc8cc3c675700cf6e26f419f255258ade9f761d03ea429e0d7d7"
     }
 ]
