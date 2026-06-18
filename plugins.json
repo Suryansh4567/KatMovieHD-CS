@@ -98,14 +98,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
         "status": 2,
-        "version": 7,
+        "version": 8,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
         "description": "OlaMovies rebuilt from scratch: GridLove parser, robust movie/series episodes, dynamic domains, OMDrive WebView resolver, host-page delegation, junk-link filtering.",
-        "fileSize": 46885,
+        "fileSize": 47547,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -117,6 +117,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-5d58a5a57533d857bb4fd07dbed41a22b4aeab0459958571f8b5d2b1f69aea11"
+        "fileHash": "sha256-b756fd3b51798d1a5bfe485dba530a94b16a232d49d53dc46114b917528bc3a2"
     }
 ]
