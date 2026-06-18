@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CinemaLux.cs3",
         "status": 2,
-        "version": 6,
+        "version": 9,
         "name": "CinemaLux",
         "internalName": "CinemaLux",
         "authors": [
             "arena"
         ],
         "description": "CinemaLux/CinemaLuxe: OlaMovies-like 4K/1080p/2160p movies & series. Parses tpi.li hidden tokens to LinkStore and uses WebView fallback for protected final hosts.",
-        "fileSize": 52919,
+        "fileSize": 52918,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -21,7 +21,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=cinemalux.makeup&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-0398fea4407ee6f643bf4de369dad44afbe4176b6256aa008fc8466edf6de485"
+        "fileHash": "sha256-a0fb7bc3914e18b75e4927817b36353cecf732dd00afaaa19f9d0c309251fa73"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
