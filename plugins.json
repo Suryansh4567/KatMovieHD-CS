@@ -98,14 +98,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
         "status": 2,
-        "version": 4,
+        "version": 5,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
-        "description": "4K UHD / HDR / DV movies & TV series from OlaMovies (v2.olamovies.mov). CF-protected \u2014 uses WebViewResolver. Gutenberg wp-block-button links, DOM-order series, OMDrive extractor with CF killer + shortener chain. v4: fixed compile errors (WebViewResolver import path, INFER_TYPE, suspend extractFromHtml).",
-        "fileSize": 53141,
+        "description": "4K UHD / HDR / DV movies & TV series from OlaMovies. v5: health-probed dynamic domains, old URL rewrite, fixed TV-series detection, fixed linkid metadata/query handling, stronger OMDrive WebView/shortener/final-host dispatch.",
+        "fileSize": 59745,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -117,6 +117,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-a633bf525c2dbc8cc3c675700cf6e26f419f255258ade9f761d03ea429e0d7d7"
+        "fileHash": "sha256-bdd4e647a4201156d92bd5bc37e51f2d67d3838bb8c77e112ee93c8afe9b7352"
     }
 ]
