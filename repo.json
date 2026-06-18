@@ -1,6 +1,6 @@
 {
-    "name": "KatMovieHD & CinemaLux CS Repo",
-    "description": "Hindi dubbed & dual-audio movies/TV series from KatMovieHD + 4K UHD/HDR/DV releases from CinemaLux/CinemaLuxe",
+    "name": "KatMovieHD CS Repo",
+    "description": "Hindi dubbed & dual-audio movies/TV series from KatMovieHD",
     "manifestVersion": 1,
     "pluginLists": [
         "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/plugins.json"

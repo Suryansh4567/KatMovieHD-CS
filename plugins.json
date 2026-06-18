@@ -1,29 +1,5 @@
 [
     {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CinemaLux.cs3",
-        "status": 2,
-        "version": 12,
-        "name": "CinemaLux",
-        "internalName": "CinemaLux",
-        "authors": [
-            "arena"
-        ],
-        "description": "CinemaLux/CinemaLuxe v12: OlaMovies-like 4K/1080p/2160p catalogue. tpi.li token decode, LinkStore REDIRECT_URL, LuxeDrive/GDFlix, R2 + busycdn/googleusercontent direct link support, source-priority ordering, stage trace diagnostics, hardened fastcdn/google direct extraction, LuxeDrive API attempts, series pack entries, entry sorting, in-memory direct-link cache, soft HEAD validation, and short stage diagnostics.",
-        "fileSize": 67150,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "hi",
-        "tvTypes": [
-            "Movie",
-            "TvSeries",
-            "Anime",
-            "Documentary",
-            "AsianDrama"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=cinemalux.makeup&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-c9517507773c60c747b8f32434cd1e1dec6a90c2d92c7792b7638e24b0faafc3"
-    },
-    {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
         "version": 21,
@@ -45,78 +21,5 @@
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
         "fileHash": "sha256-b914bebc096515f6b4a6b02f161d66b730ca3f7413efd68420baf30ff450f1e6"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
-        "status": 1,
-        "version": 17,
-        "name": "KMMovies",
-        "internalName": "KMMovies",
-        "authors": [
-            "arena"
-        ],
-        "description": "Movies & TV series from KMMovies (kmmovies.lol). Dual-audio, Hindi dubbed, 4K UHD/HDR/DV, multi-season episode-wise support, TMDB metadata, dynamic domain. v17: CF sites verified reachable from residential Android.",
-        "fileSize": 141996,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "hi",
-        "tvTypes": [
-            "Movie",
-            "TvSeries",
-            "AsianDrama",
-            "Anime"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.lol&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-22cb310cbbc0f10c6f983a69231e3a8a14d7e883a826ab0d1e6ff80027899e40"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.cs3",
-        "status": 1,
-        "version": 4,
-        "name": "MkvHub",
-        "internalName": "MkvHub",
-        "authors": [
-            "Suryansh4567"
-        ],
-        "description": "MkvHub \u2014 Bollywood, Hollywood, Dual Audio, South Indian, Punjabi Movies & Web Series (720p/1080p/4K). v4: domain moved to mkvhub.best (.beer is parked); added DOMAIN_TLDS fallback chain.",
-        "fileSize": 32218,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "hi",
-        "tvTypes": [
-            "Movie",
-            "TvSeries"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=mkvhub.best&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-7e4236d7dff031db06b33337cf5e2205441d4c8a8c5a84668b0e754fbb845e6b",
-        "jarFileSize": 114635,
-        "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MkvHub.jar",
-        "jarHash": "sha256-692006cbe5ef61bc5361b1f0cf81a40ab71427781e12b940199812acf5ca6f5a"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.cs3",
-        "status": 1,
-        "version": 35,
-        "name": "MoviesCounter",
-        "internalName": "MoviesCounter",
-        "authors": [
-            "Suryansh4567"
-        ],
-        "description": "MoviesCounter \u2014 v35: Updated all custom extractors to current live domains (hubdrive.fit, hubcloud.ink, hubcdn.cloud). resolveLink() now uses substring host-family matching so future TLD rotations don't break link dispatch.",
-        "fileSize": 72306,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "hi",
-        "tvTypes": [
-            "Movie",
-            "TvSeries",
-            "AsianDrama",
-            "Anime"
-        ],
-        "iconUrl": "https://moviescounter.boston/wp-content/themes/Moviescounter/assets/favicon.ico",
-        "apiVersion": 1,
-        "fileHash": "sha256-003ffa3a65290c652cb2adf3cf735958b2af349d8801bf5b2d9cd48cc296e76f",
-        "jarFileSize": 313339,
-        "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
-        "jarHash": "sha256-51a0819d3e1c7fdf82932c087cea65735dcf4375433e04594152ecf2008f3781"
     }
 ]
