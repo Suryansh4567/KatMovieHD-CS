@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CinemaLux.cs3",
         "status": 2,
-        "version": 6,
+        "version": 12,
         "name": "CinemaLux",
         "internalName": "CinemaLux",
         "authors": [
             "arena"
         ],
-        "description": "CinemaLux/CinemaLuxe: OlaMovies-like 4K/1080p/2160p movies & series. Parses tpi.li hidden tokens to LinkStore and uses WebView fallback for protected final hosts.",
-        "fileSize": 52919,
+        "description": "CinemaLux/CinemaLuxe v12: OlaMovies-like 4K/1080p/2160p catalogue. tpi.li token decode, LinkStore REDIRECT_URL, LuxeDrive/GDFlix, R2 + busycdn/googleusercontent direct link support, source-priority ordering, stage trace diagnostics, hardened fastcdn/google direct extraction, LuxeDrive API attempts, series pack entries, entry sorting, in-memory direct-link cache, soft HEAD validation, and short stage diagnostics.",
+        "fileSize": 67150,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -21,7 +21,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=cinemalux.makeup&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-0398fea4407ee6f643bf4de369dad44afbe4176b6256aa008fc8466edf6de485"
+        "fileHash": "sha256-c9517507773c60c747b8f32434cd1e1dec6a90c2d92c7792b7638e24b0faafc3"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
@@ -118,29 +118,5 @@
         "jarFileSize": 313339,
         "jarUrl": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/MoviesCounter.jar",
         "jarHash": "sha256-51a0819d3e1c7fdf82932c087cea65735dcf4375433e04594152ecf2008f3781"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
-        "status": 2,
-        "version": 11,
-        "name": "OlaMovies",
-        "internalName": "OlaMovies",
-        "authors": [
-            "arena"
-        ],
-        "description": "OlaMovies rebuilt from scratch: GridLove parser, robust movie/series episodes, dynamic domains, OMDrive WebView resolver, host-page delegation, junk-link filtering.",
-        "fileSize": 49758,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "hi",
-        "tvTypes": [
-            "Movie",
-            "TvSeries",
-            "Anime",
-            "Documentary",
-            "AsianDrama"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=v2.olamovies.mov&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-dd0e9af59bd38c27af78f3540549e84bf32f4412d1a140289b75f62a87c24d19"
     }
 ]
