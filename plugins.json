@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CinemaLux.cs3",
         "status": 2,
-        "version": 1,
+        "version": 2,
         "name": "CinemaLux",
         "internalName": "CinemaLux",
         "authors": [
             "arena"
         ],
         "description": "CinemaLux/CinemaLuxe: OlaMovies-like 4K/1080p/2160p movies & series. Parses tpi.li hidden tokens to LinkStore and uses WebView fallback for protected final hosts.",
-        "fileSize": 45063,
+        "fileSize": 49220,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -21,19 +21,19 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=cinemalux.makeup&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-a57fb3020487ee201ed5ee746ada26259bfac65edfe0385e24a4de92e43b8273"
+        "fileHash": "sha256-ca552486fa17f8725f3d5ec2ae3f0c411c2c623891f87f30c9e1c2a43f54ec18"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 22,
+        "version": 21,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. SELF-HEALING v22: 3-tier fetchWithFallback (direct \u2192 CloudflareKiller \u2192 domains.json refresh), substring host-family matching for kmhd/gdflix/hubcloud dispatch (covers ALL TLD rotations), callback emission counter for silent-failure detection, TMDB/Cinemeta isolated in runCatching so one outage doesn't take down the other, URL-encoded search query. Builds on v21 domain-probing foundation.",
-        "fileSize": 96360,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v21: domain TTL + health-probed candidate fallback, old-bookmark domain rewrite, direct GDFlix/HubCloud dispatch, KMHD link-domain drift handling.",
+        "fileSize": 92848,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -44,7 +44,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-e25e9df23d5c08516fe8b1100e63d5a17ded0716fac9a6b1155b4ac551204ce7"
+        "fileHash": "sha256-b914bebc096515f6b4a6b02f161d66b730ca3f7413efd68420baf30ff450f1e6"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
