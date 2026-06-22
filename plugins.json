@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 22,
+        "version": 23,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
         "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v21: domain TTL + health-probed candidate fallback, old-bookmark domain rewrite, direct GDFlix/HubCloud dispatch, KMHD link-domain drift handling.",
-        "fileSize": 94178,
+        "fileSize": 94179,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-216a8c3ef77a66f25f6bb7fab2cbb9a92a706f31b8e4de5de4df4d0c9dc9b164"
+        "fileHash": "sha256-f72c5f3ece494b613b62c1225bbe883d56ca284fa6d8f0c2c8538b2afb400967"
     }
 ]
