@@ -203,7 +203,7 @@ class KatMovieHDProvider : MainAPI() {
 
         /** Match "Episode 7" / "Episode-07" / "Episode: 12" etc. */
         private val EPISODE_HEADER_REGEX =
-            Regex("""(?i)\b(?:Episode|Ep|Part|E)\s*[-–:#.]?\s*(\d{1,3})\b""")
+            Regex("""(?i)\b(?:Episode|Ep|Part|E)\s*[-–:#.]?\s*0*(\d{1,3})\b""")
 
         /** Match "Season 4" / "S04" / "S4" inside a header. */
         private val SEASON_HEADER_REGEX =
@@ -1019,6 +1019,11 @@ class KatMovieHDProvider : MainAPI() {
             // v9-style: pass a newline-joined string. The String overload of
             // newEpisode stores `data` verbatim, no Jackson/serialization
             // round-trip - whatever bytes we put in are what loadLinks gets.
+            // We must pass stringified JSON or plain text. Since an episode might have MULTIPLE
+            // qualities (1080p, 720p) mapping to different URLs, we join them.
+            // But wait: loadLinks takes this data and passes it to Cloudstream's player.
+            // If the provider returns "Episode 1" as the episode name, Cloudstream will group
+            // all these URLs under that episode, and the player will list them.
             newEpisode(links.joinToString("\n")) {
                 this.name = tmdbEp?.name ?: cineEp?.name ?: cineEp?.title ?: "Episode $ep"
                 this.season = season
@@ -1027,7 +1032,6 @@ class KatMovieHDProvider : MainAPI() {
                 this.description = tmdbEp?.overview ?: cineEp?.overview
                 this.score = tmdbEp?.rating
                 (tmdbEp?.airDate ?: cineEp?.released)?.let {
-                    // Cinemeta uses ISO timestamps; trim to date if needed.
                     addDate(it.substringBefore("T"))
                 }
             }
@@ -1080,6 +1084,10 @@ class KatMovieHDProvider : MainAPI() {
         // delivered - if dispatch crashes silently, the user sees no link.)
         var anyDispatched = false
         urls.amap { rawUrl ->
+            // Fix: By default Cloudstream names generic urls inside the player as "Source 1", "Source 2".
+            // Since we merged multiple packs into a single Episode object, they are passed as a batch of URLs here.
+            // ExtractorLink names are controlled by the ExtractorApi (GDFlix names it "GDFlix", HubCloud names it "HubCloud").
+            // For stock extractors, we just dispatch them directly.
             val ok = dispatchExtractor(rawUrl, subtitleCallback, callback)
             if (ok) anyDispatched = true
         }
