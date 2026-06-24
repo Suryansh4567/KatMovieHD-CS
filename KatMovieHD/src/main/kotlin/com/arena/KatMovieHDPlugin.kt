@@ -1,5 +1,5 @@
-import kotlinx.coroutines.async
 package com.arena
+import kotlinx.coroutines.async
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.app
