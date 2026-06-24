@@ -1,0 +1,8 @@
+{
+  "katmoviehd": "https://new1.katmoviehd.cymru",
+  "katmoviehd_candidates": [
+    "https://new1.katmoviehd.cymru"
+  ],
+  "_comment": "Update any URL if a site moves domain. KatMovieHD supports *_candidates and *_fallbacks arrays; plugins probe candidates every 6 hours and use the first healthy domain, so most users do not need to rebuild or reinstall for normal domain rotations.",
+  "_updated": "2026-06-18"
+}
