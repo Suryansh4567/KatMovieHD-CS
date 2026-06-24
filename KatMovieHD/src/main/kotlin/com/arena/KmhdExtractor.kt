@@ -220,8 +220,9 @@ class KmhdExtractor : ExtractorApi() {
 
             Log.d(TAG, "Fetching: $dataUrl")
 
-            val dataText = try {
-                app.get(
+            var dataText = ""
+            try {
+                dataText = app.get(
                     dataUrl,
                     headers = mapOf(
                         "User-Agent" to UA,
@@ -231,10 +232,39 @@ class KmhdExtractor : ExtractorApi() {
                     ),
                     timeout = 30
                 ).text
+                
+                if (dataText.contains("just a moment", true) || dataText.contains("cf-chl", true) || dataText.contains("ray id", true)) {
+                    dataText = app.get(
+                        dataUrl,
+                        headers = mapOf(
+                            "User-Agent" to UA,
+                            "Cookie" to "unlocked=true",
+                            "Referer" to pageReferer,
+                            "Accept" to "application/json"
+                        ),
+                        interceptor = CloudflareKiller(),
+                        timeout = 30
+                    ).text
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.e(TAG, "HTTP fetch failed: ${e.message}")
-                return
+                try {
+                    dataText = app.get(
+                        dataUrl,
+                        headers = mapOf(
+                            "User-Agent" to UA,
+                            "Cookie" to "unlocked=true",
+                            "Referer" to pageReferer,
+                            "Accept" to "application/json"
+                        ),
+                        interceptor = CloudflareKiller(),
+                        timeout = 30
+                    ).text
+                } catch(e2: Exception) {
+                    if (e2 is CancellationException) throw e2
+                    Log.e(TAG, "HTTP fetch failed: ${e2.message}")
+                    return
+                }
             }
 
             Log.d(TAG, "Got dataText length: ${dataText.length}")
