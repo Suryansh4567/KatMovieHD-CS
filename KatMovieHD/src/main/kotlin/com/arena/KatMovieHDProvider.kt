@@ -511,37 +511,24 @@ class KatMovieHDProvider : MainAPI() {
 
         Log.d(TAG, "load(url=$url) title='$title' isSeries=$isSeries imdb=$imdbId titleSeason=$titleSeason")
 
-        if (isSeries) {
-            val episodes = discoverEpisodes(doc, titleSeason, tmdbSeason, cine)
-            Log.d(TAG, "load() discovered ${episodes.size} episodes")
+        // Always attempt discoverEpisodes! It handles flat lists too now (via collectMirrorLinksWithLabels).
+        // If it successfully extracts named episodes (E01, Pack, etc), treat it as a Series/Pack.
+        // Otherwise, fall back to pure movie links.
+        val episodes = discoverEpisodes(doc, titleSeason, tmdbSeason, cine)
+        Log.d(TAG, "load() discovered ${episodes.size} episodes")
 
-            // Degenerate case: even after pack expansion we got nothing.
-            // Fall back to a "movie-style" response (still playable) so
-            // the page is never dead-empty.
-            if (episodes.isEmpty()) {
-                Log.w(TAG, "0 episodes after all strategies, emitting as movie-style links")
-                val links = collectAllPlayableLinks(doc)
-                return newMovieLoadResponse(title, pageUrl, TvType.Movie, links) {
-                    applyCommonMeta(this, poster, backdrop, plot, year, tags,
-                        actorData, cineActors, rating, trailer, imdbUrl, tmdbMeta?.recommendations)
-                }
-            }
-
-            return newTvSeriesLoadResponse(title, pageUrl, TvType.TvSeries, episodes) {
+        if (episodes.isNotEmpty() && (isSeries || episodes.size > 1 || episodes.first().name?.contains("Pack", true) == true)) {
+            val actualType = if (isSeries) TvType.TvSeries else TvType.AsianDrama
+            return newTvSeriesLoadResponse(title, pageUrl, actualType, episodes) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl, tmdbMeta?.recommendations)
-                // Dynamically build season names based on what we actually scraped.
-                // This prevents empty seasons showing up if the site only uploaded S03
-                // but TMDB says the show has 10 seasons.
+                
                 val actualSeasons = episodes.mapNotNull { it.season }.distinct().sorted()
                 if (actualSeasons.size > 1) {
                     addSeasonNames(actualSeasons.map { "Season $it" })
                 }
             }
         } else {
-            // Movie - `links` is a newline-joined String of mirror URLs.
-            // The newMovieLoadResponse(dataUrl: String) overload stores
-            // it verbatim so loadLinks sees exactly what we wrote.
             val links = collectAllPlayableLinks(doc)
             return newMovieLoadResponse(title, pageUrl, TvType.Movie, links) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
