@@ -9,7 +9,7 @@
             "arena"
         ],
         "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v24: exhaustive RE audit \u2014 fixed /play __data.json URL+parser, gd.kmhd.eu redirect routing, bbupload.to API extractor, gdflix.dad/gdlink.dev chain, dead categories, category listing parser, CF fallback, resolveFinalUrl GET-based.",
-        "fileSize": 110126,
+        "fileSize": 113051,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-be66a0e682b00e947647cbd0a4a5835b8dcedcc588f921f1983dd07b6092dac5"
+        "fileHash": "sha256-4100f78ab3bdcf52676cbae1130b5f289620cfbfd78874b2e93bfdc689e661ed"
     }
 ]
