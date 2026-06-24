@@ -578,11 +578,12 @@ class KatMovieHDProvider : MainAPI() {
     // ------------------------------------------------------------------
 
     private fun getContentContainer(doc: Document): Element {
-        // 1. SvelteKit pages (pikahd, moviesbaba) inject the HTML inside a JS object.
         val html = doc.html()
-        val svelteMatch = Regex("""post_content\s*:\s*"(.*?)"\s*\}\}\s*,\s*error""").find(html)
-        if (svelteMatch != null) {
-            val raw = svelteMatch.groupValues[1]
+        
+        // 1. SvelteKit pages (pikahd, moviesbaba, katdrama) inject the HTML inside a JS object.
+        val svelteMatch1 = Regex("""post_content"\s*:\s*"(.*?)"\s*(?:,|\}\})""").find(html)
+        if (svelteMatch1 != null) {
+            val raw = svelteMatch1.groupValues[1]
                 .replace("\\\"", "\"")
                 .replace("\\u003C", "<")
                 .replace("\\u003E", ">")
@@ -593,7 +594,40 @@ class KatMovieHDProvider : MainAPI() {
             return Jsoup.parse(raw).body()
         }
         
-        // 2. Standard WordPress HTML
+        // 2. Array-dehydrated payload (latest SvelteKit version like on KatDrama)
+        // We look for any large string containing escaped HTML tags
+        val svelteMatch2 = Regex(""""(\\u003C(?:p|div|h[1-6]|article|strong).*?)"""").find(html)
+        if (svelteMatch2 != null) {
+            val raw = svelteMatch2.groupValues[1]
+                .replace("\\\"", "\"")
+                .replace("\\u003C", "<")
+                .replace("\\u003E", ">")
+                .replace("\\/", "/")
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\t", "\t")
+            val virtualDom = Jsoup.parse(raw).body()
+            if (virtualDom.select("a[href]").isNotEmpty()) {
+                return virtualDom
+            }
+        }
+        
+        // 3. Ultra Fallback: Just grab raw regex URL links and wrap them in anchor tags.
+        // If svelte blocks are totally mangled, we manually build a virtual DOM.
+        if (doc.select("article, .entry-content, .post-content, div#content, main").isEmpty()) {
+            val urls = Regex("""https?://[a-zA-Z0-9.-]+/[^\s"\]+""").findAll(html)
+            val builder = StringBuilder()
+            urls.forEach { 
+                if (it.value.contains(LINK_HOST_REGEX)) {
+                    builder.append("<a href='${it.value}'>Link</a><br>")
+                }
+            }
+            if (builder.isNotEmpty()) {
+                return Jsoup.parse(builder.toString()).body()
+            }
+        }
+        
+        // 4. Standard WordPress HTML
         return doc.selectFirst("article, .entry-content, .post-content, div#content, main") ?: doc.body()
     }
 
@@ -1073,7 +1107,7 @@ class KatMovieHDProvider : MainAPI() {
                 //   - kmhd.eu/archives/<post_id> (legacy WordPress format
                 //     used by pre-2020 KatMovieHD posts, e.g. Deadly Pickup
                 //     2016) — fetched and re-fanned out to loadExtractor.
-                Regex("""(?i)(links\.kmhd\.|kmhd\.net|kmhd\.eu/archives/)""").containsMatchIn(url) -> {
+                Regex("""(?i)(links\.kmhd\.|kmhd\.net|kmhd\.eu/(archives/|atchs/))""").containsMatchIn(url) -> {
                     KmhdExtractor().getUrl(url, mainUrl, subtitleCallback, callback)
                     true
                 }

@@ -26,15 +26,15 @@ class KmhdExtractor : ExtractorApi() {
     ) {
         Log.d(TAG, "getUrl invoked: $url")
 
-        // Branch 1: legacy WordPress archive pages -
+        // Branch 1: legacy WordPress archive pages AND /atchs/ redirects
         //   https://kmhd.eu/archives/<post_id>
+        //   http://links.kmhd.eu/atchs/dl.jiocloud.link/...
         // These predate the SvelteKit links.kmhd.eu/file/<id> system and
         // are used by old KatMovieHD posts (e.g. pre-2020 movies like
-        // "Deadly Pickup 2016"). The page contains a flat list of mirror
-        // links (acefile, drive.tv21, openload, mp4upload, etc.). We
-        // fetch the page, scrape every external anchor, and re-dispatch
-        // each through Cloudstream's stock extractor registry.
-        if (Regex("""(?i)kmhd\.eu/archives/\d+""").containsMatchIn(url)) {
+        // "Deadly Pickup 2016", and "Delhi Crime"). The page contains a flat list of mirror
+        // links (acefile, drive.tv21, openload, mp4upload, etc.) or redirects 
+        // to a new page holding mirrors.
+        if (Regex("""(?i)kmhd\.eu/(archives/\d+|atchs/)""").containsMatchIn(url)) {
             handleArchivePage(url, subtitleCallback, callback)
             return
         }
