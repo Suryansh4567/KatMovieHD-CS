@@ -100,12 +100,21 @@ class KatMovieHDProvider : MainAPI() {
      * throws), retries with CloudflareKiller as the interceptor.
      */
     private suspend fun safeGetDocument(url: String): Document {
-        val direct = runCatching {
-            app.get(url, headers = headers, timeout = 30).document
-        }.getOrNull()
-        if (direct != null && !isCfBlock(direct)) return direct
-        Log.w(TAG, "CF block detected on $url, retrying with CloudflareKiller")
-        return app.get(url, headers = headers, interceptor = CloudflareKiller(), timeout = 30).document
+        var lastError: Exception? = null
+        for (i in 0..1) {
+            try {
+                val direct = runCatching {
+                    app.get(url, headers = headers, timeout = 30).document
+                }.getOrNull()
+                if (direct != null && !isCfBlock(direct)) return direct
+                Log.w(TAG, "CF block detected on $url, retrying with CloudflareKiller")
+                return app.get(url, headers = headers, interceptor = CloudflareKiller(), timeout = 30).document
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                lastError = e
+            }
+        }
+        throw lastError ?: Exception("Failed to fetch document")
     }
 
     companion object {
@@ -161,7 +170,7 @@ class KatMovieHDProvider : MainAPI() {
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
                     """bbupload|gofileserver|bbserver|gdtot|techkit|""" +
                     // KatMovieHD specific upload mirrors
-                    """katmovie|katdrive|kmhd""" +
+                    """katdrive|kmhd""" +
                     """)"""
         )
 
@@ -194,7 +203,7 @@ class KatMovieHDProvider : MainAPI() {
 
         /** Match "Episode 7" / "Episode-07" / "Episode: 12" etc. */
         private val EPISODE_HEADER_REGEX =
-            Regex("""(?i)\b(?:Episode|Ep|Part)\s*[-–:#.]?\s*(\d{1,3})\b""")
+            Regex("""(?i)\b(?:Episode|Ep|Part|E)\s*[-–:#.]?\s*(\d{1,3})\b""")
 
         /** Match "Season 4" / "S04" / "S4" inside a header. */
         private val SEASON_HEADER_REGEX =
@@ -438,7 +447,7 @@ class KatMovieHDProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         refreshMainUrl()
         val pageUrl = normalizeKatMovieUrl(url)
-        val doc = app.get(pageUrl, headers = headers, timeout = 30).document
+        val doc = safeGetDocument(pageUrl)
         val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()
@@ -838,15 +847,45 @@ class KatMovieHDProvider : MainAPI() {
     private suspend fun fetchKmhdPack(packUrl: String): List<Pair<String, String>> {
         val normalized = packUrl.trim().trimEnd('/')
         val dataUrl = "$normalized/__data.json"
-        val text = app.get(
-            dataUrl,
-            headers = headers + mapOf(
-                "Cookie" to "unlocked=true",
-                "Referer" to normalized,
-                "Accept" to "application/json"
-            ),
-            timeout = 20
-        ).text
+        
+        // Use CloudflareKiller because some users might be routed through a CF challenge
+        var text = ""
+        try {
+            text = app.get(
+                dataUrl,
+                headers = headers + mapOf(
+                    "Cookie" to "unlocked=true",
+                    "Referer" to normalized,
+                    "Accept" to "application/json"
+                ),
+                timeout = 20
+            ).text
+            
+            if (text.contains("just a moment", true) || text.contains("cf-chl", true) || text.contains("ray id", true)) {
+                text = app.get(
+                    dataUrl,
+                    headers = headers + mapOf(
+                        "Cookie" to "unlocked=true",
+                        "Referer" to normalized,
+                        "Accept" to "application/json"
+                    ),
+                    interceptor = CloudflareKiller(),
+                    timeout = 25
+                ).text
+            }
+        } catch(e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            text = app.get(
+                dataUrl,
+                headers = headers + mapOf(
+                    "Cookie" to "unlocked=true",
+                    "Referer" to normalized,
+                    "Accept" to "application/json"
+                ),
+                interceptor = CloudflareKiller(),
+                timeout = 25
+            ).text
+        }
         if (text.isBlank()) return emptyList()
         return parseKmhdPackJson(text)
     }
