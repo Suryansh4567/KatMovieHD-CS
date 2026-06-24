@@ -1,3 +1,4 @@
+import kotlinx.coroutines.async
 package com.arena
 
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -95,7 +96,7 @@ class KatMovieHDPlugin : BasePlugin() {
                 var active: String? = null
                 kotlinx.coroutines.coroutineScope {
                     val deferreds = candidates.map { url ->
-                        kotlinx.coroutines.async {
+                        async {
                             if (isUsableKatDomain(url)) url else null
                         }
                     }
@@ -117,7 +118,7 @@ class KatMovieHDPlugin : BasePlugin() {
                     
                     kotlinx.coroutines.coroutineScope {
                         val deferreds = dynamicDomains.map { url ->
-                            kotlinx.coroutines.async {
+                            async {
                                 if (isUsableKatDomain(url)) url else null
                             }
                         }
