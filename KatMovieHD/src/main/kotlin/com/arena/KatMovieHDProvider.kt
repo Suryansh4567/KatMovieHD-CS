@@ -581,7 +581,8 @@ class KatMovieHDProvider : MainAPI() {
         val html = doc.html()
         
         // 1. SvelteKit pages (pikahd, moviesbaba, katdrama) inject the HTML inside a JS object.
-        val svelteMatch1 = Regex("""post_content"\s*:\s*"(.*?)"\s*(?:,|\}\})""").find(html)
+        // We must properly match the JSON string allowing for escaped quotes inside.
+        val svelteMatch1 = Regex("""post_content"\s*:\s*"((?:[^"\\]|\\.)*)"\s*(?:,|\}\})""").find(html)
         if (svelteMatch1 != null) {
             val raw = svelteMatch1.groupValues[1]
                 .replace("\\\"", "\"")
@@ -595,8 +596,8 @@ class KatMovieHDProvider : MainAPI() {
         }
         
         // 2. Array-dehydrated payload (latest SvelteKit version like on KatDrama)
-        // We look for any large string containing escaped HTML tags
-        val svelteMatch2 = Regex(""""(\\u003C(?:p|div|h[1-6]|article|strong).*?)"""").find(html)
+        // We look for any large string containing escaped HTML tags, properly handling JSON strings
+        val svelteMatch2 = Regex(""""(\\u003C(?:p|div|h[1-6]|article|strong)(?:[^"\\]|\\.)*)"""").find(html)
         if (svelteMatch2 != null) {
             val raw = svelteMatch2.groupValues[1]
                 .replace("\\\"", "\"")
@@ -615,7 +616,7 @@ class KatMovieHDProvider : MainAPI() {
         // 3. Ultra Fallback: Just grab raw regex URL links and wrap them in anchor tags.
         // If svelte blocks are totally mangled, we manually build a virtual DOM.
         if (doc.select("article, .entry-content, .post-content, div#content, main").isEmpty()) {
-            val urls = Regex("""https?://[a-zA-Z0-9.-]+/[^\s"\]+""").findAll(html)
+            val urls = Regex("""https?://[a-zA-Z0-9.-]+/[^\s"\\]+""").findAll(html)
             val builder = StringBuilder()
             urls.forEach { 
                 if (it.value.contains(LINK_HOST_REGEX)) {
