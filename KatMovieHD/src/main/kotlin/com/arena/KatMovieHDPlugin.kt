@@ -228,7 +228,11 @@ class KatMovieHDPlugin : BasePlugin() {
                 results.addAll(regex.findAll(text).map { m -> m.value }.mapNotNull { normalizeBaseUrl(it) }.toList())
             } catch(e: Exception) {}
             
-            return results.distinct()
+            // Re-order so we try the most likely new domains first (like new1, new2 etc)
+            // Reverse so newer entries come first, but prioritize "katmoviehd" standard formats
+            val ordered = results.distinct()
+                .sortedByDescending { it.contains("new") }
+            return ordered
         }
 
         data class Domains(
