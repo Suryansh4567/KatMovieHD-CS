@@ -648,179 +648,84 @@ class KatMovieHDProvider : MainAPI() {
         cine: CinemetaMeta?
     ): List<Episode> {
         val container = getContentContainer(doc)
+        val epMap = linkedMapOf<Pair<Int, Int>, MutableSet<String>>()
 
-        // Stage 1: per-episode headers ("Episode 3 –" + a few <a> below).
-        val perHeader = parseEpisodeHeaderLayout(container, defaultSeason)
-        if (perHeader.isNotEmpty()) {
-            Log.d(TAG, "Stage1 (header layout): ${perHeader.size} episodes across ${perHeader.keys.map { it.first }.distinct().size} season(s)")
-            return buildEpisodes(perHeader, tmdbSeason, cine)
-        }
-
-        // Stage 2: pack-only pages.
+        // 1. Process Pack URLs
         val packUrls = container.select("a[href]")
             .mapNotNull { it.attr("href").takeIf { h -> KMHD_PACK_REGEX.containsMatchIn(h) } }
             .distinct()
+            
         if (packUrls.isNotEmpty()) {
-            Log.d(TAG, "Stage2 (pack expansion): ${packUrls.size} pack(s): $packUrls")
+            Log.d(TAG, "Expanding ${packUrls.size} packs...")
             val expanded = expandKmhdPacks(packUrls, defaultSeason)
-            if (expanded.isNotEmpty()) {
-                return buildEpisodes(expanded, tmdbSeason, cine)
+            for ((k, v) in expanded) {
+                epMap.getOrPut(k) { mutableSetOf() }.addAll(v)
             }
         }
 
-        // Stage 3: degraded - expose every mirror link as its own pseudo-
-        // episode. Always better than a silent empty list.
-        //
-        // Naming heuristic: many KatMovieHD pages have a "All Episodes in
-        // ONE pack" layout where the only links are quality-tagged buttons
-        // (e.g. "480p Links", "720p Links", "1080p HEVC", "Watch Online")
-        // without any "Episode N" headers. In that case we extract the
-        // quality label from the heading text that precedes each link, so
-        // the user sees "480p Pack" / "720p Pack" / "1080p HEVC Pack" /
-        // "Watch Online" instead of meaningless "Source 1/2/3/4". This is
-        // the exact layout used by every Good Omens / multi-episode-pack
-        // page on the site today.
-        val flat = collectMirrorLinksWithLabels(container)
-        if (flat.isEmpty()) return emptyList()
-        Log.w(TAG, "Stage3 (flat fallback): ${flat.size} raw mirror link(s)")
-        return flat.mapIndexed { idx, (label, link) ->
-            newEpisode(link) {
-                this.name = label ?: "Source ${idx + 1}"
-                this.season = defaultSeason
-                
-                // Smart Episode Deduction from flat labels
-                // If label says "E01 720p", set episode = 1
-                val epMatch = label?.let { EPISODE_HEADER_REGEX.find(it) }
-                if (epMatch != null) {
-                    epMatch.groupValues[1].toIntOrNull()?.let { this.episode = it }
-                } else {
-                    this.episode = idx + 1
-                }
-            }
-        }.groupBy { it.episode }
-         .map { (epNum, epList) ->
-            // If multiple links have the exact same episode number extracted from label,
-            // join them together into one episode!
-            val mergedLinks = epList.joinToString("\n") { it.data }
-            val firstEp = epList.first()
-            newEpisode(mergedLinks) {
-                this.name = firstEp.name
-                this.season = firstEp.season
-                this.episode = epNum
-                this.posterUrl = tmdbSeason?.episodes?.firstOrNull { it.episodeNumber == epNum }?.stillUrl 
-                                 ?: cine?.videos?.firstOrNull { it.season == firstEp.season && it.episode == epNum }?.thumbnail
-            }
-         }
-    }
+        // 2. Process regular links
+        val cleanUrls = container.select("a[href]").map { it.attr("href").trim() }
+            .filter { LINK_HOST_REGEX.containsMatchIn(it) && !it.matches(Regex("""(?i)^https?://(?:www\.)?kmhd\.net/(directlink|home|index)/?$""")) }
+            .distinct()
 
-    /**
-     * Variant of collectMirrorLinks that also captures a human label for
-     * each link (480p / 720p / 1080p / Watch Online / etc.) by looking at
-     * the nearest preceding heading text. Returns (label, url) pairs.
-     */
-    private fun collectMirrorLinksWithLabels(container: Element): List<Pair<String?, String>> {
-        // First, get the URL-filtered set via the canonical collector so we
-        // never include junk (directlink, ads, blacklisted hosts).
-        // IMPORTANT: LinkedHashSet (not plain Set) so we keep document order,
-        // i.e. the quality dropdown shows 480p -> 720p -> 1080p in the same
-        // order the page renders them, not a random hash order.
-        val cleanUrls: Set<String> = LinkedHashSet(collectMirrorLinks(container))
-        if (cleanUrls.isEmpty()) return emptyList()
-
-        // Walk all anchors and grab the parent heading's text as a label
-        // hint. We only keep anchors whose href survived the cleanUrls
-        // filter above.
-        val qualityRegex = Regex(
-            """(?i)\b(2160p|4k|1080p\s*hevc|1080p\s*x264|1080p|720p|480p|hdr|""" +
-                """watch\s*online|play\s*online|trailer|subtitle|pack|esubs?)\b"""
-        )
-        val out = mutableListOf<Pair<String?, String>>()
-        val seen = mutableSetOf<String>()
-        for (a in container.select("a[href]")) {
-            val href = a.attr("href")
-            if (href !in cleanUrls || href in seen) continue
-            seen.add(href)
-
-            // Label hint: the anchor's own text first, then walk up to find
-            // a sensible heading. Strip Markdown-y emphasis chars the theme
-            // injects (_, *, :).
-            val raw = (a.text().ifBlank {
-                a.parents().firstOrNull { p -> p.tagName() in LABEL_TAGS }?.text() ?: ""
-            }).trim().trim('_', '*', ':', ' ')
-
-            val match = qualityRegex.find(raw)
-            val label = match?.value?.trim()?.let { q ->
-                // Normalize a few common variants for prettier display.
-                when {
-                    q.equals("watch online", ignoreCase = true) ||
-                        q.equals("play online", ignoreCase = true) -> "Watch Online"
-                    q.contains("1080p", ignoreCase = true) && q.contains("hevc", ignoreCase = true) -> "1080p HEVC"
-                    q.contains("1080p", ignoreCase = true) && q.contains("x264", ignoreCase = true) -> "1080p x264"
-                    else -> q.replaceFirstChar { it.uppercase() }
-                }
-            }
-            out.add(label to href)
-        }
-        return out
-    }
-
-    /**
-     * Walk the article in document order, tracking the most recently seen
-     * "Season X" / "Episode N" labels, and bucket every kmhd/mirror link
-     * we encounter into a (season, episode) -> [links] map.
-     *
-     * This handles three real layouts on the site:
-     *  - <p><b>Episode 1 –</b></p> followed by quality <h3>s with <a>s
-     *  - <h3>Episode 1</h3><h3>480p || 720p</h3><h3>...</h3>
-     *  - Mixed pages where a "Season 2" subheading flips the active season
-     *    halfway through the article.
-     */
-    private fun parseEpisodeHeaderLayout(
-        container: Element,
-        defaultSeason: Int
-    ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
-        val map = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
         var currentSeason = defaultSeason
-        var currentEpisode: Int? = null
+        var lastHeaderEp: Int? = null
 
         for (node in container.allElements) {
-            // Headers update our (season, episode) cursor.
             if (node.tagName() in LABEL_TAGS) {
                 val text = node.text().trim()
-                if (text.isNotEmpty() && text.length < 120 &&
-                    EPISODE_NEGATIVE_PHRASES.none { it in text.lowercase() }) {
-
+                if (text.isNotEmpty() && text.length < 120 && EPISODE_NEGATIVE_PHRASES.none { it in text.lowercase() }) {
                     SEASON_HEADER_REGEX.find(text)?.let { m ->
-                        (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
-                            ?.let { currentSeason = it }
+                        (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()?.let { currentSeason = it }
                     }
                     EPISODE_HEADER_REGEX.find(text)?.let { m ->
-                        m.groupValues[1].toIntOrNull()?.let { currentEpisode = it }
+                        m.groupValues[1].toIntOrNull()?.let { lastHeaderEp = it }
                     }
                 }
             }
 
-            // Anchors are bucketed under the current cursor.
-            val ep = currentEpisode
-            if (ep != null && node.tagName() == "a") {
-                val href = node.attr("href")
-                if (LINK_HOST_REGEX.containsMatchIn(href)) {
-                    val bucket = map.getOrPut(currentSeason to ep) { mutableListOf() }
-                    if (href !in bucket) bucket.add(href)
+            if (node.tagName() == "a") {
+                val href = node.attr("href").trim()
+                // Do not re-add pack links into the standard episode flow since they were expanded earlier.
+                if (href in cleanUrls && !KMHD_PACK_REGEX.containsMatchIn(href) && !href.contains("/pack/", ignoreCase = true)) {
+                    val aText = node.text().trim()
+                    var linkEp = lastHeaderEp
+                    
+                    EPISODE_HEADER_REGEX.find(aText)?.let { m ->
+                        m.groupValues[1].toIntOrNull()?.let { linkEp = it }
+                    }
+                    
+                    // If we found NO headers and NO episode text, group them as episode 1 
+                    // (which gets renamed to "Pack / Full Movie" if there's only 1 episode folder).
+                    val finalEp = linkEp ?: 1
+                    epMap.getOrPut(currentSeason to finalEp) { mutableSetOf() }.add(href)
                 }
             }
         }
-        return map
+
+        if (epMap.isEmpty()) return emptyList()
+
+        val sorted = epMap.entries.sortedWith(compareBy({ it.key.first }, { it.key.second }))
+        return sorted.map { (key, links) ->
+            val (season, ep) = key
+            val tmdbEp = tmdbSeason?.takeIf { it.seasonNumber == season }?.episodes?.firstOrNull { it.episodeNumber == ep }
+            val cineEp = cine?.videos?.firstOrNull { it.season == season && it.episode == ep }
+            
+            newEpisode(links.joinToString("\n")) {
+                val fallbackName = if (epMap.size == 1 && links.size > 1) "Pack / Full Movie" else "Episode $ep"
+                this.name = tmdbEp?.name ?: cineEp?.name ?: cineEp?.title ?: fallbackName
+                this.season = season
+                this.episode = ep
+                this.posterUrl = tmdbEp?.stillUrl ?: cineEp?.thumbnail
+                this.description = tmdbEp?.overview ?: cineEp?.overview
+                this.score = tmdbEp?.rating
+                (tmdbEp?.airDate ?: cineEp?.released)?.let {
+                    addDate(it.substringBefore("T"))
+                }
+            }
+        }
     }
 
-    /**
-     * Fetch each kmhd pack JSON in parallel and merge the recovered
-     * (season, episode) -> [perFileUrl] entries.
-     *
-     * The season number is derived from the filename when present, which
-     * is more reliable than the title (some "S1" pages actually contain
-     * S03 packs because they were moved without retitling).
-     */
     private suspend fun expandKmhdPacks(
         packUrls: List<String>,
         defaultSeason: Int
