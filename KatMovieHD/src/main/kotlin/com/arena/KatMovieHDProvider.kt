@@ -687,9 +687,30 @@ class KatMovieHDProvider : MainAPI() {
             newEpisode(link) {
                 this.name = label ?: "Source ${idx + 1}"
                 this.season = defaultSeason
-                this.episode = idx + 1
+                
+                // Smart Episode Deduction from flat labels
+                // If label says "E01 720p", set episode = 1
+                val epMatch = label?.let { EPISODE_HEADER_REGEX.find(it) }
+                if (epMatch != null) {
+                    epMatch.groupValues[1].toIntOrNull()?.let { this.episode = it }
+                } else {
+                    this.episode = idx + 1
+                }
             }
-        }
+        }.groupBy { it.episode }
+         .map { (epNum, epList) ->
+            // If multiple links have the exact same episode number extracted from label,
+            // join them together into one episode!
+            val mergedLinks = epList.joinToString("\n") { it.data }
+            val firstEp = epList.first()
+            newEpisode(mergedLinks) {
+                this.name = firstEp.name
+                this.season = firstEp.season
+                this.episode = epNum
+                this.posterUrl = tmdbSeason?.episodes?.firstOrNull { it.episodeNumber == epNum }?.stillUrl 
+                                 ?: cine?.videos?.firstOrNull { it.season == firstEp.season && it.episode == epNum }?.thumbnail
+            }
+         }
     }
 
     /**
