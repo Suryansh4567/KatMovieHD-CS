@@ -660,7 +660,7 @@ class KatMovieHDProvider : MainAPI() {
 
         for (node in container.allElements) {
             if (node.tagName() in LABEL_TAGS) {
-                val text = node.text().trim()
+                val text = node.ownText().ifBlank { node.text() }.trim()
                 if (text.isNotEmpty() && text.length < 120 && EPISODE_NEGATIVE_PHRASES.none { it in text.lowercase() }) {
                     SEASON_HEADER_REGEX.find(text)?.let { m ->
                         (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()?.let { currentSeason = it }
