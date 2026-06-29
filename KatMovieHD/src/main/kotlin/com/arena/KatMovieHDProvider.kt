@@ -258,9 +258,9 @@ class KatMovieHDProvider : MainAPI() {
         "category/dubbed-movie/page/" to "Hindi Dubbed Movies",
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
-        "https://moviesbaba.lol/" to "Bollywood",
-        "https://www.katdrama.net/" to "K-Drama",
-        "https://new.pikahd.co/" to "Anime",
+        "https://moviesbaba.lol/category/bollywood/" to "Bollywood",
+        "https://www.katdrama.net/category/tv-series-dubbed/" to "K-Drama",
+        "https://new.pikahd.co/category/anime-dubbed/" to "Anime",
         "category/tv-series-dubbed/turkish-drama-in-hindi/page/" to "Turkish Drama (Hindi)",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
@@ -407,7 +407,7 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val anchor = selectFirst("h2 a, h1 a, .entry-title a")
-            ?: selectFirst("a[href*=katmoviehd]")
+            ?: selectFirst("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=moviesbaba]")
             ?: selectFirst("a")
             ?: return null
         val href = anchor.attr("href").ifBlank { return null }
