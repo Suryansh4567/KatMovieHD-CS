@@ -118,6 +118,21 @@ jobs:
           path: ${{ github.workspace }}/gradle-build.log
           if-no-files-found: warn
 
+      - name: Publish diagnostics to builds branch
+        if: always()
+        run: |
+          cd "$GITHUB_WORKSPACE/builds"
+          git config user.email "actions@github.com"
+          git config user.name  "GitHub Actions"
+          [ -f "$GITHUB_WORKSPACE/gradle-build.log" ] && cp "$GITHUB_WORKSPACE/gradle-build.log" "$GITHUB_WORKSPACE/builds/gradle-build.log" || true
+          git add gradle-build.log || true
+          if git diff --cached --quiet; then
+            echo "No diagnostic changes to publish."
+          else
+            git commit -m "Diagnostics ${GITHUB_SHA::7}" || true
+            git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:builds --force || true
+          fi
+
       - name: Fail workflow if Gradle build failed
         if: steps.build_plugins.outcome == 'failure'
         run: exit 1
