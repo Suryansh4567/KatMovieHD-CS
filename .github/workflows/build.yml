@@ -78,16 +78,20 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Build plugins
+        id: build_plugins
+        continue-on-error: true
         run: |
           cd "$GITHUB_WORKSPACE/src"
           chmod +x gradlew
           set -o pipefail
           ./gradlew --no-daemon makePluginsJson --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/gradle-build.log"
+          build_exit=${PIPESTATUS[0]}
           find . -type f -name "*.cs3" -exec cp {} "$GITHUB_WORKSPACE/builds/" \;
           [ -f build/plugins.json ] && cp build/plugins.json "$GITHUB_WORKSPACE/builds/plugins.json" || true
           [ -f repo.json ] && cp repo.json "$GITHUB_WORKSPACE/builds/repo.json" || true
           echo "------ Builds directory ------"
           ls -la "$GITHUB_WORKSPACE/builds/"
+          exit $build_exit
 
       - name: Show Gradle log tail
         if: always()
@@ -113,6 +117,10 @@ jobs:
           name: gradle-build-log
           path: ${{ github.workspace }}/gradle-build.log
           if-no-files-found: warn
+
+      - name: Fail workflow if Gradle build failed
+        if: steps.build_plugins.outcome == 'failure'
+        run: exit 1
 
       - name: Publish to builds branch
         run: |
