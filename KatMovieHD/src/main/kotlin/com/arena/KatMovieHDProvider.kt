@@ -78,8 +78,7 @@ class KatMovieHDProvider : MainAPI() {
         TvType.Movie,
         TvType.TvSeries,
         TvType.AsianDrama,
-        TvType.Anime,
-        TvType.AnimeTv
+        TvType.Anime
     )
 
     private val headers = mapOf(
@@ -258,13 +257,10 @@ class KatMovieHDProvider : MainAPI() {
         "category/dubbed-movie/page/" to "Hindi Dubbed Movies",
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
-        "https://moviesbaba.lol/category/bollywood/" to "Bollywood",
-        "https://www.katdrama.net/category/tv-series-dubbed/" to "K-Drama",
-        "https://new.pikahd.co/category/anime-dubbed/" to "Anime",
-        "category/tv-series-dubbed/turkish-drama-in-hindi/page/" to "Turkish Drama (Hindi)",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
+        "category/korean-drama/page/" to "K-Drama",
         "category/hindi-dubbed/page/" to "Hindi Dubbed",
         "category/hindi-webseries/page/" to "Hindi Web Series",
         "category/hollywood-eng/page/" to "Hollywood (English)",
@@ -292,15 +288,10 @@ class KatMovieHDProvider : MainAPI() {
         val fixed = fixUrl(input)
         val hostPart = Regex("""(?i)^https?://([^/]+)""").find(fixed)?.groupValues?.getOrNull(1)
             ?: return fixed
-        val isKatNetworkHost = hostPart.contains("katmovie", ignoreCase = true) ||
-            hostPart.contains("katmovies", ignoreCase = true) ||
-            hostPart.contains("katdrama", ignoreCase = true) ||
-            hostPart.contains("pikahd", ignoreCase = true) ||
-            hostPart.contains("moviesbaba", ignoreCase = true)
+        val isKatHost = hostPart.contains("katmovie", ignoreCase = true) ||
+            hostPart.contains("katmovies", ignoreCase = true)
         val currentHost = Regex("""(?i)^https?://([^/]+)""").find(mainUrl)?.groupValues?.getOrNull(1)
-        return if (isKatNetworkHost && currentHost != null &&
-            (hostPart.contains("katmovie", ignoreCase = true) || hostPart.contains("katmovies", ignoreCase = true)) &&
-            !hostPart.equals(currentHost, ignoreCase = true)) {
+        return if (isKatHost && currentHost != null && !hostPart.equals(currentHost, ignoreCase = true)) {
             fixed.replace(Regex("""(?i)^https?://[^/]+"""), mainUrl)
         } else fixed
     }
@@ -310,12 +301,8 @@ class KatMovieHDProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val base = refreshMainUrl()
-        val url = if (request.data.startsWith("http")) {
-            if (page <= 1) request.data else "${request.data}page/$page/"
-        } else {
-            "$base/${request.data}$page/"
-        }
-        val doc = safeGetDocument(url)
+        val url = "$base/${request.data}$page/"
+        val doc = app.get(url, headers = headers, timeout = 30).document
         return newHomePageResponse(request.name, parseListing(doc), hasNext = true)
     }
 
@@ -372,7 +359,7 @@ class KatMovieHDProvider : MainAPI() {
      */
     private fun Element.toSearchResultFromItem(): SearchResponse? {
         // Title link: heading anchor is the reliable permalink.
-        val titleAnchor = selectFirst("h2 a[href], h3 a[href], .post-title a[href], .title a[href], .entry-title a[href]")
+        val titleAnchor = selectFirst("h2 a[href], h3 a[href], .post-title a[href], .title a[href]")
             ?: selectFirst("div.post-content a[href]")
             ?: return null
         val href = titleAnchor.attr("href").ifBlank { return null }
@@ -407,7 +394,7 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val anchor = selectFirst("h2 a, h1 a, .entry-title a")
-            ?: selectFirst("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=moviesbaba]")
+            ?: selectFirst("a[href*=katmoviehd]")
             ?: selectFirst("a")
             ?: return null
         val href = anchor.attr("href").ifBlank { return null }
@@ -431,10 +418,7 @@ class KatMovieHDProvider : MainAPI() {
     private fun Element.toSearchResultFromAnchor(): SearchResponse? {
         val href = attr("href").ifBlank { return null }
         if (!href.contains("katmovie", ignoreCase = true) &&
-            !href.contains("katmovies", ignoreCase = true) &&
-            !href.contains("katdrama", ignoreCase = true) &&
-            !href.contains("pikahd", ignoreCase = true) &&
-            !href.contains("moviesbaba", ignoreCase = true)) return null
+            !href.contains("katmovies", ignoreCase = true)) return null
         val bad = listOf(
             "/category/", "/page/", "/tag/", "#respond", "/feed", "/wp-",
             "/about", "/contact", "/how-to", "/join-"
@@ -475,10 +459,7 @@ class KatMovieHDProvider : MainAPI() {
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val cleanedTitle = cleanTitle(rawTitle)
-        val guessedType = guessTvType(rawTitle)
-        val isSeries = guessedType == TvType.TvSeries ||
-            guessedType == TvType.AsianDrama ||
-            guessedType == TvType.AnimeTv
+        val isSeries = guessTvType(rawTitle) == TvType.TvSeries
 
         // Season from the page title; used as default when individual
         // episode headers don't include one. (Pack expansion later
@@ -538,12 +519,7 @@ class KatMovieHDProvider : MainAPI() {
         Log.d(TAG, "load() discovered ${episodes.size} episodes")
 
         if (episodes.isNotEmpty() && (isSeries || episodes.size > 1 || episodes.first().name?.contains("Pack", true) == true)) {
-            val actualType = when (guessedType) {
-                TvType.AnimeTv -> TvType.AnimeTv
-                TvType.Anime -> if (episodes.size > 1) TvType.AnimeTv else TvType.Anime
-                TvType.AsianDrama -> TvType.AsianDrama
-                else -> if (isSeries) TvType.TvSeries else TvType.AsianDrama
-            }
+            val actualType = if (isSeries) TvType.TvSeries else TvType.AsianDrama
             return newTvSeriesLoadResponse(title, pageUrl, actualType, episodes) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl, tmdbMeta?.recommendations)
@@ -1618,22 +1594,12 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun guessTvType(title: String): TvType {
         val t = title.lowercase()
-        val isSeries = t.contains("season") ||
-                t.contains("episode") ||
-                t.contains("episodes") ||
-                t.contains("series") ||
-                Regex("""\bs\d{1,2}\b""").containsMatchIn(t) ||
-                Regex("""\bs0\d\b""").containsMatchIn(t) ||
-                Regex("""(?i)\bs\d{1,2}e\d{1,3}\b""").containsMatchIn(title) ||
-                Regex("""(?i)\bs\d{1,2}\b""").containsMatchIn(title) ||
-                Regex("""(?i)season\s*\d{1,2}\b""").containsMatchIn(title)
-
         return when {
-            t.contains("anime") -> if (isSeries) TvType.AnimeTv else TvType.Anime
-            t.contains("k-drama") || t.contains("korean drama") || t.contains("korean series") ||
-                t.contains("kdrama") || t.contains("tv series") ->
-                if (isSeries) TvType.AsianDrama else TvType.Movie
-            isSeries -> TvType.TvSeries
+            t.contains("season") ||
+            t.contains("episode") ||
+            t.contains("series") ||
+            Regex("""\bs\d{1,2}\b""").containsMatchIn(t) ||
+            Regex("""\bs0\d\b""").containsMatchIn(t) -> TvType.TvSeries
             else -> TvType.Movie
         }
     }
