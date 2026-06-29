@@ -475,7 +475,10 @@ class KatMovieHDProvider : MainAPI() {
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val cleanedTitle = cleanTitle(rawTitle)
-        val isSeries = guessTvType(rawTitle) == TvType.TvSeries
+        val guessedType = guessTvType(rawTitle)
+        val isSeries = guessedType == TvType.TvSeries ||
+            guessedType == TvType.AsianDrama ||
+            guessedType == TvType.AnimeTv
 
         // Season from the page title; used as default when individual
         // episode headers don't include one. (Pack expansion later
@@ -535,7 +538,12 @@ class KatMovieHDProvider : MainAPI() {
         Log.d(TAG, "load() discovered ${episodes.size} episodes")
 
         if (episodes.isNotEmpty() && (isSeries || episodes.size > 1 || episodes.first().name?.contains("Pack", true) == true)) {
-            val actualType = if (isSeries) TvType.TvSeries else TvType.AsianDrama
+            val actualType = when (guessedType) {
+                TvType.AnimeTv -> TvType.AnimeTv
+                TvType.Anime -> if (episodes.size > 1) TvType.AnimeTv else TvType.Anime
+                TvType.AsianDrama -> TvType.AsianDrama
+                else -> if (isSeries) TvType.TvSeries else TvType.AsianDrama
+            }
             return newTvSeriesLoadResponse(title, pageUrl, actualType, episodes) {
                 applyCommonMeta(this, poster, backdrop, plot, year, tags,
                     actorData, cineActors, rating, trailer, imdbUrl, tmdbMeta?.recommendations)
