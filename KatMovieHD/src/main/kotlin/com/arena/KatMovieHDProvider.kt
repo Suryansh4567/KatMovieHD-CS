@@ -257,10 +257,12 @@ class KatMovieHDProvider : MainAPI() {
         "category/dubbed-movie/page/" to "Hindi Dubbed Movies",
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
+        "https://moviesbaba.lol/category/bollywood/" to "Bollywood",
+        "https://www.katdrama.net/category/tv-series-dubbed/" to "K-Drama",
+        "https://new.pikahd.co/category/anime-dubbed/" to "Anime",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
-        "category/korean-drama/page/" to "K-Drama",
         "category/hindi-dubbed/page/" to "Hindi Dubbed",
         "category/hindi-webseries/page/" to "Hindi Web Series",
         "category/hollywood-eng/page/" to "Hollywood (English)",
@@ -288,10 +290,15 @@ class KatMovieHDProvider : MainAPI() {
         val fixed = fixUrl(input)
         val hostPart = Regex("""(?i)^https?://([^/]+)""").find(fixed)?.groupValues?.getOrNull(1)
             ?: return fixed
-        val isKatHost = hostPart.contains("katmovie", ignoreCase = true) ||
-            hostPart.contains("katmovies", ignoreCase = true)
+        val isKatNetworkHost = hostPart.contains("katmovie", ignoreCase = true) ||
+            hostPart.contains("katmovies", ignoreCase = true) ||
+            hostPart.contains("katdrama", ignoreCase = true) ||
+            hostPart.contains("pikahd", ignoreCase = true) ||
+            hostPart.contains("moviesbaba", ignoreCase = true)
         val currentHost = Regex("""(?i)^https?://([^/]+)""").find(mainUrl)?.groupValues?.getOrNull(1)
-        return if (isKatHost && currentHost != null && !hostPart.equals(currentHost, ignoreCase = true)) {
+        return if (isKatNetworkHost && currentHost != null &&
+            (hostPart.contains("katmovie", ignoreCase = true) || hostPart.contains("katmovies", ignoreCase = true)) &&
+            !hostPart.equals(currentHost, ignoreCase = true)) {
             fixed.replace(Regex("""(?i)^https?://[^/]+"""), mainUrl)
         } else fixed
     }
@@ -301,8 +308,12 @@ class KatMovieHDProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val base = refreshMainUrl()
-        val url = "$base/${request.data}$page/"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val url = if (request.data.startsWith("http")) {
+            if (page <= 1) request.data else "${request.data}page/$page/"
+        } else {
+            "$base/${request.data}$page/"
+        }
+        val doc = safeGetDocument(url)
         return newHomePageResponse(request.name, parseListing(doc), hasNext = true)
     }
 
@@ -394,7 +405,7 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val anchor = selectFirst("h2 a, h1 a, .entry-title a")
-            ?: selectFirst("a[href*=katmoviehd]")
+            ?: selectFirst("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=moviesbaba]")
             ?: selectFirst("a")
             ?: return null
         val href = anchor.attr("href").ifBlank { return null }
@@ -418,7 +429,10 @@ class KatMovieHDProvider : MainAPI() {
     private fun Element.toSearchResultFromAnchor(): SearchResponse? {
         val href = attr("href").ifBlank { return null }
         if (!href.contains("katmovie", ignoreCase = true) &&
-            !href.contains("katmovies", ignoreCase = true)) return null
+            !href.contains("katmovies", ignoreCase = true) &&
+            !href.contains("katdrama", ignoreCase = true) &&
+            !href.contains("pikahd", ignoreCase = true) &&
+            !href.contains("moviesbaba", ignoreCase = true)) return null
         val bad = listOf(
             "/category/", "/page/", "/tag/", "#respond", "/feed", "/wp-",
             "/about", "/contact", "/how-to", "/join-"
