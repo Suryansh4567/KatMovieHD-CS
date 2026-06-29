@@ -89,6 +89,12 @@ jobs:
           echo "------ Builds directory ------"
           ls -la "$GITHUB_WORKSPACE/builds/"
 
+      - name: Show Gradle log tail
+        if: always()
+        run: |
+          echo "------ gradle-build.log (tail -200) ------"
+          [ -f "$GITHUB_WORKSPACE/gradle-build.log" ] && tail -n 200 "$GITHUB_WORKSPACE/gradle-build.log" || echo "gradle-build.log missing"
+
       - name: Upload Gradle log
         if: always()
         uses: actions/upload-artifact@v4
