@@ -100,15 +100,16 @@ class KatMovieHDProvider : MainAPI() {
      * throws), retries with CloudflareKiller as the interceptor.
      */
     private suspend fun safeGetDocument(url: String): Document {
+        val finalUrl = resolveFinalUrl(url) ?: url
         var lastError: Exception? = null
         for (i in 0..1) {
             try {
                 val direct = runCatching {
-                    app.get(url, headers = headers, timeout = 30).document
+                    app.get(finalUrl, headers = headers, timeout = 30).document
                 }.getOrNull()
                 if (direct != null && !isCfBlock(direct)) return direct
-                Log.w(TAG, "CF block detected on $url, retrying with CloudflareKiller")
-                return app.get(url, headers = headers, interceptor = CloudflareKiller(), timeout = 30).document
+                Log.w(TAG, "CF block detected on $finalUrl, retrying with CloudflareKiller")
+                return app.get(finalUrl, headers = headers, interceptor = CloudflareKiller(), timeout = 30).document
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 lastError = e
