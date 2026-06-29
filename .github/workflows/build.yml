@@ -82,12 +82,20 @@ jobs:
           cd "$GITHUB_WORKSPACE/src"
           chmod +x gradlew
           set -o pipefail
-          ./gradlew --no-daemon makePluginsJson --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/builds/gradle-build.log"
+          ./gradlew --no-daemon makePluginsJson --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/gradle-build.log"
           find . -type f -name "*.cs3" -exec cp {} "$GITHUB_WORKSPACE/builds/" \;
           [ -f build/plugins.json ] && cp build/plugins.json "$GITHUB_WORKSPACE/builds/plugins.json" || true
           [ -f repo.json ] && cp repo.json "$GITHUB_WORKSPACE/builds/repo.json" || true
           echo "------ Builds directory ------"
           ls -la "$GITHUB_WORKSPACE/builds/"
+
+      - name: Upload Gradle log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: ${{ github.workspace }}/gradle-build.log
+          if-no-files-found: warn
 
       - name: Publish to builds branch
         run: |
