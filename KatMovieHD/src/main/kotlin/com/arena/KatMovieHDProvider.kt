@@ -292,10 +292,15 @@ class KatMovieHDProvider : MainAPI() {
         val fixed = fixUrl(input)
         val hostPart = Regex("""(?i)^https?://([^/]+)""").find(fixed)?.groupValues?.getOrNull(1)
             ?: return fixed
-        val isKatHost = hostPart.contains("katmovie", ignoreCase = true) ||
-            hostPart.contains("katmovies", ignoreCase = true)
+        val isKatNetworkHost = hostPart.contains("katmovie", ignoreCase = true) ||
+            hostPart.contains("katmovies", ignoreCase = true) ||
+            hostPart.contains("katdrama", ignoreCase = true) ||
+            hostPart.contains("pikahd", ignoreCase = true) ||
+            hostPart.contains("moviesbaba", ignoreCase = true)
         val currentHost = Regex("""(?i)^https?://([^/]+)""").find(mainUrl)?.groupValues?.getOrNull(1)
-        return if (isKatHost && currentHost != null && !hostPart.equals(currentHost, ignoreCase = true)) {
+        return if (isKatNetworkHost && currentHost != null &&
+            (hostPart.contains("katmovie", ignoreCase = true) || hostPart.contains("katmovies", ignoreCase = true)) &&
+            !hostPart.equals(currentHost, ignoreCase = true)) {
             fixed.replace(Regex("""(?i)^https?://[^/]+"""), mainUrl)
         } else fixed
     }
@@ -426,7 +431,10 @@ class KatMovieHDProvider : MainAPI() {
     private fun Element.toSearchResultFromAnchor(): SearchResponse? {
         val href = attr("href").ifBlank { return null }
         if (!href.contains("katmovie", ignoreCase = true) &&
-            !href.contains("katmovies", ignoreCase = true)) return null
+            !href.contains("katmovies", ignoreCase = true) &&
+            !href.contains("katdrama", ignoreCase = true) &&
+            !href.contains("pikahd", ignoreCase = true) &&
+            !href.contains("moviesbaba", ignoreCase = true)) return null
         val bad = listOf(
             "/category/", "/page/", "/tag/", "#respond", "/feed", "/wp-",
             "/about", "/contact", "/how-to", "/join-"
@@ -1604,13 +1612,18 @@ class KatMovieHDProvider : MainAPI() {
         val t = title.lowercase()
         val isSeries = t.contains("season") ||
                 t.contains("episode") ||
+                t.contains("episodes") ||
                 t.contains("series") ||
                 Regex("""\bs\d{1,2}\b""").containsMatchIn(t) ||
-                Regex("""\bs0\d\b""").containsMatchIn(t)
+                Regex("""\bs0\d\b""").containsMatchIn(t) ||
+                Regex("""(?i)\bs\d{1,2}e\d{1,3}\b""").containsMatchIn(title) ||
+                Regex("""(?i)\bs\d{1,2}\b""").containsMatchIn(title) ||
+                Regex("""(?i)season\s*\d{1,2}\b""").containsMatchIn(title)
 
         return when {
             t.contains("anime") -> if (isSeries) TvType.AnimeTv else TvType.Anime
-            t.contains("k-drama") || t.contains("korean drama") || t.contains("korean series") ->
+            t.contains("k-drama") || t.contains("korean drama") || t.contains("korean series") ||
+                t.contains("kdrama") || t.contains("tv series") ->
                 if (isSeries) TvType.AsianDrama else TvType.Movie
             isSeries -> TvType.TvSeries
             else -> TvType.Movie
