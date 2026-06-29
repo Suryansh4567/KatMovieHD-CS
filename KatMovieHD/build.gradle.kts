@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 24
+version = 25
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v24: exhaustive RE audit — fixed /play __data.json URL+parser, gd.kmhd.eu redirect routing, bbupload.to API extractor, gdflix.dad/gdlink.dev chain, dead categories, category listing parser, CF fallback, resolveFinalUrl GET-based."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v25: build-fixed release after correcting malformed escaped-string parsing in the content extractor."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
