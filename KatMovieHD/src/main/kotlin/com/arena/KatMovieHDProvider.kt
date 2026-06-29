@@ -603,22 +603,22 @@ class KatMovieHDProvider : MainAPI() {
         
         // SvelteKit injects HTML inside dehydrated JSON. 
         // Extract iteratively to prevent Regex Catastrophic Backtracking (which freezes the app!)
-        var raw = extractEscapedString(html, ""post_content":"")
+        var raw = extractEscapedString(html, "\"post_content\":\"")
         
         if (raw == null) {
-            raw = extractEscapedString(html, ""\\u003Cp")?.let { "\\u003Cp$it" }
+            raw = extractEscapedString(html, "\"\\u003Cp")?.let { "\\u003Cp$it" }
         }
         if (raw == null) {
-            raw = extractEscapedString(html, ""\\u003Cdiv")?.let { "\\u003Cdiv$it" }
+            raw = extractEscapedString(html, "\"\\u003Cdiv")?.let { "\\u003Cdiv$it" }
         }
         if (raw == null) {
-            raw = extractEscapedString(html, ""\\u003Carticle")?.let { "\\u003Carticle$it" }
+            raw = extractEscapedString(html, "\"\\u003Carticle")?.let { "\\u003Carticle$it" }
         }
         if (raw == null) {
-            raw = extractEscapedString(html, ""\\u003Cstrong")?.let { "\\u003Cstrong$it" }
+            raw = extractEscapedString(html, "\"\\u003Cstrong")?.let { "\\u003Cstrong$it" }
         }
         if (raw == null) {
-            raw = extractEscapedString(html, ""\\u003Ch")?.let { "\\u003Ch$it" }
+            raw = extractEscapedString(html, "\"\\u003Ch")?.let { "\\u003Ch$it" }
         }
         
         if (raw != null) {
