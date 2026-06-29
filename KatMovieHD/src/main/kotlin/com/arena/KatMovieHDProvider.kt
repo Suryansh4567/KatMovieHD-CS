@@ -78,7 +78,8 @@ class KatMovieHDProvider : MainAPI() {
         TvType.Movie,
         TvType.TvSeries,
         TvType.AsianDrama,
-        TvType.Anime
+        TvType.Anime,
+        TvType.AnimeTv
     )
 
     private val headers = mapOf(
@@ -257,10 +258,14 @@ class KatMovieHDProvider : MainAPI() {
         "category/dubbed-movie/page/" to "Hindi Dubbed Movies",
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
+        "category/bollywood/page/" to "Bollywood",
+        "category/tv-series-dubbed/korean-drama/page/" to "K-Drama (Hindi)",
+        "category/tv-series-dubbed/turkish-drama-in-hindi/page/" to "Turkish Drama (Hindi)",
+        "category/anime-dubbed/page/" to "Anime (Hindi Dubbed)",
+        "category/anime-eng-subbed/page/" to "Anime (English Sub)",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
-        "category/korean-drama/page/" to "K-Drama",
         "category/hindi-dubbed/page/" to "Hindi Dubbed",
         "category/hindi-webseries/page/" to "Hindi Web Series",
         "category/hollywood-eng/page/" to "Hollywood (English)",
@@ -1594,12 +1599,17 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun guessTvType(title: String): TvType {
         val t = title.lowercase()
+        val isSeries = t.contains("season") ||
+                t.contains("episode") ||
+                t.contains("series") ||
+                Regex("""\bs\d{1,2}\b""").containsMatchIn(t) ||
+                Regex("""\bs0\d\b""").containsMatchIn(t)
+
         return when {
-            t.contains("season") ||
-            t.contains("episode") ||
-            t.contains("series") ||
-            Regex("""\bs\d{1,2}\b""").containsMatchIn(t) ||
-            Regex("""\bs0\d\b""").containsMatchIn(t) -> TvType.TvSeries
+            t.contains("anime") -> if (isSeries) TvType.AnimeTv else TvType.Anime
+            t.contains("k-drama") || t.contains("korean drama") || t.contains("korean series") ->
+                if (isSeries) TvType.AsianDrama else TvType.Movie
+            isSeries -> TvType.TvSeries
             else -> TvType.Movie
         }
     }

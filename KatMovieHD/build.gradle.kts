@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 24
+version = 25
 
 cloudstream {
     authors = listOf("arena")
@@ -10,10 +10,10 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v24: exhaustive RE audit — fixed /play __data.json URL+parser, gd.kmhd.eu redirect routing, bbupload.to API extractor, gdflix.dad/gdlink.dev chain, dead categories, category listing parser, CF fallback, resolveFinalUrl GET-based."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v25: Fixed K-Drama, Anime, and Bollywood categories, updated type detection for AsianDrama and Anime."
     language    = "hi"
 
-    tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
+    tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime", "AnimeTv")
 
     iconUrl = "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64"
 }
