@@ -258,11 +258,10 @@ class KatMovieHDProvider : MainAPI() {
         "category/dubbed-movie/page/" to "Hindi Dubbed Movies",
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
-        "category/bollywood/page/" to "Bollywood",
-        "category/tv-series-dubbed/korean-drama/page/" to "K-Drama (Hindi)",
+        "https://moviesbaba.lol/" to "Bollywood",
+        "https://www.katdrama.net/" to "K-Drama",
+        "https://new.pikahd.co/" to "Anime",
         "category/tv-series-dubbed/turkish-drama-in-hindi/page/" to "Turkish Drama (Hindi)",
-        "category/anime-dubbed/page/" to "Anime (Hindi Dubbed)",
-        "category/anime-eng-subbed/page/" to "Anime (English Sub)",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
@@ -306,8 +305,12 @@ class KatMovieHDProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val base = refreshMainUrl()
-        val url = "$base/${request.data}$page/"
-        val doc = app.get(url, headers = headers, timeout = 30).document
+        val url = if (request.data.startsWith("http")) {
+            if (page <= 1) request.data else "${request.data}page/$page/"
+        } else {
+            "$base/${request.data}$page/"
+        }
+        val doc = safeGetDocument(url)
         return newHomePageResponse(request.name, parseListing(doc), hasNext = true)
     }
 
@@ -364,7 +367,7 @@ class KatMovieHDProvider : MainAPI() {
      */
     private fun Element.toSearchResultFromItem(): SearchResponse? {
         // Title link: heading anchor is the reliable permalink.
-        val titleAnchor = selectFirst("h2 a[href], h3 a[href], .post-title a[href], .title a[href]")
+        val titleAnchor = selectFirst("h2 a[href], h3 a[href], .post-title a[href], .title a[href], .entry-title a[href]")
             ?: selectFirst("div.post-content a[href]")
             ?: return null
         val href = titleAnchor.attr("href").ifBlank { return null }
