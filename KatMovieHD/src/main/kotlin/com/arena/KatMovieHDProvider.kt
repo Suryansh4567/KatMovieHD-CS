@@ -78,8 +78,7 @@ class KatMovieHDProvider : MainAPI() {
         TvType.Movie,
         TvType.TvSeries,
         TvType.AsianDrama,
-        TvType.Anime,
-        TvType.AnimeTv
+        TvType.Anime
     )
 
     private val headers = mapOf(
@@ -477,7 +476,7 @@ class KatMovieHDProvider : MainAPI() {
         val guessedType = guessTvType(rawTitle)
         val isSeries = guessedType == TvType.TvSeries ||
             guessedType == TvType.AsianDrama ||
-            guessedType == TvType.AnimeTv
+            guessedType == TvType.Anime
 
         // Season from the page title; used as default when individual
         // episode headers don't include one. (Pack expansion later
@@ -538,8 +537,7 @@ class KatMovieHDProvider : MainAPI() {
 
         if (episodes.isNotEmpty() && (isSeries || episodes.size > 1 || episodes.first().name?.contains("Pack", true) == true)) {
             val actualType = when (guessedType) {
-                TvType.AnimeTv -> TvType.AnimeTv
-                TvType.Anime -> if (episodes.size > 1) TvType.AnimeTv else TvType.Anime
+                TvType.Anime -> TvType.Anime
                 TvType.AsianDrama -> TvType.AsianDrama
                 else -> if (isSeries) TvType.TvSeries else TvType.AsianDrama
             }
@@ -1628,7 +1626,7 @@ class KatMovieHDProvider : MainAPI() {
                 Regex("""(?i)season\s*\d{1,2}\b""").containsMatchIn(title)
 
         return when {
-            t.contains("anime") -> if (isSeries) TvType.AnimeTv else TvType.Anime
+            t.contains("anime") -> TvType.Anime
             t.contains("k-drama") || t.contains("korean drama") || t.contains("korean series") ||
                 t.contains("kdrama") || t.contains("tv series") ->
                 if (isSeries) TvType.AsianDrama else TvType.Movie
