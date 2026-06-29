@@ -2,13 +2,13 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 24,
+        "version": 25,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v24: exhaustive RE audit \u2014 fixed /play __data.json URL+parser, gd.kmhd.eu redirect routing, bbupload.to API extractor, gdflix.dad/gdlink.dev chain, dead categories, category listing parser, CF fallback, resolveFinalUrl GET-based.",
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v25: build-fixed release after correcting malformed escaped-string parsing in the content extractor.",
         "fileSize": 113241,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-33091033295f8a1f9f1f59f14b539ee2aa7ef85089d9f45f216e5d2dec237958"
+        "fileHash": "sha256-e5d728341055348a9f1d8dab280ab17932716ab52fc620c456f4a560c74fdff9"
     }
 ]
