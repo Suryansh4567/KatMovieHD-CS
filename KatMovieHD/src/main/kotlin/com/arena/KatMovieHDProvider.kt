@@ -573,29 +573,55 @@ class KatMovieHDProvider : MainAPI() {
     // Episode discovery pipeline
     // ------------------------------------------------------------------
 
+    private fun extractEscapedString(html: String, prefix: String): String? {
+        val startIdx = html.indexOf(prefix)
+        if (startIdx == -1) return null
+        val contentStart = startIdx + prefix.length
+        val sb = StringBuilder()
+        var i = contentStart
+        while (i < html.length) {
+            val c = html[i]
+            if (c == '\\') {
+                sb.append(c)
+                if (i + 1 < html.length) {
+                    sb.append(html[i + 1])
+                    i++
+                }
+            } else if (c == '"') {
+                break
+            } else {
+                sb.append(c)
+            }
+            i++
+        }
+        return sb.toString()
+    }
+
     private fun getContentContainer(doc: Document): Element {
         val html = doc.html()
         
-        // 1. SvelteKit pages (pikahd, moviesbaba, katdrama) inject the HTML inside a JS object.
-        // We must properly match the JSON string allowing for escaped quotes inside.
-        val svelteMatch1 = Regex("""post_content"\s*:\s*"((?:[^"\\]|\\.)*)"\s*(?:,|\}\})""").find(html)
-        if (svelteMatch1 != null) {
-            val raw = svelteMatch1.groupValues[1]
-                .replace("\\\"", "\"")
-                .replace("\\u003C", "<")
-                .replace("\\u003E", ">")
-                .replace("\\/", "/")
-                .replace("\\n", "\n")
-                .replace("\\r", "\r")
-                .replace("\\t", "\t")
-            return Jsoup.parse(raw).body()
+        // SvelteKit injects HTML inside dehydrated JSON. 
+        // Extract iteratively to prevent Regex Catastrophic Backtracking (which freezes the app!)
+        var raw = extractEscapedString(html, ""post_content":"")
+        
+        if (raw == null) {
+            raw = extractEscapedString(html, ""\\u003Cp")?.let { "\\u003Cp$it" }
+        }
+        if (raw == null) {
+            raw = extractEscapedString(html, ""\\u003Cdiv")?.let { "\\u003Cdiv$it" }
+        }
+        if (raw == null) {
+            raw = extractEscapedString(html, ""\\u003Carticle")?.let { "\\u003Carticle$it" }
+        }
+        if (raw == null) {
+            raw = extractEscapedString(html, ""\\u003Cstrong")?.let { "\\u003Cstrong$it" }
+        }
+        if (raw == null) {
+            raw = extractEscapedString(html, ""\\u003Ch")?.let { "\\u003Ch$it" }
         }
         
-        // 2. Array-dehydrated payload (latest SvelteKit version like on KatDrama)
-        // We look for any large string containing escaped HTML tags, properly handling JSON strings
-        val svelteMatch2 = Regex(""""(\\u003C(?:p|div|h[1-6]|article|strong)(?:[^"\\]|\\.)*)"""").find(html)
-        if (svelteMatch2 != null) {
-            val raw = svelteMatch2.groupValues[1]
+        if (raw != null) {
+            val decoded = raw
                 .replace("\\\"", "\"")
                 .replace("\\u003C", "<")
                 .replace("\\u003E", ">")
@@ -603,14 +629,14 @@ class KatMovieHDProvider : MainAPI() {
                 .replace("\\n", "\n")
                 .replace("\\r", "\r")
                 .replace("\\t", "\t")
-            val virtualDom = Jsoup.parse(raw).body()
+            
+            val virtualDom = Jsoup.parse(decoded).body()
             if (virtualDom.select("a[href]").isNotEmpty()) {
                 return virtualDom
             }
         }
         
-        // 3. Ultra Fallback: Just grab raw regex URL links and wrap them in anchor tags.
-        // If svelte blocks are totally mangled, we manually build a virtual DOM.
+        // Ultra Fallback
         if (doc.select("article, .entry-content, .post-content, div#content, main").isEmpty()) {
             val urls = Regex("""https?://[a-zA-Z0-9.-]+/[^\s"\\]+""").findAll(html)
             val builder = StringBuilder()
@@ -624,7 +650,6 @@ class KatMovieHDProvider : MainAPI() {
             }
         }
         
-        // 4. Standard WordPress HTML
         return doc.selectFirst("article, .entry-content, .post-content, div#content, main") ?: doc.body()
     }
 
@@ -723,12 +748,15 @@ class KatMovieHDProvider : MainAPI() {
         // redirector with no __data.json sidecar of its own — it bounces
         // to links.kmhd.eu (or gdflix). Resolve first so both the JSON
         // fetch and the per-file /file/ links use the correct host.
-        val resolvedUrls = mutableListOf<String>()
-        for (pu in packUrls) {
-            val resolved = if (pu.contains("gd.kmhd", true)) {
-                resolveFinalUrl(pu)?.trimEnd('/')?.takeIf { !it.contains("gd.kmhd", true) } ?: pu
-            } else pu
-            resolvedUrls.add(resolved)
+        // Parallelize resolving the gd.kmhd redirector URLs so we don't sequential timeout
+        val resolvedUrls = supervisorScope {
+            packUrls.map { pu ->
+                async {
+                    if (pu.contains("gd.kmhd", true)) {
+                        resolveFinalUrl(pu)?.trimEnd('/')?.takeIf { !it.contains("gd.kmhd", true) } ?: pu
+                    } else pu
+                }
+            }.awaitAll()
         }
 
         val perPack = supervisorScope {
