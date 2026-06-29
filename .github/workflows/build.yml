@@ -81,7 +81,8 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE/src"
           chmod +x gradlew
-          ./gradlew --no-daemon makePluginsJson --stacktrace
+          set -o pipefail
+          ./gradlew --no-daemon makePluginsJson --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/builds/gradle-build.log"
           find . -type f -name "*.cs3" -exec cp {} "$GITHUB_WORKSPACE/builds/" \;
           [ -f build/plugins.json ] && cp build/plugins.json "$GITHUB_WORKSPACE/builds/plugins.json" || true
           [ -f repo.json ] && cp repo.json "$GITHUB_WORKSPACE/builds/repo.json" || true
