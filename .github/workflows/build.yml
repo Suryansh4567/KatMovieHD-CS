@@ -93,7 +93,18 @@ jobs:
         if: always()
         run: |
           echo "------ gradle-build.log (tail -200) ------"
-          [ -f "$GITHUB_WORKSPACE/gradle-build.log" ] && tail -n 200 "$GITHUB_WORKSPACE/gradle-build.log" || echo "gradle-build.log missing"
+          if [ -f "$GITHUB_WORKSPACE/gradle-build.log" ]; then
+            tail -n 200 "$GITHUB_WORKSPACE/gradle-build.log"
+            {
+              echo "## Gradle log tail"
+              echo '```'
+              tail -n 200 "$GITHUB_WORKSPACE/gradle-build.log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "gradle-build.log missing"
+            echo "gradle-build.log missing" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload Gradle log
         if: always()
