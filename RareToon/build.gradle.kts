@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 12
+version = 13
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v12 fixes runtime no-links behavior by only returning success when extractors actually emit links."
+    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v13 fixes broken WordPress REST content on some RareToon movie posts by reconstructing hidden MEGA/MediaFire links."
     language = "hi"
 
     tvTypes = listOf("Anime", "TvSeries", "Movie")

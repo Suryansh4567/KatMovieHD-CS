@@ -230,7 +230,8 @@ class RareToonIndiaProvider : MainAPI() {
         val slug = optString("slug").ifBlank { return null }
         val title = optJSONObject("title")?.optString("rendered").orEmpty().ifBlank { slug }
         val excerpt = optJSONObject("excerpt")?.optString("rendered")?.let(::htmlToText)
-        val content = optJSONObject("content")?.optString("rendered").orEmpty()
+        val rawContent = optJSONObject("content")?.optString("rendered").orEmpty()
+        val content = sanitizeBrokenWpContent(rawContent)
         val description = extractMetaDescription(content)
         val poster = extractEmbeddedPoster(this) ?: extractFirstPoster(content)
         return RarePost(id, url, slug, title, excerpt, description, content, poster)
@@ -348,6 +349,24 @@ class RareToonIndiaProvider : MainAPI() {
                 this.episode = episode
             }
         }.sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: 0 }))
+    }
+
+    private fun sanitizeBrokenWpContent(html: String): String {
+        if (html.contains("<a ", true)) return html
+        return buildString {
+            append(html)
+            Regex("""https?://(?:mega\.nz|www\.mediafire\.com|mediafire\.com)/[^\s"'<>]+""", RegexOption.IGNORE_CASE)
+                .findAll(html)
+                .map { it.value.trim() }
+                .distinct()
+                .forEach { url ->
+                    append("<p><a href="")
+                    append(url)
+                    append("">")
+                    append(if (url.contains("mega.nz", true)) "MEGA" else "MEDIAFIRE")
+                    append("</a></p>")
+                }
+        }
     }
 
     private fun extractEmbeddedPoster(obj: JSONObject): String? {
