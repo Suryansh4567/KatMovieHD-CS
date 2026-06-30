@@ -1,5 +1,6 @@
 package com.arena.raretoon
 
+import android.util.Base64
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
@@ -7,8 +8,8 @@ import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.utils.newSubtitleFile
 import org.json.JSONObject
-import android.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -68,7 +69,6 @@ class ByseKozE : ExtractorApi() {
         }
     }
 
-
     private fun emitSubtitles(json: JSONObject, subtitleCallback: (SubtitleFile) -> Unit) {
         val tracks = json.optJSONArray("tracks") ?: return
         for (i in 0 until tracks.length()) {
@@ -78,7 +78,7 @@ class ByseKozE : ExtractorApi() {
             val lang = track.optString("language")
                 .ifBlank { track.optString("title") }
                 .ifBlank { "Subtitle" }
-            subtitleCallback.invoke(SubtitleFile(lang, url))
+            subtitleCallback.invoke(newSubtitleFile(lang, url))
         }
     }
 

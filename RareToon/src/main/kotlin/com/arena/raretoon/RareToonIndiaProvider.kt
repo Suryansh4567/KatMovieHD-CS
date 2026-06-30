@@ -54,6 +54,8 @@ class RareToonIndiaProvider : MainAPI() {
         "/animes/jujutsu-kaisen/" to "Jujutsu Kaisen",
         "/animes/demon-slayer/" to "Demon Slayer",
         "/animes/my-hero-academia/" to "My Hero Academia",
+        "/animes/dr-stone/" to "Dr. Stone",
+        "/animes/classroom-of-the-elite/" to "Classroom of the Elite",
         "/pokemon/" to "Pokemon",
         "/disney/" to "Disney",
         "/movies/" to "Movies",
@@ -84,13 +86,12 @@ class RareToonIndiaProvider : MainAPI() {
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()
         val title = cleanTitle(rawTitle)
-        val poster = doc.selectFirst("meta[property=og:image]")?.attr("content")
-            ?: doc.selectFirst("article img, .post img")?.absUrl("src")
+        val poster = extractPoster(doc)
         val plot = doc.select("article p, .post p, main p")
             .firstOrNull { it.text().length > 70 }?.text()
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
-        val mirrors = collectByseLinks(doc)
+        val mirrors = collectPlayableMirrors(doc)
         val isSeries = looksSeries(rawTitle) || mirrors.any { it.episode != null } || mirrors.size > 2
         val season = seasonNumber(rawTitle) ?: 1
         val episodes = if (isSeries) buildEpisodes(mirrors, season) else emptyList()
@@ -101,7 +102,7 @@ class RareToonIndiaProvider : MainAPI() {
                 this.plot = plot
             }
         } else {
-            val data = mirrors.firstOrNull()?.url ?: mirrors.joinToString("\n") { it.url }
+            val data = mirrors.joinToString("\n") { it.url }.ifBlank { pageUrl }
             newMovieLoadResponse(title, pageUrl, TvType.Movie, data) {
                 this.posterUrl = poster
                 this.plot = plot
@@ -185,30 +186,44 @@ class RareToonIndiaProvider : MainAPI() {
         val rawTitle = anchor.attr("title").ifBlank { anchor.text() }
             .ifBlank { selectFirst("img")?.attr("alt") ?: "" }
             .ifBlank { return null }
-        val img = selectFirst("img") ?: anchor.selectFirst("img")
-        val poster = img?.absUrl("data-src")?.ifBlank { null }
-            ?: img?.absUrl("src")?.ifBlank { null }
+        val poster = extractPoster(this)
         return newMovieSearchResponse(cleanTitle(rawTitle), href, guessType(rawTitle)) {
             this.posterUrl = poster
             this.quality = detectQuality(rawTitle)
         }
     }
 
-    private data class Mirror(val url: String, val label: String?, val episode: Int?, val quality: String?)
+    private data class Mirror(
+        val url: String,
+        val label: String?,
+        val episode: Int?,
+        val season: Int?,
+        val quality: String?
+    )
 
     private fun contentContainer(doc: Document): Element = doc.selectFirst(
         ".elementor-widget-theme-post-content .elementor-widget-container, article .entry-content, .entry-content, main article, main, article, .post, body"
     ) ?: doc
 
+    private fun collectPlayableMirrors(doc: Document): List<Mirror> {
+        val byseMirrors = collectByseLinks(doc)
+        val directMirrors = collectDirectLinks(doc)
+        return (byseMirrors + directMirrors)
+            .distinctBy { it.url }
+            .sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: Int.MAX_VALUE }, { it.quality ?: "" }, { it.url }))
+    }
+
     private fun collectByseLinks(doc: Document): List<Mirror> {
         val content = contentContainer(doc)
         val mirrors = mutableListOf<Mirror>()
         var currentEpisode: Int? = null
+        var currentSeason: Int? = seasonNumber(doc.title()) ?: seasonNumber(doc.selectFirst("h1")?.text().orEmpty())
         var currentLabel: String? = null
         var currentQuality: String? = null
 
         content.select("h1,h2,h3,h4,h5,h6,p,li,div,span,strong,b,a[href]").forEach { el ->
             val text = el.ownText().ifBlank { el.text() }.trim()
+            seasonNumber(text)?.let { currentSeason = it }
             val ep = episodeNumber(text)
             if (ep != null && !text.contains("episodes:", true) && !text.contains("all episodes", true)) {
                 currentEpisode = ep
@@ -221,35 +236,109 @@ class RareToonIndiaProvider : MainAPI() {
                 val code = byseCode(href) ?: return@forEach
                 val watchUrl = "https://bysekoze.com/d/$code"
                 val parentText = el.parent()?.text()?.take(180)
+                val derivedSeason = seasonNumber(parentText.orEmpty()) ?: currentSeason
+                val derivedEpisode = currentEpisode ?: episodeNumber(parentText)
+                val derivedQuality = currentQuality ?: detectQualityLabel(parentText.orEmpty()) ?: detectQualityLabel(el.text())
                 val label = currentLabel ?: parentText?.ifBlank { el.text() }
-                mirrors.add(Mirror(watchUrl, label, currentEpisode ?: episodeNumber(parentText), currentQuality ?: detectQualityLabel(parentText.orEmpty())))
+                mirrors.add(Mirror(watchUrl, label, derivedEpisode, derivedSeason, derivedQuality))
             }
         }
 
-        // Fallback for unusual layouts where the ordered walker missed anchors.
         if (mirrors.isEmpty()) {
             content.select("a[href*='bysekoze.']").forEach { a ->
                 val href = a.absUrl("href").ifBlank { a.attr("href") }
                 val code = byseCode(href) ?: return@forEach
                 val parentText = a.parent()?.text()?.take(180)
-                mirrors.add(Mirror("https://bysekoze.com/d/$code", parentText?.ifBlank { a.text() }, episodeNumber(parentText), detectQualityLabel(parentText.orEmpty())))
+                mirrors.add(
+                    Mirror(
+                        url = "https://bysekoze.com/d/$code",
+                        label = parentText?.ifBlank { a.text() },
+                        episode = episodeNumber(parentText),
+                        season = seasonNumber(parentText.orEmpty()) ?: currentSeason,
+                        quality = detectQualityLabel(parentText.orEmpty()) ?: detectQualityLabel(a.text())
+                    )
+                )
             }
         }
 
         return mirrors.distinctBy { byseCode(it.url) ?: it.url }
     }
 
-    private fun buildEpisodes(mirrors: List<Mirror>, season: Int): List<Episode> {
-        return mirrors.mapIndexed { index, mirror ->
-            val epNumber = mirror.episode ?: (index + 1)
-            newEpisode(mirror.url) {
-                this.name = episodeName(mirror.label, epNumber)
-                this.season = season
-                this.episode = epNumber
+    private fun collectDirectLinks(doc: Document): List<Mirror> {
+        val content = contentContainer(doc)
+        val links = mutableListOf<Mirror>()
+        var currentEpisode: Int? = null
+        var currentSeason: Int? = seasonNumber(doc.title()) ?: seasonNumber(doc.selectFirst("h1")?.text().orEmpty())
+        var currentQuality: String? = null
+
+        content.select("h1,h2,h3,h4,h5,h6,p,li,div,span,strong,b,a[href],source[src],iframe[src],video source[src]").forEach { el ->
+            val text = el.ownText().ifBlank { el.text() }.trim()
+            seasonNumber(text)?.let { currentSeason = it }
+            episodeNumber(text)?.let { currentEpisode = it }
+            detectQualityLabel(text)?.let { currentQuality = it }
+
+            val rawUrl = when {
+                el.hasAttr("href") -> el.absUrl("href").ifBlank { el.attr("href") }
+                el.hasAttr("src") -> el.absUrl("src").ifBlank { el.attr("src") }
+                else -> ""
             }
+            if (!isDirectVideo(rawUrl)) return@forEach
+            val parentText = el.parent()?.text()?.take(180).orEmpty()
+            links.add(
+                Mirror(
+                    url = rawUrl,
+                    label = parentText.ifBlank { el.text() },
+                    episode = currentEpisode ?: episodeNumber(parentText),
+                    season = seasonNumber(parentText).takeIf { it != null } ?: currentSeason,
+                    quality = detectQualityLabel(rawUrl) ?: detectQualityLabel(parentText) ?: currentQuality
+                )
+            )
         }
-            .distinctBy { it.data }
-            .sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: 0 }))
+
+        return links.distinctBy { it.url }
+    }
+
+    private fun buildEpisodes(mirrors: List<Mirror>, fallbackSeason: Int): List<Episode> {
+        if (mirrors.isEmpty()) return emptyList()
+        val grouped = linkedMapOf<Pair<Int, Int>, MutableList<Mirror>>()
+        var syntheticEpisode = 1
+        mirrors.forEach { mirror ->
+            val season = mirror.season ?: fallbackSeason
+            val episode = mirror.episode ?: syntheticEpisode++
+            grouped.getOrPut(season to episode) { mutableListOf() }.add(mirror)
+        }
+
+        return grouped.entries.map { (key, group) ->
+            val (season, episode) = key
+            val data = group.sortedWith(compareByDescending<Mirror> { qualityRank(it.quality) }.thenBy { it.url })
+                .joinToString("\n") { it.url }
+            val best = group.maxByOrNull { qualityRank(it.quality) }
+            newEpisode(data) {
+                this.name = episodeName(best?.label, episode)
+                this.season = season
+                this.episode = episode
+            }
+        }.sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: 0 }))
+    }
+
+    private fun extractPoster(element: Element): String? {
+        val img = element.selectFirst("img") ?: return null
+        return listOf(
+            img.absUrl("data-lazy-src"),
+            img.absUrl("data-src"),
+            img.absUrl("data-original"),
+            img.absUrl("src"),
+            firstSrcSetUrl(img.attr("data-srcset")),
+            firstSrcSetUrl(img.attr("srcset"))
+        ).firstOrNull { !it.isNullOrBlank() }
+    }
+
+    private fun firstSrcSetUrl(srcset: String?): String? {
+        val value = srcset?.trim().orEmpty()
+        if (value.isBlank()) return null
+        return value.split(',')
+            .map { it.trim().substringBefore(' ').trim() }
+            .firstOrNull { it.startsWith("http", true) }
     }
 
     private fun seasonNumber(text: String): Int? = Regex("""(?i)\b(?:season|s)\s*0*(\d{1,2})\b""")
@@ -293,6 +382,16 @@ class RareToonIndiaProvider : MainAPI() {
         title.contains("720", true) -> SearchQuality.HD
         title.contains("480", true) -> SearchQuality.SD
         else -> null
+    }
+
+    private fun qualityRank(label: String?): Int = when {
+        label.isNullOrBlank() -> 0
+        label.contains("2160", true) -> 2160
+        label.contains("1080", true) -> 1080
+        label.contains("720", true) -> 720
+        label.contains("480", true) -> 480
+        label.contains("360", true) -> 360
+        else -> 1
     }
 
     private fun directQuality(url: String): Int {
