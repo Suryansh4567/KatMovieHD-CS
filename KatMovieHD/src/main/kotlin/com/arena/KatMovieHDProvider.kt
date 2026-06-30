@@ -315,8 +315,12 @@ class KatMovieHDProvider : MainAPI() {
             hostPart.contains("katmovie4k", ignoreCase = true) ||
             hostPart.contains("moviesbaba", ignoreCase = true)
         val currentHost = Regex("""(?i)^https?://([^/]+)""").find(mainUrl)?.groupValues?.getOrNull(1)
-        return if (isKatNetworkHost && currentHost != null &&
-            (hostPart.contains("katmovie", ignoreCase = true) || hostPart.contains("katmovies", ignoreCase = true)) &&
+        val isRotatingKatMovieHdHost =
+            (hostPart.contains("katmoviehd", ignoreCase = true) || hostPart.contains("katmovies", ignoreCase = true)) &&
+                !hostPart.contains("katmovie4k", ignoreCase = true) &&
+                !hostPart.contains("katmovie18", ignoreCase = true)
+
+        return if (isKatNetworkHost && currentHost != null && isRotatingKatMovieHdHost &&
             !hostPart.equals(currentHost, ignoreCase = true)) {
             fixed.replace(Regex("""(?i)^https?://[^/]+"""), mainUrl)
         } else fixed
