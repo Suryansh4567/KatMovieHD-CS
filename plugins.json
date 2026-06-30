@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 26,
+        "version": 27,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v26: fixes SvelteKit sister-site parsing for Anime (PikaHD) and K-Drama (KatDrama), plus safer streamed content extraction.",
-        "fileSize": 116736,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v27: expands legacy kmhd.eu episode archives for old series like Ghoul S01 and keeps PikaHD anime visible in mixed Movies/TV views.",
+        "fileSize": 121281,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-dd27c704c528e4299607baacc0f47bfd13068eba6da525945e3ceb37271f0eda"
+        "fileHash": "sha256-3fb820b3098cfbcd437d0557a29df6771769177b5ab58c5c65f6591cc3215ef6"
     }
 ]
