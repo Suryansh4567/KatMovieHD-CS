@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 38
+version = 39
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v38: fixes KatMovie4K GDFlix sources by skipping unsupported container pages and using direct/handled mirrors only."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD plus Rare Toon India. v39: removes KatMovie4K row and adds Rare Toon India provider with ByseKozE playback."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")

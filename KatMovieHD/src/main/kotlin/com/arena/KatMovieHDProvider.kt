@@ -266,7 +266,6 @@ class KatMovieHDProvider : MainAPI() {
         "https://moviesbaba.lol/category/bollywood/" to "Bollywood",
         "https://www.katdrama.net/" to "K-Drama",
         "https://new.pikahd.co/" to "Anime",
-        "https://katmovie4k.mov/" to "KatMovie4K",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
@@ -312,12 +311,10 @@ class KatMovieHDProvider : MainAPI() {
             hostPart.contains("katmovies", ignoreCase = true) ||
             hostPart.contains("katdrama", ignoreCase = true) ||
             hostPart.contains("pikahd", ignoreCase = true) ||
-            hostPart.contains("katmovie4k", ignoreCase = true) ||
             hostPart.contains("moviesbaba", ignoreCase = true)
         val currentHost = Regex("""(?i)^https?://([^/]+)""").find(mainUrl)?.groupValues?.getOrNull(1)
         val isRotatingKatMovieHdHost =
             (hostPart.contains("katmoviehd", ignoreCase = true) || hostPart.contains("katmovies", ignoreCase = true)) &&
-                !hostPart.contains("katmovie4k", ignoreCase = true) &&
                 !hostPart.contains("katmovie18", ignoreCase = true)
 
         return if (isKatNetworkHost && currentHost != null && isRotatingKatMovieHdHost &&
@@ -468,8 +465,8 @@ class KatMovieHDProvider : MainAPI() {
      */
     private fun Element.toSearchResultFromItem(): SearchResponse? {
         // Title link: heading anchor is the reliable permalink.
-        // Some sister themes (KatMovie4K) put category anchors before the
-        // post title inside .post-content. Query selectors one-by-one instead
+        // Some sister themes put category anchors before the post title inside
+        // .post-content. Query selectors one-by-one instead
         // of a broad comma selector so the card URL is the real permalink,
         // not /category/2160p-hdr/ which opens as a 404 detail page.
         val titleAnchor = listOf(
@@ -520,7 +517,7 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val anchor = selectFirst(".entry-title a[href], h2.entry-title a[href], h1.entry-title a[href], h2 a[href], h1 a[href]")
-            ?: select("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=katmovie4k], a[href*=moviesbaba]").firstOrNull { a ->
+            ?: select("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=moviesbaba]").firstOrNull { a ->
                 !a.attr("href").contains("#comment", ignoreCase = true) &&
                     !a.attr("href").contains("/author/", ignoreCase = true) &&
                     !a.attr("href").contains("/category/", ignoreCase = true)
@@ -556,7 +553,6 @@ class KatMovieHDProvider : MainAPI() {
             !href.contains("katmovies", ignoreCase = true) &&
             !href.contains("katdrama", ignoreCase = true) &&
             !href.contains("pikahd", ignoreCase = true) &&
-            !href.contains("katmovie4k", ignoreCase = true) &&
             !href.contains("moviesbaba", ignoreCase = true)) return null
         val bad = listOf(
             "/category/", "/page/", "/tag/", "#respond", "/feed", "/wp-",

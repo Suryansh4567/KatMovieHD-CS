@@ -24,6 +24,7 @@ class KatMovieHDPlugin : BasePlugin() {
 
     override fun load() {
         registerMainAPI(KatMovieHDProvider())
+        registerMainAPI(RareToonIndiaProvider())
 
         // KMHD-specific extractor handles links.kmhd.eu/{file,play}/<id>.
         registerExtractorAPI(KmhdExtractor())
@@ -50,6 +51,7 @@ class KatMovieHDPlugin : BasePlugin() {
         registerExtractorAPI(BBUpload())
         registerExtractorAPI(BBServer())
         registerExtractorAPI(GDTot())
+        registerExtractorAPI(ByseKozE())
     }
 
     companion object {
