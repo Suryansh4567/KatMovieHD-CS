@@ -261,8 +261,11 @@ class RareToonIndiaProvider : MainAPI() {
             .count { episodeNumber(it.text()) != null }
         val title = rawTitle.lowercase()
 
+        val uniqueCollectionEntries = collectionEntries
+            .filterNot { it.url.contains("/all-doraemon-movies", true) || it.url.contains("/all-shinchan-movies", true) || it.url.contains("/doraemon-all-seasons", true) }
+
         return when {
-            isCollectionTitle(rawTitle) || collectionEntries.size >= 4 -> PageType.COLLECTION
+            isCollectionTitle(rawTitle) || uniqueCollectionEntries.size >= 8 -> PageType.COLLECTION
             title.contains("season") || title.contains("episodes") || episodeHeaders >= 2 -> PageType.SEASON
             playableMirrors.isNotEmpty() -> PageType.MOVIE
             else -> PageType.INVALID
@@ -391,6 +394,13 @@ class RareToonIndiaProvider : MainAPI() {
                 if (title.length < 6) return@mapNotNull null
                 if (title.equals("click here to join", true)) return@mapNotNull null
                 if (title.contains("how to download", true)) return@mapNotNull null
+                if (title.contains("join our telegram", true)) return@mapNotNull null
+                if (title.contains("also check", true)) return@mapNotNull null
+                if (title.contains("staytooned", true)) return@mapNotNull null
+                if (href.contains("#comment", true) || href.contains("#respond", true)) return@mapNotNull null
+                val lowerTitle = title.lowercase()
+                val seemsContent = lowerTitle.contains("season") || lowerTitle.contains("episode") || lowerTitle.contains("movie") || lowerTitle.contains("doraemon") || lowerTitle.contains("shin") || lowerTitle.contains("pokemon") || lowerTitle.contains("leveling") || lowerTitle.contains("slayer") || lowerTitle.contains("hero academia")
+                if (!seemsContent) return@mapNotNull null
                 CollectionEntry(cleanTitle(title), href)
             }
             .distinctBy { it.url }
@@ -475,6 +485,7 @@ class RareToonIndiaProvider : MainAPI() {
         if (!url.contains("raretoonindia.in", true)) return false
         val path = runCatching { java.net.URI(url).path.orEmpty().trimEnd('/') }.getOrDefault("")
         if (path.isBlank() || path == "/") return false
+        if (path.count { it == '/' } <= 1 && !path.contains('-', false)) return false
         val blockedPrefixes = setOf(
             "/about-us", "/contact-us", "/dmca", "/privacy-policy", "/copyright-issues",
             "/disclaimers", "/terms-and-conditions", "/wp-content", "/wp-json", "/feed", "/comments"
