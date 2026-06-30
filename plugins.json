@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 41,
+        "version": 42,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v41: Rare Toon India moved to its own separate extension; keeps KatMovieHD domain future-proofing.",
-        "fileSize": 136125,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v42: adds sister-site domain self-discovery and dead-domain retry for MoviesBaba, KatDrama and PikaHD.",
+        "fileSize": 144624,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,7 +20,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-322014aaf401c790110461b78f833ea15df939d3cc1345ca40f0ad4553acdeaf"
+        "fileHash": "sha256-9f59294f8e6713c1922b7ac2905981a0fd333f62b2b95530c30f08f675d77354"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/RareToon.cs3",
