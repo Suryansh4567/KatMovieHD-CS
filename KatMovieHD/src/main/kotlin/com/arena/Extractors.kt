@@ -146,19 +146,29 @@ open class GDFlix : ExtractorApi() {
         try {
             val baseUrl = getBaseUrl(url)
             val document = getDocumentFutureProof(url, referer)
-            val fileName = document.select("ul > li.list-group-item:contains(Name)").text().substringAfter("Name : ").orEmpty()
-            val fileSize = document.select("ul > li.list-group-item:contains(Size)").text().substringAfter("Size : ").substringBefore(" | ").orEmpty()
+            val fileName = document.select("ul > li.list-group-item:contains(Name), meta[property=og:description], title")
+                .text().substringAfter("Download ").substringBefore(" - ").substringAfter("Name : ").orEmpty()
+            val fileSize = document.select("ul > li.list-group-item:contains(Size), meta[property=og:description]")
+                .text().substringAfter("Size : ").substringBefore(" | ").ifBlank {
+                    document.selectFirst("meta[property=og:description]")?.attr("content")?.substringAfterLast(" - ")?.orEmpty() ?: ""
+                }
             val quality = getIndexQuality(fileName)
-            val anchors = document.select("div.text-center a, a.btn, a[href*=download]")
+            val anchors = document.select("div.text-center a, a.btn, a[href], a[href*=download]")
+                .filter { a ->
+                    val href = a.attr("href")
+                    val text = a.text().lowercase()
+                    href.startsWith("http") || href.startsWith("/") ||
+                        text.contains("instant") || text.contains("direct") || text.contains("cloud") || text.contains("zipdisk")
+                }
             anchors.amap { anchor ->
                 val text = anchor.text().lowercase()
                 val link = anchor.attr("href")
                 val absLink = absolutize(baseUrl, link)
                 when {
-                    text.contains("instant") -> callback.invoke(newExtractorLink("$name[Instant]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
+                    text.contains("instant") || absLink.contains("instant.") || absLink.contains("busycdn") -> callback.invoke(newExtractorLink("$name[Instant]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
                     text.contains("direct") -> callback.invoke(newExtractorLink("$name[Direct]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
                     text.contains("fsl") -> callback.invoke(newExtractorLink("$name[FSL]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
-                    text.contains("cloud") -> callback.invoke(newExtractorLink("$name[Cloud]", "$name[Cloud] $fileName[$fileSize]", absLink) { this.quality = quality })
+                    text.contains("cloud") || text.contains("zipdisk") || absLink.contains("/zfile/") -> callback.invoke(newExtractorLink("$name[Cloud]", "$name[Cloud] $fileName[$fileSize]", absLink) { this.quality = quality })
                     text.contains("zipdisk") -> {
                         try {
                             val zipDoc = getDocumentFutureProof(absLink, url)

@@ -1503,11 +1503,25 @@ class KatMovieHDProvider : MainAPI() {
                     true
                 }
                 Regex("""(?i)(ziddiflix)""").containsMatchIn(url) -> {
-                    val finalUrl = resolveFinalUrl(url) ?: url
-                    if (finalUrl.contains("gdflix", ignoreCase = true) || finalUrl.contains("gdlink", ignoreCase = true)) {
-                        GDFlix().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
-                    } else {
-                        loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)
+                    val fileId = url.substringAfter("/file/", "")
+                        .substringBefore("?")
+                        .substringBefore("#")
+                        .trim('/')
+                    val targets = buildList {
+                        if (fileId.isNotBlank()) {
+                            add("https://gdflix.dev/file/$fileId")
+                            add("https://new1.gdflix.io/file/$fileId")
+                        }
+                        add(resolveFinalUrl(url) ?: url)
+                    }.distinct()
+                    targets.forEach { target ->
+                        runCatching {
+                            if (target.contains("gdflix", ignoreCase = true) || target.contains("gdlink", ignoreCase = true)) {
+                                GDFlix().getUrl(target, mainUrl, subtitleCallback, callback)
+                            } else {
+                                loadExtractor(target, mainUrl, subtitleCallback, callback)
+                            }
+                        }.onFailure { Log.w(TAG, "ZiddiFlix target failed $target: ${it.message}") }
                     }
                     true
                 }
