@@ -9,6 +9,22 @@
     "https://katmovie.org.in/",
     "https://katworld.net/?type=KatmovieHD"
   ],
-  "_comment": "Update any URL if a site moves domain. Plugins probe official hubs first, then this candidate list, then public fallbacks.",
+  "sister_hubs": [
+    "https://katmovie.org.in/"
+  ],
+  "moviesbaba": "https://moviesbaba.lol",
+  "moviesbaba_candidates": [
+    "https://moviesbaba.lol"
+  ],
+  "katdrama": "https://www.katdrama.net",
+  "katdrama_candidates": [
+    "https://www.katdrama.net",
+    "https://katdrama.net"
+  ],
+  "pikahd": "https://new.pikahd.co",
+  "pikahd_candidates": [
+    "https://new.pikahd.co"
+  ],
+  "_comment": "Plugins probe official hubs first, then candidate lists, then public fallbacks. Update any URL if a site moves domain.",
   "_updated": "2026-06-30"
 }

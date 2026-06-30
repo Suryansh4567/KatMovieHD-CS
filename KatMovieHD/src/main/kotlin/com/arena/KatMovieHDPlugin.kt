@@ -70,6 +70,10 @@ class KatMovieHDPlugin : BasePlugin() {
         private var cachedUrl: String? = null
         @Volatile
         private var cachedAtMs: Long = 0L
+        @Volatile
+        private var cachedSisterUrls: Map<String, String> = emptyMap()
+        @Volatile
+        private var cachedSisterAtMs: Long = 0L
 
         /**
          * Cache TTL: re-fetch domains.json from GitHub every 6 hours.
@@ -82,6 +86,116 @@ class KatMovieHDPlugin : BasePlugin() {
          * propagates automatically within at most 6 hours of next request.
          */
         private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L  // 6 hours
+
+        private val SISTER_DEFAULTS = mapOf(
+            "moviesbaba" to "https://moviesbaba.lol",
+            "katdrama" to "https://www.katdrama.net",
+            "pikahd" to "https://new.pikahd.co"
+        )
+
+        suspend fun getSisterBase(site: String, forceRefresh: Boolean = false): String {
+            val key = site.lowercase()
+            val now = System.currentTimeMillis()
+            val isFresh = !forceRefresh && (now - cachedSisterAtMs) < CACHE_TTL_MS
+            cachedSisterUrls[key]?.takeIf { isFresh && it.isNotBlank() }?.let { return it.trimEnd('/') }
+
+            val fetched = runCatching { app.get(DOMAINS_URL, timeout = 10).parsedSafe<Domains>() }.getOrNull()
+            val hubDomains = getOfficialSisterDomains(key, fetched)
+            val candidates = (hubDomains + buildSisterCandidates(key, fetched)).distinct()
+            val active = probeSisterDomains(key, candidates) ?: candidates.firstOrNull() ?: SISTER_DEFAULTS[key] ?: ""
+            if (active.isNotBlank()) {
+                cachedSisterUrls = cachedSisterUrls + (key to active.trimEnd('/'))
+                cachedSisterAtMs = now
+            }
+            return active.trimEnd('/')
+        }
+
+        private fun buildSisterCandidates(site: String, domains: Domains?): List<String> = buildList {
+            when (site) {
+                "moviesbaba" -> {
+                    domains?.moviesbaba?.let { add(it) }
+                    domains?.moviesbabaCandidates?.let { addAll(it) }
+                }
+                "katdrama" -> {
+                    domains?.katdrama?.let { add(it) }
+                    domains?.katdramaCandidates?.let { addAll(it) }
+                }
+                "pikahd" -> {
+                    domains?.pikahd?.let { add(it) }
+                    domains?.pikahdCandidates?.let { addAll(it) }
+                }
+            }
+            SISTER_DEFAULTS[site]?.let { add(it) }
+        }.mapNotNull { normalizeBaseUrl(it) }.distinct()
+
+        private suspend fun getOfficialSisterDomains(site: String, domains: Domains?): List<String> {
+            val hubs = buildList {
+                domains?.sisterHubs?.let { addAll(it) }
+                domains?.katmoviehdHubs?.let { addAll(it) }
+                add("https://katmovie.org.in/")
+            }.distinct()
+            val found = mutableListOf<String>()
+            for (hub in hubs) {
+                try {
+                    val doc = app.get(hub, timeout = 10).document
+                    found.addAll(doc.select("a[href]").mapNotNull { a ->
+                        val text = a.text().lowercase()
+                        val href = a.attr("abs:href").ifBlank { a.attr("href") }
+                        val lowerHref = href.lowercase()
+                        val matches = when (site) {
+                            "moviesbaba" -> lowerHref.contains("moviesbaba") || text.contains("moviesbaba") || text.contains("indian movies")
+                            "katdrama" -> lowerHref.contains("katdrama") || text.contains("katdrama") || text.contains("asian drama")
+                            "pikahd" -> lowerHref.contains("pikahd") || text.contains("pikahd") || text.contains("anime")
+                            else -> false
+                        }
+                        if (matches) normalizeBaseUrl(href) else null
+                    })
+                } catch (_: Exception) {}
+            }
+            return found.distinct()
+        }
+
+        private suspend fun probeSisterDomains(site: String, candidates: List<String>): String? {
+            if (candidates.isEmpty()) return null
+            var active: String? = null
+            kotlinx.coroutines.coroutineScope {
+                val deferreds = candidates.distinct().map { url ->
+                    async { if (isUsableSisterDomain(site, url)) url else null }
+                }
+                for (d in deferreds) {
+                    val result = d.await()
+                    if (result != null) {
+                        active = result
+                        break
+                    }
+                }
+            }
+            return active?.trimEnd('/')
+        }
+
+        private suspend fun isUsableSisterDomain(site: String, baseUrl: String): Boolean = try {
+            val res = app.get(
+                baseUrl.trimEnd('/') + "/",
+                headers = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+                    "Accept-Language" to "en-US,en;q=0.9"
+                ),
+                timeout = 8
+            )
+            if (res.code == 404) return false
+            val lower = res.text.take(120_000).lowercase()
+            val title = res.document.selectFirst("title")?.text()?.lowercase().orEmpty()
+            val isCfBlocked = title.contains("just a moment") || lower.contains("cf-chl") || lower.contains("challenge-running")
+            if (isCfBlocked) return true
+            when (site) {
+                "moviesbaba" -> lower.contains("moviesbaba") || lower.contains("li id=\"post-") || lower.contains("wp-content")
+                "katdrama" -> lower.contains("katdrama") || lower.contains("__sveltekit") || lower.contains("post_title")
+                "pikahd" -> lower.contains("pikahd") || lower.contains("__sveltekit") || lower.contains("post_title")
+                else -> false
+            }
+        } catch (_: Throwable) {
+            false
+        }
 
         suspend fun getActiveMainUrl(forceRefresh: Boolean = false): String {
             val now = System.currentTimeMillis()
@@ -281,7 +395,14 @@ class KatMovieHDPlugin : BasePlugin() {
             @JsonProperty("katmoviehd") val katmoviehd: String? = null,
             @JsonProperty("katmoviehd_candidates") val katmoviehdCandidates: List<String>? = null,
             @JsonProperty("katmoviehd_fallbacks") val katmoviehdFallbacks: List<String>? = null,
-            @JsonProperty("katmoviehd_hubs") val katmoviehdHubs: List<String>? = null
+            @JsonProperty("katmoviehd_hubs") val katmoviehdHubs: List<String>? = null,
+            @JsonProperty("sister_hubs") val sisterHubs: List<String>? = null,
+            @JsonProperty("moviesbaba") val moviesbaba: String? = null,
+            @JsonProperty("moviesbaba_candidates") val moviesbabaCandidates: List<String>? = null,
+            @JsonProperty("katdrama") val katdrama: String? = null,
+            @JsonProperty("katdrama_candidates") val katdramaCandidates: List<String>? = null,
+            @JsonProperty("pikahd") val pikahd: String? = null,
+            @JsonProperty("pikahd_candidates") val pikahdCandidates: List<String>? = null
         )
     }
 }

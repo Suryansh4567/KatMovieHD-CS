@@ -124,7 +124,7 @@ class KatMovieHDProvider : MainAPI() {
 
     private fun isMissingOrDeadPage(doc: Document): Boolean {
         val title = doc.selectFirst("title")?.text()?.lowercase().orEmpty()
-        val body = doc.body()?.text()?.take(3000)?.lowercase().orEmpty()
+        val body = doc.body().text().take(3000).lowercase()
         return title.contains("404") ||
             title.contains("nothing found") ||
             body.contains("error 404") ||
@@ -142,24 +142,29 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     private suspend fun safeGetDocumentWithDomainFallback(url: String): Document {
+        suspend fun retryOnFreshDomain(reason: String): Document? {
+            val sister = sisterKeyFromUrl(url)
+            val freshBase = when {
+                isPrimaryKatMovieUrl(url) -> refreshMainUrl(forceRefresh = true)
+                sister != null -> KatMovieHDPlugin.getSisterBase(sister, forceRefresh = true)
+                else -> ""
+            }
+            if (freshBase.isBlank()) return null
+            val retryUrl = url.replace(Regex("""(?i)^https?://[^/]+"""), freshBase)
+            if (retryUrl.equals(url, ignoreCase = true)) return null
+            Log.w(TAG, "$reason on $url, retrying fresh domain $retryUrl")
+            return runCatching { safeGetDocument(retryUrl) }.getOrNull()
+        }
+
         val first = try {
             safeGetDocument(url)
         } catch (firstError: Exception) {
-            if (!isPrimaryKatMovieUrl(url)) throw firstError
-            val freshBase = refreshMainUrl(forceRefresh = true)
-            val retryUrl = url.replace(Regex("""(?i)^https?://[^/]+"""), freshBase)
-            Log.w(TAG, "Primary domain failed for $url, retrying fresh domain $retryUrl: ${firstError.message}")
-            return safeGetDocument(retryUrl)
+            return retryOnFreshDomain("Domain request failed: ${firstError.message}") ?: throw firstError
         }
 
-        if (isPrimaryKatMovieUrl(url) && isMissingOrDeadPage(first)) {
-            val freshBase = refreshMainUrl(forceRefresh = true)
-            val retryUrl = url.replace(Regex("""(?i)^https?://[^/]+"""), freshBase)
-            if (!retryUrl.equals(url, ignoreCase = true)) {
-                Log.w(TAG, "Dead/404 page on $url, retrying active domain $retryUrl")
-                val retry = runCatching { safeGetDocument(retryUrl) }.getOrNull()
-                if (retry != null && !isMissingOrDeadPage(retry)) return retry
-            }
+        if ((isPrimaryKatMovieUrl(url) || sisterKeyFromUrl(url) != null) && isMissingOrDeadPage(first)) {
+            val retry = retryOnFreshDomain("Dead/404 page")
+            if (retry != null && !isMissingOrDeadPage(retry)) return retry
         }
         return first
     }
@@ -306,9 +311,9 @@ class KatMovieHDProvider : MainAPI() {
         "category/dubbed-movie/page/" to "Hindi Dubbed Movies",
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
-        "https://moviesbaba.lol/category/bollywood/" to "Bollywood",
-        "https://www.katdrama.net/" to "K-Drama",
-        "https://new.pikahd.co/" to "Anime",
+        "sister:moviesbaba:/category/bollywood/" to "Bollywood",
+        "sister:katdrama:/" to "K-Drama",
+        "sister:pikahd:/" to "Anime",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
@@ -329,6 +334,24 @@ class KatMovieHDProvider : MainAPI() {
             clean.replace(Regex("""(?i)/page/\d+$"""), "/page/$page") + "/"
         } else {
             "$clean/page/$page/"
+        }
+    }
+
+    private suspend fun resolveSisterMainPageUrl(data: String, page: Int): String {
+        val parts = data.split(":", limit = 3)
+        val site = parts.getOrNull(1).orEmpty()
+        val path = parts.getOrNull(2)?.ifBlank { "/" } ?: "/"
+        val base = KatMovieHDPlugin.getSisterBase(site).ifBlank { return data }
+        return paginateAbsoluteUrl(base.trimEnd('/') + (if (path.startsWith("/")) path else "/$path"), page)
+    }
+
+    private fun sisterKeyFromUrl(url: String): String? {
+        val host = Regex("""(?i)^https?://([^/]+)""").find(url)?.groupValues?.getOrNull(1).orEmpty()
+        return when {
+            host.contains("moviesbaba", true) -> "moviesbaba"
+            host.contains("katdrama", true) -> "katdrama"
+            host.contains("pikahd", true) -> "pikahd"
+            else -> null
         }
     }
 
@@ -366,15 +389,22 @@ class KatMovieHDProvider : MainAPI() {
         } else fixed
     }
 
+    private suspend fun normalizeAnyProviderUrl(input: String): String {
+        val fixed = normalizeKatMovieUrl(input)
+        val sister = sisterKeyFromUrl(fixed) ?: return fixed
+        val base = KatMovieHDPlugin.getSisterBase(sister)
+        return if (base.isNotBlank()) fixed.replace(Regex("""(?i)^https?://[^/]+"""), base) else fixed
+    }
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
         val base = refreshMainUrl()
-        val url = if (request.data.startsWith("http")) {
-            paginateAbsoluteUrl(request.data, page)
-        } else {
-            "$base/${request.data}$page/"
+        val url = when {
+            request.data.startsWith("sister:") -> resolveSisterMainPageUrl(request.data, page)
+            request.data.startsWith("http") -> paginateAbsoluteUrl(request.data, page)
+            else -> "$base/${request.data}$page/"
         }
         val doc = safeGetDocumentWithDomainFallback(url)
         val results = parseListing(doc, url)
@@ -520,14 +550,16 @@ class KatMovieHDProvider : MainAPI() {
             ".post-title a[href]",
             ".title a[href]",
             "div.post-thumb > a[href]"
-        ).firstNotNullOfOrNull { selector ->
-            selectFirst(selector)?.takeIf { a ->
-                val h = a.attr("href")
-                !h.contains("/category/", ignoreCase = true) &&
+        ).mapNotNull { selector ->
+            val candidate = selectFirst(selector)
+            if (candidate != null) {
+                val h = candidate.attr("href")
+                if (!h.contains("/category/", ignoreCase = true) &&
                     !h.contains("/tag/", ignoreCase = true) &&
                     !h.contains("#comment", ignoreCase = true)
-            }
-        } ?: return null
+                ) candidate else null
+            } else null
+        }.firstOrNull() ?: return null
         val href = titleAnchor.attr("href").ifBlank { return null }
         val rawTitle = titleAnchor.attr("title")
             .ifBlank { titleAnchor.text() }
@@ -536,15 +568,14 @@ class KatMovieHDProvider : MainAPI() {
 
         // Poster: pick the .post-thumb <img> whose src is an actual poster,
         // skipping label-overlay badges (small PNGs like "Unofficial-Dubbed").
-        val poster = select("div.post-thumb img").firstNotNullOfOrNull { img ->
+        val poster = select("div.post-thumb img").mapNotNull { img ->
             val u = img.absUrl("data-src").ifBlank { img.absUrl("src") }
-            u.takeIf {
-                it.isNotBlank() &&
-                    !it.contains("label", ignoreCase = true) &&
-                    !it.contains("overlay", ignoreCase = true) &&
-                    !it.contains("Unofficial", ignoreCase = true)
-            }
-        } ?: selectFirst("div.post-thumb img")?.let {
+            if (u.isNotBlank() &&
+                !u.contains("label", ignoreCase = true) &&
+                !u.contains("overlay", ignoreCase = true) &&
+                !u.contains("Unofficial", ignoreCase = true)
+            ) u else null
+        }.firstOrNull() ?: selectFirst("div.post-thumb img")?.let {
             it.absUrl("data-src").ifBlank { it.absUrl("src") }.ifBlank { null }
         }
 
@@ -699,7 +730,7 @@ class KatMovieHDProvider : MainAPI() {
         if (isIncomingSearchPage) {
             throw Exception("No matching KatMovieHD post found for this recommendation")
         }
-        val pageUrl = normalizeKatMovieUrl(url)
+        val pageUrl = normalizeAnyProviderUrl(url)
         val doc = safeGetDocumentWithDomainFallback(pageUrl)
         val svelteMeta = extractSveltePostMeta(doc.html())
         val htmlTitle = doc.selectFirst("h1.entry-title, h1")?.text()?.takeIf {
@@ -907,9 +938,12 @@ class KatMovieHDProvider : MainAPI() {
             "article[id^=post-]",
             "div#content",
             "main"
-        ).firstNotNullOfOrNull { selector ->
-            doc.selectFirst(selector)?.takeIf { it.select("a[href], iframe[src], embed[src], source[src]").isNotEmpty() || it.text().length > 80 }
-        }
+        ).mapNotNull { selector ->
+            val candidate = doc.selectFirst(selector)
+            if (candidate != null && (candidate.select("a[href], iframe[src], embed[src], source[src]").isNotEmpty() || candidate.text().length > 80)) {
+                candidate
+            } else null
+        }.firstOrNull()
         if (preferredContainer != null) return preferredContainer
 
         // Ultra Fallback
