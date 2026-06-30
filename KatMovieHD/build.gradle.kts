@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 40
+version = 41
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD plus Rare Toon India. v40: future-proofs KatMovieHD domain discovery via official hubs and automatic dead-domain retry."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v41: Rare Toon India moved to its own separate extension; keeps KatMovieHD domain future-proofing."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
