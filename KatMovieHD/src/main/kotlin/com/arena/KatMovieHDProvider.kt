@@ -558,8 +558,38 @@ class KatMovieHDProvider : MainAPI() {
     // load() - the main per-title page
     // ------------------------------------------------------------------
 
+    /**
+     * TMDB recommendations are not native KatMovieHD post URLs. Older builds
+     * stored them as provider search URLs (/?s=Title), so clicking a similar
+     * item opened a fake detail page titled "You searched for ...". When such
+     * a URL reaches load(), resolve the search page to the first real post and
+     * load that instead.
+     */
+    private suspend fun resolveSearchPageToFirstResult(input: String): String? {
+        val fixed = fixUrl(input)
+        val isSearchPage = fixed.contains("?s=", ignoreCase = true) ||
+            Regex("""(?i)/search/[^/]+/?$""").containsMatchIn(fixed)
+        if (!isSearchPage) return null
+
+        return runCatching {
+            val doc = safeGetDocument(fixed)
+            parseListing(doc, fixed).firstOrNull { result ->
+                !result.url.contains("?s=", ignoreCase = true) &&
+                    !Regex("""(?i)/search/[^/]+/?$""").containsMatchIn(result.url)
+            }?.url
+        }.onFailure {
+            Log.w(TAG, "Failed to resolve recommendation search URL $fixed: ${it.message}")
+        }.getOrNull()
+    }
+
     override suspend fun load(url: String): LoadResponse {
         refreshMainUrl()
+        resolveSearchPageToFirstResult(url)?.let { resolvedUrl ->
+            if (!resolvedUrl.equals(url, ignoreCase = true)) {
+                Log.d(TAG, "Resolved recommendation search URL: $url -> $resolvedUrl")
+                return load(resolvedUrl)
+            }
+        }
         val pageUrl = normalizeKatMovieUrl(url)
         val doc = safeGetDocument(pageUrl)
         val svelteMeta = extractSveltePostMeta(doc.html())

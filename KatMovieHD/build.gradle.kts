@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 30
+version = 31
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v30: fixes Pack/Full Movie false episodes and expands legacy direct episode archives for Sacred Games-style series."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v31: resolves similar-list search URLs to real posts so recommendations no longer open search result pages."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
