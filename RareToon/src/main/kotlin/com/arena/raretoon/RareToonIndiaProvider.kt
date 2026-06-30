@@ -143,10 +143,14 @@ class RareToonIndiaProvider : MainAPI() {
             when {
                 url.contains("bysekoze.", ignoreCase = true) -> ByseKozE().getUrl(url, mainUrl, wrappedSubtitle, wrappedCallback)
                 isDirectVideo(url) -> wrappedCallback.invoke(newExtractorLink(name, name, url) { this.quality = directQuality(url) })
-                url.contains("mega.nz", ignoreCase = true) || url.contains("mediafire.com", ignoreCase = true) -> {
-                    wrappedCallback.invoke(newExtractorLink(name, name, url) {
-                        this.quality = directQuality(url)
+                url.contains("mediafire.com", ignoreCase = true) -> resolveMediaFire(url)?.let { finalUrl ->
+                    wrappedCallback.invoke(newExtractorLink(name, "MediaFire", finalUrl) {
+                        this.quality = directQuality(finalUrl)
+                        this.referer = url
                     })
+                }
+                url.contains("mega.nz", ignoreCase = true) -> {
+                    // Unsupported as a landing page without a dedicated extractor. Skip instead of returning fake playable links.
                 }
                 else -> loadExtractor(url, mainUrl, wrappedSubtitle, wrappedCallback)
             }
@@ -372,6 +376,15 @@ class RareToonIndiaProvider : MainAPI() {
                     append("</a></p>")
                 }
         }
+    }
+
+    private suspend fun resolveMediaFire(url: String): String? {
+        return runCatching {
+            val doc = app.get(url, headers = headers, timeout = 20).document
+            doc.selectFirst("#downloadButton")?.absUrl("href")?.ifBlank { null }
+                ?: Regex("""https?://download\d+\.mediafire\.com/[^\"']+""", RegexOption.IGNORE_CASE)
+                    .find(doc.html())?.value
+        }.getOrNull()
     }
 
     private fun extractEmbeddedPoster(obj: JSONObject): String? {

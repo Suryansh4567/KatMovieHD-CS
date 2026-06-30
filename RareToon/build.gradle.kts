@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 14
+version = 15
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v14 avoids BAD_HTTP_DATA_SOURCE for direct MEGA and MediaFire movie links by exposing them as direct links instead of forcing extractor resolution."
+    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v15 adds MediaFire final-download resolution and stops exposing unsupported Mega landing pages as fake playable links."
     language = "hi"
 
     tvTypes = listOf("Anime", "TvSeries", "Movie")
