@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 29,
+        "version": 30,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v29: fixes MoviesBaba content container selection, Bollywood listings, and Hindi web-series episode links.",
-        "fileSize": 122815,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v30: fixes Pack/Full Movie false episodes and expands legacy direct episode archives for Sacred Games-style series.",
+        "fileSize": 122735,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-a678bc395779adef10175927c26f89a3eba84c5c8b70166707a6d7415917a993"
+        "fileHash": "sha256-6ecc7a0d9813461424de3bf972aff19888730814476719afbb843cc1a4a302ae"
     }
 ]
