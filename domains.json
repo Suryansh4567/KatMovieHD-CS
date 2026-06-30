@@ -26,5 +26,9 @@
     "https://new.pikahd.co"
   ],
   "_comment": "Plugins probe official hubs first, then candidate lists, then public fallbacks. Update any URL if a site moves domain.",
-  "_updated": "2026-06-30"
+  "_updated": "2026-06-30",
+  "raretoon": "https://raretoonindia.in",
+  "raretoon_candidates": [
+    "https://raretoonindia.in"
+  ]
 }

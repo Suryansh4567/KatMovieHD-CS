@@ -30,7 +30,7 @@ class ByseKozE : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            val code = Regex("""(?i)bysekoze\.com/(?:d|e|download|dwn)/([a-z0-9]+)""")
+            val code = Regex("""(?i)bysekoze\.[a-z]+/(?:d|e|download|dwn)/([a-z0-9]+)""")
                 .find(url)?.groupValues?.getOrNull(1) ?: return
             val apiUrl = "$mainUrl/api/videos/$code"
             val json = JSONObject(
@@ -39,6 +39,9 @@ class ByseKozE : ExtractorApi() {
             val title = json.optString("title").ifBlank { code }
             val playback = json.optJSONObject("playback") ?: return
             val decrypted = decryptPlayback(playback) ?: return
+            emitSubtitles(decrypted, subtitleCallback)
+            emitSubtitles(json, subtitleCallback)
+
             val sources = decrypted.optJSONArray("sources") ?: return
             for (i in 0 until sources.length()) {
                 val source = sources.optJSONObject(i) ?: continue
@@ -62,6 +65,20 @@ class ByseKozE : ExtractorApi() {
             }
         } catch (e: Exception) {
             Log.e("ByseKozE", "Failed to extract $url: ${e.message}")
+        }
+    }
+
+
+    private fun emitSubtitles(json: JSONObject, subtitleCallback: (SubtitleFile) -> Unit) {
+        val tracks = json.optJSONArray("tracks") ?: return
+        for (i in 0 until tracks.length()) {
+            val track = tracks.optJSONObject(i) ?: continue
+            val url = track.optString("url").ifBlank { track.optString("file") }
+            if (url.isBlank()) continue
+            val lang = track.optString("language")
+                .ifBlank { track.optString("title") }
+                .ifBlank { "Subtitle" }
+            subtitleCallback.invoke(SubtitleFile(lang, url))
         }
     }
 

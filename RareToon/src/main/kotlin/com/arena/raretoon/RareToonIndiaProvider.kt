@@ -23,12 +23,13 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
 class RareToonIndiaProvider : MainAPI() {
-    override var mainUrl = "https://raretoonindia.in"
+    override var mainUrl = DEFAULT_MAIN_URL
     override var name = "Rare Toon India"
     override val hasMainPage = true
     override var lang = "hi"
@@ -46,6 +47,13 @@ class RareToonIndiaProvider : MainAPI() {
         "/doraemon/episodes/" to "Doraemon Episodes",
         "/doraemon/all-movies/" to "Doraemon Movies",
         "/animes/" to "Animes",
+        "/animes/attack-on-titan/" to "Attack on Titan",
+        "/animes/naruto/" to "Naruto",
+        "/animes/naruto-shippuden/" to "Naruto Shippuden",
+        "/animes/solo-leveling/" to "Solo Leveling",
+        "/animes/jujutsu-kaisen/" to "Jujutsu Kaisen",
+        "/animes/demon-slayer/" to "Demon Slayer",
+        "/animes/my-hero-academia/" to "My Hero Academia",
         "/pokemon/" to "Pokemon",
         "/disney/" to "Disney",
         "/movies/" to "Movies",
@@ -53,6 +61,7 @@ class RareToonIndiaProvider : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        refreshMainUrl()
         val url = pageUrl(request.data, page)
         val doc = app.get(url, headers = headers, timeout = 25).document
         val results = parseListing(doc)
@@ -60,6 +69,7 @@ class RareToonIndiaProvider : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
+        refreshMainUrl()
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
         val url = if (page <= 1) "$mainUrl/?s=$encoded" else "$mainUrl/page/$page/?s=$encoded"
         val doc = app.get(url, headers = headers, timeout = 25).document
@@ -67,6 +77,7 @@ class RareToonIndiaProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        refreshMainUrl()
         val pageUrl = fixUrl(url)
         val doc = app.get(pageUrl, headers = headers, timeout = 25).document
         val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
@@ -80,8 +91,9 @@ class RareToonIndiaProvider : MainAPI() {
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val mirrors = collectByseLinks(doc)
-        val isSeries = looksSeries(rawTitle) || mirrors.size > 2
-        val episodes = if (isSeries) buildEpisodes(mirrors) else emptyList()
+        val isSeries = looksSeries(rawTitle) || mirrors.any { it.episode != null } || mirrors.size > 2
+        val season = seasonNumber(rawTitle) ?: 1
+        val episodes = if (isSeries) buildEpisodes(mirrors, season) else emptyList()
 
         return if (episodes.isNotEmpty()) {
             newTvSeriesLoadResponse(title, pageUrl, guessType(rawTitle), episodes) {
@@ -110,7 +122,7 @@ class RareToonIndiaProvider : MainAPI() {
         if (urls.isEmpty()) return false
         urls.forEach { url ->
             when {
-                url.contains("bysekoze.com", ignoreCase = true) -> {
+                url.contains("bysekoze.", ignoreCase = true) -> {
                     ByseKozE().getUrl(url, mainUrl, subtitleCallback, callback)
                 }
                 isDirectVideo(url) -> {
@@ -122,6 +134,15 @@ class RareToonIndiaProvider : MainAPI() {
             }
         }
         return true
+    }
+
+    private suspend fun refreshMainUrl(): String {
+        val active = getActiveMainUrl().trimEnd('/')
+        if (active.isNotBlank() && active != mainUrl) {
+            Log.d(TAG, "Active RareToon domain refreshed: $mainUrl -> $active")
+            mainUrl = active
+        }
+        return active.ifBlank { mainUrl }
     }
 
     private fun fixUrl(url: String): String {
@@ -137,19 +158,30 @@ class RareToonIndiaProvider : MainAPI() {
     }
 
     private fun parseListing(doc: Document): List<SearchResponse> {
-        val items = doc.select("article, .post, li[id^=post-]").mapNotNull { it.toRareSearchResult() }
+        val selectors = listOf(
+            "article.elementor-post",
+            "article.type-post",
+            "article[id^=post-]",
+            ".elementor-post",
+            ".e-loop-item",
+            ".post.type-post",
+            "li[id^=post-]"
+        )
+        val items = selectors.flatMap { selector -> doc.select(selector).mapNotNull { it.toRareSearchResult() } }
         if (items.isNotEmpty()) return items.distinctBy { it.url }
-        return doc.select("a:has(img)").mapNotNull { it.toRareSearchResult() }.distinctBy { it.url }
+        return doc.select("main a:has(img), .site-main a:has(img), a:has(img)")
+            .mapNotNull { it.toRareSearchResult() }
+            .distinctBy { it.url }
     }
 
     private fun Element.toRareSearchResult(): SearchResponse? {
-        val anchor = selectFirst("h2.entry-title a[href], h3.entry-title a[href], h2 a[href], h3 a[href], .entry-title a[href]")
+        val anchor = selectFirst("h2.entry-title a[href], h3.entry-title a[href], h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href]")
             ?: selectFirst("a[href]:has(img)")
             ?: takeIf { tagName().equals("a", true) }
             ?: return null
         val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.ifBlank { return null }
         if (!href.contains("raretoonindia.in", ignoreCase = true)) return null
-        if (listOf("/category/", "/tag/", "/page/", "#", "/dmca", "/contact", "/privacy", "/copyright", "/disclaimers", "/about-us").any { href.contains(it, true) }) return null
+        if (listOf("/category/", "/tag/", "/page/", "#", "/dmca", "/contact", "/privacy", "/copyright", "/disclaimers", "/about-us", "/wp-").any { href.contains(it, true) }) return null
         val rawTitle = anchor.attr("title").ifBlank { anchor.text() }
             .ifBlank { selectFirst("img")?.attr("alt") ?: "" }
             .ifBlank { return null }
@@ -162,48 +194,84 @@ class RareToonIndiaProvider : MainAPI() {
         }
     }
 
-    private data class Mirror(val url: String, val label: String?)
+    private data class Mirror(val url: String, val label: String?, val episode: Int?, val quality: String?)
+
+    private fun contentContainer(doc: Document): Element = doc.selectFirst(
+        ".elementor-widget-theme-post-content .elementor-widget-container, article .entry-content, .entry-content, main article, main, article, .post, body"
+    ) ?: doc
 
     private fun collectByseLinks(doc: Document): List<Mirror> {
-        val content = doc.selectFirst("main, article, .post, body") ?: doc
-        return content.select("a[href*='bysekoze.com']").mapNotNull { a ->
-            val href = a.absUrl("href").ifBlank { a.attr("href") }
-            if (href.isBlank()) return@mapNotNull null
-            // Prefer /d/ watch links over /download/ duplicates for the same code.
-            val code = byseCode(href) ?: return@mapNotNull null
-            val watchUrl = "https://bysekoze.com/d/$code"
-            val parentText = a.parent()?.text()?.take(160)
-            Mirror(watchUrl, parentText?.ifBlank { a.text() })
+        val content = contentContainer(doc)
+        val mirrors = mutableListOf<Mirror>()
+        var currentEpisode: Int? = null
+        var currentLabel: String? = null
+        var currentQuality: String? = null
+
+        content.select("h1,h2,h3,h4,h5,h6,p,li,div,span,strong,b,a[href]").forEach { el ->
+            val text = el.ownText().ifBlank { el.text() }.trim()
+            val ep = episodeNumber(text)
+            if (ep != null && !text.contains("episodes:", true) && !text.contains("all episodes", true)) {
+                currentEpisode = ep
+                currentLabel = episodeName(text, ep)
+            }
+            detectQualityLabel(text)?.let { currentQuality = it }
+
+            if (el.tagName().equals("a", true)) {
+                val href = el.absUrl("href").ifBlank { el.attr("href") }
+                val code = byseCode(href) ?: return@forEach
+                val watchUrl = "https://bysekoze.com/d/$code"
+                val parentText = el.parent()?.text()?.take(180)
+                val label = currentLabel ?: parentText?.ifBlank { el.text() }
+                mirrors.add(Mirror(watchUrl, label, currentEpisode ?: episodeNumber(parentText), currentQuality ?: detectQualityLabel(parentText.orEmpty())))
+            }
         }
-            .distinctBy { byseCode(it.url) ?: it.url }
+
+        // Fallback for unusual layouts where the ordered walker missed anchors.
+        if (mirrors.isEmpty()) {
+            content.select("a[href*='bysekoze.']").forEach { a ->
+                val href = a.absUrl("href").ifBlank { a.attr("href") }
+                val code = byseCode(href) ?: return@forEach
+                val parentText = a.parent()?.text()?.take(180)
+                mirrors.add(Mirror("https://bysekoze.com/d/$code", parentText?.ifBlank { a.text() }, episodeNumber(parentText), detectQualityLabel(parentText.orEmpty())))
+            }
+        }
+
+        return mirrors.distinctBy { byseCode(it.url) ?: it.url }
     }
 
-    private fun buildEpisodes(mirrors: List<Mirror>): List<Episode> {
+    private fun buildEpisodes(mirrors: List<Mirror>, season: Int): List<Episode> {
         return mirrors.mapIndexed { index, mirror ->
-            val epNumber = episodeNumber(mirror.label) ?: (index + 1)
+            val epNumber = mirror.episode ?: (index + 1)
             newEpisode(mirror.url) {
                 this.name = episodeName(mirror.label, epNumber)
-                this.season = 1
+                this.season = season
                 this.episode = epNumber
             }
-        }.distinctBy { it.data }
+        }
+            .distinctBy { it.data }
+            .sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: 0 }))
     }
+
+    private fun seasonNumber(text: String): Int? = Regex("""(?i)\b(?:season|s)\s*0*(\d{1,2})\b""")
+        .find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
 
     private fun episodeNumber(text: String?): Int? {
         val t = text ?: return null
-        return Regex("""(?i)(?:episode|ep|e)\s*[-:]?\s*(\d{1,3})""").find(t)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        Regex("""(?i)\b(?:episode|ep)\s*[-:]?\s*0*(\d{1,3})\b""").find(t)?.let { return it.groupValues[1].toIntOrNull() }
+        Regex("""(?i)\bS\d{1,2}\s*E\s*0*(\d{1,3})\b""").find(t)?.let { return it.groupValues[1].toIntOrNull() }
+        return null
     }
 
     private fun episodeName(text: String?, ep: Int): String {
         val cleaned = text
-            ?.replace(Regex("""(?i)quickwatch|download|watch online"""), " ")
+            ?.replace(Regex("""(?i)quickwatch|download|watch online|\[|]"""), " ")
             ?.replace(Regex("""\s+"""), " ")
             ?.trim()
             .orEmpty()
         return cleaned.takeIf { it.length in 5..80 } ?: "Episode $ep"
     }
 
-    private fun byseCode(url: String): String? = Regex("""(?i)bysekoze\.com/(?:d|e|download|dwn)/([a-z0-9]+)""")
+    private fun byseCode(url: String): String? = Regex("""(?i)bysekoze\.[a-z]+/(?:d|e|download|dwn)/([a-z0-9]+)""")
         .find(url)?.groupValues?.getOrNull(1)
 
     private fun cleanTitle(title: String): String = title
@@ -216,6 +284,9 @@ class RareToonIndiaProvider : MainAPI() {
     private fun looksSeries(title: String): Boolean = Regex("""(?i)\b(season|episodes?|all seasons|s\d{1,2})\b""").containsMatchIn(title)
 
     private fun guessType(title: String): TvType = if (looksSeries(title)) TvType.Anime else TvType.Movie
+
+    private fun detectQualityLabel(text: String): String? = Regex("""(?i)\b(2160p|1080p|720p|480p|360p)\b""")
+        .find(text)?.groupValues?.getOrNull(1)
 
     private fun detectQuality(title: String) = when {
         title.contains("1080", true) -> SearchQuality.HD
@@ -236,5 +307,65 @@ class RareToonIndiaProvider : MainAPI() {
 
     companion object {
         private const val TAG = "RareToonIndia"
+        private const val DEFAULT_MAIN_URL = "https://raretoonindia.in"
+        private const val DOMAINS_URL = "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/main/domains.json"
+        private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L
+
+        @Volatile
+        private var cachedBase: String? = null
+        @Volatile
+        private var cachedAtMs: Long = 0L
+
+        suspend fun getActiveMainUrl(forceRefresh: Boolean = false): String {
+            val now = System.currentTimeMillis()
+            if (!forceRefresh && now - cachedAtMs < CACHE_TTL_MS) {
+                cachedBase?.takeIf { it.isNotBlank() }?.let { return it.trimEnd('/') }
+            }
+
+            val candidates = mutableListOf<String>()
+            runCatching {
+                val json = JSONObject(app.get(DOMAINS_URL, timeout = 10).text)
+                json.optString("raretoon").takeIf { it.isNotBlank() }?.let { candidates.add(it) }
+                val arr = json.optJSONArray("raretoon_candidates")
+                if (arr != null) {
+                    for (i in 0 until arr.length()) arr.optString(i).takeIf { it.isNotBlank() }?.let { candidates.add(it) }
+                }
+            }
+            candidates.add(DEFAULT_MAIN_URL)
+
+            val active = candidates.mapNotNull { normalizeBaseUrl(it) }
+                .distinct()
+                .firstOrNull { isUsableRareToonDomain(it) }
+                ?: candidates.firstOrNull()?.let { normalizeBaseUrl(it) }
+                ?: DEFAULT_MAIN_URL
+            cachedBase = active.trimEnd('/')
+            cachedAtMs = now
+            return cachedBase!!
+        }
+
+        private fun normalizeBaseUrl(url: String?): String? {
+            val u = url?.trim()?.trimEnd('/') ?: return null
+            if (u.isBlank()) return null
+            val full = when {
+                u.startsWith("https://", true) -> u
+                u.startsWith("http://", true) -> u.replaceFirst("http://", "https://")
+                else -> "https://$u"
+            }
+            return runCatching {
+                val uri = java.net.URI(full)
+                "${uri.scheme}://${uri.host}"
+            }.getOrNull()
+        }
+
+        private suspend fun isUsableRareToonDomain(baseUrl: String): Boolean = try {
+            val res = app.get(baseUrl.trimEnd('/') + "/", timeout = 8)
+            if (res.code == 404) return false
+            val lower = res.text.take(100_000).lowercase()
+            lower.contains("rare toon") || lower.contains("raretoon") ||
+                lower.contains("raretoons") || lower.contains("wp-content") ||
+                lower.contains("elementor")
+        } catch (_: Throwable) {
+            false
+        }
     }
 }
