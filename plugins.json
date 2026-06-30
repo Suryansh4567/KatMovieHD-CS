@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 28,
+        "version": 29,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v28: fixes PikaHD/KatDrama card URLs, iframe watch links, and single-link series detection.",
-        "fileSize": 121983,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v29: fixes MoviesBaba content container selection, Bollywood listings, and Hindi web-series episode links.",
+        "fileSize": 122815,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-c092bbf8ad3b161e6551c337eb74d407967dd6f07803bd540e622d7d76bf93b0"
+        "fileHash": "sha256-a678bc395779adef10175927c26f89a3eba84c5c8b70166707a6d7415917a993"
     }
 ]
