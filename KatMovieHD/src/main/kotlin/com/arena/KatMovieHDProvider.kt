@@ -172,7 +172,7 @@ class KatMovieHDProvider : MainAPI() {
                     """mixdrop|streamhide|streamwish|vidhide|vidcloud|vcloud|vgembed|vidoza|voe|streamzz|""" +
                     // Hindi-dub specific
                     """hglink|fuckingfast|fastdl|filepress|driveseed|driveleech|""" +
-                    """bbupload|gofileserver|bbserver|gdtot|techkit|""" +
+                    """bbupload|gofileserver|bbserver|gdtot|techkit|ziddiflix|""" +
                     // KatMovieHD specific upload mirrors
                     """katdrive|kmhd""" +
                     """)"""
@@ -1240,6 +1240,12 @@ class KatMovieHDProvider : MainAPI() {
                 }
             }
             .distinct()
+            .filter { url ->
+                !url.contains("/category/", ignoreCase = true) &&
+                    !url.contains("/tag/", ignoreCase = true) &&
+                    !url.contains("#comment", ignoreCase = true) &&
+                    !url.contains("/author/", ignoreCase = true)
+            }
             // Some KatMovieHD pages put a decorative "DOWNLOAD LINKS" heading
             // that links to kmhd.net/directlink (or similar generic landing
             // pages). These are not real file mirrors - they just bounce the
@@ -1490,6 +1496,15 @@ class KatMovieHDProvider : MainAPI() {
                 }
                 Regex("""(?i)(bbserver)""").containsMatchIn(url) -> {
                     BBServer().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                Regex("""(?i)(ziddiflix)""").containsMatchIn(url) -> {
+                    val finalUrl = resolveFinalUrl(url) ?: url
+                    if (finalUrl.contains("gdflix", ignoreCase = true) || finalUrl.contains("gdlink", ignoreCase = true)) {
+                        GDFlix().getUrl(finalUrl, mainUrl, subtitleCallback, callback)
+                    } else {
+                        loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)
+                    }
                     true
                 }
                 Regex("""(?i)(gdtot)""").containsMatchIn(url) -> {

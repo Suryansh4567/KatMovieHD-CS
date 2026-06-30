@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 34
+version = 35
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v34: fixes KatMovie4K card URLs opening category/404 pages."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v35: fixes KatMovie4K ziddiflix/GDFlix links and filters category/tag junk from movie sources."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
