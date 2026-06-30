@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 25,
+        "version": 26,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v25: build-fixed release after correcting malformed escaped-string parsing in the content extractor.",
-        "fileSize": 113773,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v26: fixes SvelteKit sister-site parsing for Anime (PikaHD) and K-Drama (KatDrama), plus safer streamed content extraction.",
+        "fileSize": 116736,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -20,6 +20,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-0cf475ed2131083c8572d3b56eb4936ae9890c645ba43666950a69180eeed2e9"
+        "fileHash": "sha256-dd27c704c528e4299607baacc0f47bfd13068eba6da525945e3ceb37271f0eda"
     }
 ]
