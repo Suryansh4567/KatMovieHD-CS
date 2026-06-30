@@ -29,14 +29,13 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :RareToon:generateDebugResources
 > Task :RareToon:packageDebugResources
 > Task :RareToon:processDebugNavigationResources
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :RareToon:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :RareToon:generateDebugRFile
 > Task :KatMovieHD:generateDebugRFile
 
 > Task :RareToon:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/RareToon/src/main/kotlin/com/arena/raretoon/ByseKozEExtractor.kt:80:37 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/RareToon/src/main/kotlin/com/arena/raretoon/RareToonIndiaProvider.kt:226:28 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
 > Task :RareToon:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/RareToon/build/intermediates/classes.dex
@@ -64,6 +63,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ka
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 42s
+BUILD SUCCESSFUL in 44s
 21 actionable tasks: 21 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
