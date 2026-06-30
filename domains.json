@@ -2,9 +2,13 @@
   "katmoviehd": "https://new.katmoviehd.top",
   "katmoviehd_candidates": [
     "https://new.katmoviehd.top",
-    "https://katmoviehd.cymru",
-    "https://new1.katmoviehd.cymru"
+    "https://new1.katmoviehd.cymru",
+    "https://katmoviehd.cymru"
   ],
-  "_comment": "Update any URL if a site moves domain. Plugins will automatically probe the list.",
-  "_updated": "2026-06-24"
+  "katmoviehd_hubs": [
+    "https://katmovie.org.in/",
+    "https://katworld.net/?type=KatmovieHD"
+  ],
+  "_comment": "Update any URL if a site moves domain. Plugins probe official hubs first, then this candidate list, then public fallbacks.",
+  "_updated": "2026-06-30"
 }

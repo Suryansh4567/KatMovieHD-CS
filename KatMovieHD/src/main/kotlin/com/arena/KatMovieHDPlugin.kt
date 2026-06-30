@@ -64,7 +64,7 @@ class KatMovieHDPlugin : BasePlugin() {
             "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/main/domains.json"
 
         /** Fallback used when DOMAINS_URL is unreachable. */
-        const val DEFAULT_MAIN_URL = "https://new1.katmoviehd.cymru"
+        const val DEFAULT_MAIN_URL = "https://new.katmoviehd.top"
 
         @Volatile
         private var cached: Domains? = null
@@ -85,56 +85,32 @@ class KatMovieHDPlugin : BasePlugin() {
          */
         private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L  // 6 hours
 
-        suspend fun getActiveMainUrl(): String {
+        suspend fun getActiveMainUrl(forceRefresh: Boolean = false): String {
             val now = System.currentTimeMillis()
-            val isFresh = (now - cachedAtMs) < CACHE_TTL_MS
+            val isFresh = !forceRefresh && (now - cachedAtMs) < CACHE_TTL_MS
             cachedUrl?.takeIf { isFresh && it.isNotBlank() }?.let { return it.trimEnd('/') }
 
             return try {
-                val fetched = app.get(DOMAINS_URL, timeout = 10).parsedSafe<Domains>()
-                val candidates = buildDomainCandidates(fetched).toMutableList()
+                val fetched = runCatching { app.get(DOMAINS_URL, timeout = 10).parsedSafe<Domains>() }
+                    .getOrNull()
+                val officialHubDomains = getOfficialHubDomains(fetched)
 
-                // Try provided candidates first
-                var active: String? = null
-                kotlinx.coroutines.coroutineScope {
-                    val deferreds = candidates.map { url ->
-                        async {
-                            if (isUsableKatDomain(url)) url else null
-                        }
-                    }
-                    // Find the first successful domain as soon as it resolves
-                    for (d in deferreds) {
-                        val result = d.await()
-                        if (result != null) {
-                            active = result
-                            break
-                        }
-                    }
-                }
-                
-                // Future-proofing: If none of the static candidates work, fetch from proxy aggregators dynamically
+                // Probe the official Katworld/KatMovie hub first. This makes the
+                // extension survive a domain move even when domains.json has not
+                // been updated yet. Repo JSON candidates remain as fallback.
+                val candidates = (officialHubDomains + buildDomainCandidates(fetched)).distinct().toMutableList()
+
+                var active = probeDomains(candidates)
+
+                // Future-proofing: If none of the official/static candidates work,
+                // fetch from public proxy/redirect aggregators dynamically.
                 if (active == null) {
-                    // Limit to 10 to avoid freezing the app's OkHttp thread pool
-                    val dynamicDomains = getDynamicFallbackDomains().take(10)
+                    val dynamicDomains = getDynamicFallbackDomains().take(15)
                     candidates.addAll(dynamicDomains)
-                    
-                    kotlinx.coroutines.coroutineScope {
-                        val deferreds = dynamicDomains.map { url ->
-                            async {
-                                if (isUsableKatDomain(url)) url else null
-                            }
-                        }
-                        for (d in deferreds) {
-                            val result = d.await()
-                            if (result != null) {
-                                active = result
-                                break
-                            }
-                        }
-                    }
+                    active = probeDomains(dynamicDomains)
                 }
-                
-                // Fallback to top candidate if all probes fail
+
+                // Fallback to top candidate if all probes fail.
                 if (active == null) {
                     active = candidates.firstOrNull() ?: cachedUrl ?: DEFAULT_MAIN_URL
                 }
@@ -151,6 +127,62 @@ class KatMovieHDPlugin : BasePlugin() {
                     ?: cached?.katmoviehd?.takeIf { it.isNotBlank() }?.trimEnd('/')
                     ?: DEFAULT_MAIN_URL
             }
+        }
+
+        private suspend fun probeDomains(candidates: List<String>): String? {
+            if (candidates.isEmpty()) return null
+            var active: String? = null
+            kotlinx.coroutines.coroutineScope {
+                val deferreds = candidates.distinct().map { url ->
+                    async { if (isUsableKatDomain(url)) url else null }
+                }
+                for (d in deferreds) {
+                    val result = d.await()
+                    if (result != null) {
+                        active = result
+                        break
+                    }
+                }
+            }
+            return active?.trimEnd('/')
+        }
+
+        private suspend fun getOfficialHubDomains(domains: Domains?): List<String> {
+            val hubs = buildList {
+                domains?.katmoviehdHubs?.let { addAll(it) }
+                add("https://katmovie.org.in/")
+                add("https://katworld.net/?type=KatmovieHD")
+            }.distinct()
+
+            val found = mutableListOf<String>()
+            for (hub in hubs) {
+                try {
+                    val doc = app.get(hub, timeout = 10).document
+                    val anchors = doc.select("a[href]").mapNotNull { a ->
+                        val text = a.text().lowercase()
+                        val href = a.attr("abs:href").ifBlank { a.attr("href") }
+                        val lowerHref = href.lowercase()
+                        val isMainKatMovie =
+                            (text.contains("katmoviehd") || lowerHref.contains("katmoviehd")) &&
+                                !lowerHref.contains("katmovie4k") &&
+                                !lowerHref.contains("katmovie18") &&
+                                !lowerHref.contains("katdrama") &&
+                                !lowerHref.contains("pikahd") &&
+                                !lowerHref.contains("moviesbaba")
+                        if (isMainKatMovie) normalizeBaseUrl(href) else null
+                    }
+                    found.addAll(anchors)
+
+                    // Some hub/proxy pages list bare domains in text instead of anchors.
+                    Regex("""https?://[a-zA-Z0-9.-]*katmoviehd[a-zA-Z0-9.-]*/?""")
+                        .findAll(doc.html())
+                        .mapNotNull { normalizeBaseUrl(it.value) }
+                        .forEach { found.add(it) }
+                } catch (_: Exception) {
+                    // Hub lookup is best-effort only.
+                }
+            }
+            return found.distinct()
         }
 
         private fun buildDomainCandidates(domains: Domains?): List<String> = buildList {
@@ -188,9 +220,16 @@ class KatMovieHDPlugin : BasePlugin() {
                 ),
                 timeout = 8
             )
+            if (res.code == 404) return false
             val text = res.text.take(120_000)
             val lower = text.lowercase()
             val title = res.document.selectFirst("title")?.text()?.lowercase().orEmpty()
+            val parkedOrJunk = lower.contains("domain for sale") ||
+                lower.contains("buy this domain") ||
+                lower.contains("sedo parking") ||
+                lower.contains("parkingcrew") ||
+                (title.contains("katmoviehd") && lower.contains("fingerprint/iife"))
+            if (parkedOrJunk) return false
             val isCfBlocked = title.contains("just a moment") ||
                 title.contains("attention required") ||
                 title.contains("verify you are human") ||
@@ -218,7 +257,8 @@ class KatMovieHDPlugin : BasePlugin() {
                 // Source 1: KatWorld proxy list
                 val doc = app.get("https://katworld.net/?type=KatmovieHD", timeout = 10).document
                 results.addAll(doc.select("a[href], link[href]").mapNotNull { it.attr("href") }
-                    .filter { it.contains("katmovie", ignoreCase = true) }
+                    .filter { it.contains("katmoviehd", ignoreCase = true) }
+                    .filterNot { it.contains("katmovie4k", true) || it.contains("katmovie18", true) }
                     .mapNotNull { normalizeBaseUrl(it) })
             } catch(e: Exception) {}
 
@@ -226,8 +266,10 @@ class KatMovieHDPlugin : BasePlugin() {
                 // Source 2: CreativePixelMag proxy list
                 val doc = app.get("https://www.creativepixelmag.com/katmoviehd-proxy/", timeout = 10).document
                 val text = doc.html()
-                val regex = Regex("""https?://[a-zA-Z0-9.-]*katmovie[a-zA-Z0-9.-]*/?""", RegexOption.IGNORE_CASE)
-                results.addAll(regex.findAll(text).map { m -> m.value }.mapNotNull { normalizeBaseUrl(it) }.toList())
+                val regex = Regex("""https?://[a-zA-Z0-9.-]*katmoviehd[a-zA-Z0-9.-]*/?""", RegexOption.IGNORE_CASE)
+                results.addAll(regex.findAll(text).map { m -> m.value }
+                    .filterNot { it.contains("katmovie4k", true) || it.contains("katmovie18", true) }
+                    .mapNotNull { normalizeBaseUrl(it) }.toList())
             } catch(e: Exception) {}
             
             // Re-order so we try the most likely new domains first (like new1, new2 etc)
@@ -240,7 +282,8 @@ class KatMovieHDPlugin : BasePlugin() {
         data class Domains(
             @JsonProperty("katmoviehd") val katmoviehd: String? = null,
             @JsonProperty("katmoviehd_candidates") val katmoviehdCandidates: List<String>? = null,
-            @JsonProperty("katmoviehd_fallbacks") val katmoviehdFallbacks: List<String>? = null
+            @JsonProperty("katmoviehd_fallbacks") val katmoviehdFallbacks: List<String>? = null,
+            @JsonProperty("katmoviehd_hubs") val katmoviehdHubs: List<String>? = null
         )
     }
 }

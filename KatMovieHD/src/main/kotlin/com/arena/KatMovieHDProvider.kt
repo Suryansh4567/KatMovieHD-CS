@@ -121,6 +121,49 @@ class KatMovieHDProvider : MainAPI() {
         throw lastError ?: Exception("Failed to fetch document")
     }
 
+
+    private fun isMissingOrDeadPage(doc: Document): Boolean {
+        val title = doc.selectFirst("title")?.text()?.lowercase().orEmpty()
+        val body = doc.body()?.text()?.take(3000)?.lowercase().orEmpty()
+        return title.contains("404") ||
+            title.contains("nothing found") ||
+            body.contains("error 404") ||
+            body.contains("nothing found") ||
+            body.contains("page not found") ||
+            body.contains("domain for sale") ||
+            body.contains("buy this domain")
+    }
+
+    private fun isPrimaryKatMovieUrl(url: String): Boolean {
+        val host = Regex("""(?i)^https?://([^/]+)""").find(url)?.groupValues?.getOrNull(1).orEmpty()
+        return (host.contains("katmoviehd", true) || host.contains("katmovies", true)) &&
+            !host.contains("katmovie4k", true) &&
+            !host.contains("katmovie18", true)
+    }
+
+    private suspend fun safeGetDocumentWithDomainFallback(url: String): Document {
+        val first = try {
+            safeGetDocument(url)
+        } catch (firstError: Exception) {
+            if (!isPrimaryKatMovieUrl(url)) throw firstError
+            val freshBase = refreshMainUrl(forceRefresh = true)
+            val retryUrl = url.replace(Regex("""(?i)^https?://[^/]+"""), freshBase)
+            Log.w(TAG, "Primary domain failed for $url, retrying fresh domain $retryUrl: ${firstError.message}")
+            return safeGetDocument(retryUrl)
+        }
+
+        if (isPrimaryKatMovieUrl(url) && isMissingOrDeadPage(first)) {
+            val freshBase = refreshMainUrl(forceRefresh = true)
+            val retryUrl = url.replace(Regex("""(?i)^https?://[^/]+"""), freshBase)
+            if (!retryUrl.equals(url, ignoreCase = true)) {
+                Log.w(TAG, "Dead/404 page on $url, retrying active domain $retryUrl")
+                val retry = runCatching { safeGetDocument(retryUrl) }.getOrNull()
+                if (retry != null && !isMissingOrDeadPage(retry)) return retry
+            }
+        }
+        return first
+    }
+
     companion object {
         private const val TAG = "KatMovieHD"
         private const val USER_AGENT =
@@ -289,8 +332,8 @@ class KatMovieHDProvider : MainAPI() {
         }
     }
 
-    private suspend fun refreshMainUrl(): String {
-        val active = KatMovieHDPlugin.getActiveMainUrl().trimEnd('/')
+    private suspend fun refreshMainUrl(forceRefresh: Boolean = false): String {
+        val active = KatMovieHDPlugin.getActiveMainUrl(forceRefresh).trimEnd('/')
         if (active.isNotBlank() && active != mainUrl) {
             Log.d(TAG, "Active domain refreshed: $mainUrl -> $active")
             mainUrl = active
@@ -333,7 +376,7 @@ class KatMovieHDProvider : MainAPI() {
         } else {
             "$base/${request.data}$page/"
         }
-        val doc = safeGetDocument(url)
+        val doc = safeGetDocumentWithDomainFallback(url)
         val results = parseListing(doc, url)
         return newHomePageResponse(request.name, results, hasNext = results.isNotEmpty())
     }
@@ -349,7 +392,7 @@ class KatMovieHDProvider : MainAPI() {
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
         val url = if (page <= 1) "$base/?s=$encoded"
                   else "$base/page/$page/?s=$encoded"
-        val doc = safeGetDocument(url)
+        val doc = safeGetDocumentWithDomainFallback(url)
         val results = parseListing(doc, url)
         Log.d(TAG, "search('$query', p$page): ${results.size} results")
         return results.toNewSearchResponseList()
@@ -657,7 +700,7 @@ class KatMovieHDProvider : MainAPI() {
             throw Exception("No matching KatMovieHD post found for this recommendation")
         }
         val pageUrl = normalizeKatMovieUrl(url)
-        val doc = safeGetDocument(pageUrl)
+        val doc = safeGetDocumentWithDomainFallback(pageUrl)
         val svelteMeta = extractSveltePostMeta(doc.html())
         val htmlTitle = doc.selectFirst("h1.entry-title, h1")?.text()?.takeIf {
             !it.equals("Loading...", ignoreCase = true) && it.isNotBlank()
