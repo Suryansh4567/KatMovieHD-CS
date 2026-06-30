@@ -34,6 +34,7 @@ import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -202,6 +203,9 @@ class KatMovieHDProvider : MainAPI() {
 
         /** Identifies a kmhd /pack/<id> URL (these need JSON expansion). */
         private val KMHD_PACK_REGEX = Regex("""(?i)(?:links|gd)\.kmhd\.[a-z]+/pack/""")
+
+        /** Legacy WordPress redirect/archive pages used by older KatMovieHD series. */
+        private val LEGACY_KMHD_ARCHIVE_REGEX = Regex("""(?i)https?://(?:www\.)?kmhd\.eu/archives/\d+""")
 
         /** Match "Episode 7" / "Episode-07" / "Episode: 12" etc. */
         private val EPISODE_HEADER_REGEX =
@@ -784,9 +788,18 @@ class KatMovieHDProvider : MainAPI() {
             }
         }
 
+        val legacyExpanded = expandLegacyEpisodeArchives(container, defaultSeason)
+        for ((k, v) in legacyExpanded) {
+            epMap.getOrPut(k) { mutableSetOf() }.addAll(v)
+        }
+
         // 2. Process regular links
         val cleanUrls = container.select("a[href]").map { it.attr("href").trim() }
-            .filter { LINK_HOST_REGEX.containsMatchIn(it) && !it.matches(Regex("""(?i)^https?://(?:www\.)?kmhd\.net/(directlink|home|index)/?$""")) }
+            .filter {
+                LINK_HOST_REGEX.containsMatchIn(it) &&
+                    !LEGACY_KMHD_ARCHIVE_REGEX.matches(it) &&
+                    !it.matches(Regex("""(?i)^https?://(?:www\.)?kmhd\.net/(directlink|home|index)/?$"""))
+            }
             .distinct()
 
         var currentSeason = defaultSeason
@@ -845,6 +858,96 @@ class KatMovieHDProvider : MainAPI() {
                 }
             }
         }
+    }
+
+
+    /**
+     * Older series pages (e.g. Ghoul S01) link to kmhd.eu/archives pages
+     * instead of modern links.kmhd /pack JSON. Pack archive pages are full-season
+     * ZIPs and should NOT become a fake "Pack / Full Movie" episode. Prefer the
+     * dedicated "Single Episodes Links" / "Watch Online" archives and group the
+     * direct mirrors by episode number.
+     */
+    private suspend fun expandLegacyEpisodeArchives(
+        container: Element,
+        defaultSeason: Int
+    ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
+        val archiveUrls = container.select("a[href]")
+            .mapNotNull { a ->
+                val href = a.attr("href").trim()
+                if (!LEGACY_KMHD_ARCHIVE_REGEX.matches(href)) return@mapNotNull null
+                val label = a.text().lowercase()
+                href.takeIf {
+                    label.contains("single") ||
+                        label.contains("episode") ||
+                        label.contains("watch online") ||
+                        label.contains("stream")
+                }
+            }
+            .distinct()
+            .take(3)
+
+        if (archiveUrls.isEmpty()) return linkedMapOf()
+
+        val merged = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+        supervisorScope {
+            archiveUrls.map { archiveUrl ->
+                async {
+                    runCatching { fetchLegacyEpisodeArchive(archiveUrl, defaultSeason) }
+                        .onFailure { Log.w(TAG, "Legacy archive expansion failed for $archiveUrl: ${it.message}") }
+                        .getOrNull().orEmpty()
+                }
+            }.awaitAll()
+        }.forEach { archiveMap ->
+            for ((key, links) in archiveMap) {
+                val bucket = merged.getOrPut(key) { mutableListOf() }
+                for (link in links) if (link !in bucket) bucket.add(link)
+            }
+        }
+        return merged
+    }
+
+    private suspend fun fetchLegacyEpisodeArchive(
+        archiveUrl: String,
+        defaultSeason: Int
+    ): LinkedHashMap<Pair<Int, Int>, MutableList<String>> {
+        val doc = try {
+            app.get(
+                archiveUrl,
+                headers = headers + mapOf("Cookie" to "unlocked=true", "Referer" to mainUrl),
+                timeout = 20
+            ).document
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            app.get(
+                archiveUrl,
+                headers = headers + mapOf("Cookie" to "unlocked=true", "Referer" to mainUrl),
+                interceptor = CloudflareKiller(),
+                timeout = 25
+            ).document
+        }
+
+        val out = linkedMapOf<Pair<Int, Int>, MutableList<String>>()
+        doc.select("a[href]").forEach { a ->
+            val href = a.attr("href").trim()
+            if (!href.startsWith("http", ignoreCase = true)) return@forEach
+            if (IGNORE_HOST_REGEX.containsMatchIn(href)) return@forEach
+            if (href.contains("kmhd.eu", ignoreCase = true)) return@forEach
+
+            val textAndUrl = "${a.text()} $href"
+            val (parsedSeason, parsedEpisode) = parseSeasonEpisode(textAndUrl)
+            val episode = parsedEpisode ?: EPISODE_HEADER_REGEX.find(textAndUrl)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull()
+                ?: return@forEach
+            val season = parsedSeason ?: SEASON_HEADER_REGEX.find(textAndUrl)?.let { m ->
+                (m.groupValues[1].ifBlank { m.groupValues[2] }).toIntOrNull()
+            } ?: defaultSeason
+
+            val bucket = out.getOrPut(season to episode) { mutableListOf() }
+            if (href !in bucket) bucket.add(href)
+        }
+        Log.d(TAG, "Legacy archive $archiveUrl yielded ${out.values.sumOf { it.size }} episode mirrors")
+        return out
     }
 
     private suspend fun expandKmhdPacks(
@@ -1101,20 +1204,17 @@ class KatMovieHDProvider : MainAPI() {
         Log.d(TAG, "loadLinks: raw data length=${data.length}, preview='${data.take(120)}'")
         refreshMainUrl()
 
-        // v9-compatible parser: newline / comma / CR separated URLs, plus a
-        // JSON-array fallback in case the data was produced by an older
-        // (List<String>-based) build that's still cached on the device.
-        // Accept both http and https, and tolerate quoted/wrapped tokens.
+        // v9-compatible parser, plus a JSON-array fallback in case the data
+        // was produced by an older List<String>-based build still cached on
+        // device. Prefer URL-token extraction over comma splitting: several
+        // legacy archive mirrors contain literal commas inside filenames.
         val urls: List<String> = buildList {
             if (data.trimStart().startsWith("[")) {
                 runCatching {
                     tryParseJson<List<String>>(data)?.let { addAll(it) }
                 }
             }
-            // Always also split on plain delimiters - this is the format
-            // we write in load(). Keeps loadLinks resilient to any future
-            // change of episode-data shape without breaking old episodes.
-            data.split('\n', ',', '\r', '\t').forEach { add(it) }
+            Regex("""https?://[^\s"'<>]+""").findAll(data).forEach { add(it.value) }
         }
             .map { it.trim().trim('"', '\'', '[', ']', '(', ')', ' ', '<', '>') }
             .filter { it.startsWith("http", ignoreCase = true) }
@@ -1179,6 +1279,14 @@ class KatMovieHDProvider : MainAPI() {
      *     Streamtape, Filemoon, Mixdrop, etc.) and picks the right one
      *     by URL prefix. Unknown hosts simply no-op, never throw.
      */
+
+    private fun isDirectVideoUrl(url: String): Boolean {
+        val clean = url.substringBefore('?').lowercase()
+        return clean.endsWith(".mp4") || clean.endsWith(".mkv") ||
+            clean.endsWith(".webm") || clean.endsWith(".avi") ||
+            clean.endsWith(".mov") || clean.endsWith(".m3u8")
+    }
+
     private suspend fun dispatchExtractor(
         rawUrl: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -1188,6 +1296,12 @@ class KatMovieHDProvider : MainAPI() {
         if (url.isBlank() || !url.startsWith("http", ignoreCase = true)) return false
         return try {
             when {
+                isDirectVideoUrl(url) -> {
+                    callback.invoke(newExtractorLink("Direct", "Direct ${getIndexQuality(url).takeIf { it > 0 } ?: ""}".trim(), url) {
+                        this.quality = getIndexQuality(url)
+                    })
+                    true
+                }
                 // gd.kmhd.eu/file/<id> is a 302 redirector → gdflix.dev.
                 // It does NOT have a __data.json sidecar (returns 302 HTML).
                 // Resolve the redirect chain and dispatch directly to GDFlix.
@@ -1713,7 +1827,10 @@ class KatMovieHDProvider : MainAPI() {
                 Regex("""(?i)season\s*\d{1,2}\b""").containsMatchIn(title)
 
         return when {
-            t.contains("anime") -> TvType.Anime
+            // Keep PikaHD entries visible in CloudStream's Movies/TV views. The
+            // provider is mixed-content, so anime movies remain Movie and anime
+            // shows remain TvSeries instead of being hidden behind the Anime-only tab.
+            t.contains("anime") -> if (isSeries) TvType.TvSeries else TvType.Movie
             t.contains("k-drama") || t.contains("korean drama") || t.contains("korean series") ||
                 t.contains("kdrama") || t.contains("tv series") ->
                 if (isSeries) TvType.AsianDrama else TvType.Movie
