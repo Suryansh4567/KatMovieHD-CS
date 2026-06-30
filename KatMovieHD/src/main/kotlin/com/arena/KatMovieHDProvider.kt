@@ -330,7 +330,7 @@ class KatMovieHDProvider : MainAPI() {
             "$base/${request.data}$page/"
         }
         val doc = safeGetDocument(url)
-        return newHomePageResponse(request.name, parseListing(doc), hasNext = true)
+        return newHomePageResponse(request.name, parseListing(doc, url), hasNext = true)
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
@@ -345,17 +345,17 @@ class KatMovieHDProvider : MainAPI() {
         val url = if (page <= 1) "$base/?s=$encoded"
                   else "$base/page/$page/?s=$encoded"
         val doc = safeGetDocument(url)
-        val results = parseListing(doc)
+        val results = parseListing(doc, url)
         Log.d(TAG, "search('$query', p$page): ${results.size} results")
         return results.toNewSearchResponseList()
     }
 
-    private fun parseListing(doc: Document): List<SearchResponse> {
+    private fun parseListing(doc: Document, sourceUrl: String = doc.location()): List<SearchResponse> {
         // Sister sites (PikaHD anime / KatDrama K-drama) are SvelteKit apps.
         // Their server-rendered HTML initially contains only a "Loading..." shell;
         // the real cards arrive in a streamed __sveltekit.resolve(...) script.
         // Parse that first so those categories do not appear empty.
-        val svelte = parseSvelteStreamedListing(doc)
+        val svelte = parseSvelteStreamedListing(doc, sourceUrl)
         if (svelte.isNotEmpty()) return svelte.distinctBy { it.url }
 
         // Primary: each result is an <li id="post-NNNN"> container (home page).
@@ -374,8 +374,8 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     /** Parse streamed list cards emitted by SvelteKit sister sites. */
-    private fun parseSvelteStreamedListing(doc: Document): List<SearchResponse> {
-        val base = Regex("""(?i)^https?://[^/]+""").find(doc.location())?.value
+    private fun parseSvelteStreamedListing(doc: Document, sourceUrl: String): List<SearchResponse> {
+        val base = Regex("""(?i)^https?://[^/]+""").find(sourceUrl)?.value
             ?: Regex("""(?i)^https?://[^/]+""").find(mainUrl)?.value
             ?: mainUrl.trimEnd('/')
         val html = doc.html()
@@ -794,7 +794,11 @@ class KatMovieHDProvider : MainAPI() {
         }
 
         // 2. Process regular links
-        val cleanUrls = container.select("a[href]").map { it.attr("href").trim() }
+        val cleanUrls = (
+            container.select("a[href]").map { it.attr("href").trim() } +
+                container.select("iframe[src], embed[src], source[src]").map { it.attr("src").trim() }
+            )
+            .map { src -> if (src.startsWith("//")) "https:$src" else src }
             .filter {
                 LINK_HOST_REGEX.containsMatchIn(it) &&
                     !LEGACY_KMHD_ARCHIVE_REGEX.matches(it) &&
@@ -837,6 +841,9 @@ class KatMovieHDProvider : MainAPI() {
             }
         }
 
+        if (epMap.isEmpty() && cleanUrls.isNotEmpty()) {
+            epMap.getOrPut(defaultSeason to 1) { mutableSetOf() }.addAll(cleanUrls)
+        }
         if (epMap.isEmpty()) return emptyList()
 
         val sorted = epMap.entries.sortedWith(compareBy({ it.key.first }, { it.key.second }))
@@ -1104,9 +1111,11 @@ class KatMovieHDProvider : MainAPI() {
      * a new mirror provider in the future without us having to rebuild.
      */
     private fun collectMirrorLinks(container: Element): List<String> {
-        val all = container.select("a[href]")
-            .mapNotNull { a ->
-                val h = a.attr("href").trim()
+        val all = (
+            container.select("a[href]").map { it.attr("href").trim() } +
+                container.select("iframe[src], embed[src], source[src]").map { it.attr("src").trim() }
+            )
+            .mapNotNull { h ->
                 when {
                     h.startsWith("http", ignoreCase = true) -> h
                     h.startsWith("//") -> "https:$h"

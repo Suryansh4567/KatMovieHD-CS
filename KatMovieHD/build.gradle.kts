@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 27
+version = 28
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v27: expands legacy kmhd.eu episode archives for old series like Ghoul S01 and keeps PikaHD anime visible in mixed Movies/TV views."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v28: fixes PikaHD/KatDrama card URLs, iframe watch links, and single-link series detection."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
