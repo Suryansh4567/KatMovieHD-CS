@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 8
+version = 9
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v8 rewrites provider logic around real page types: movie pages, season pages, and collection pages. Improves archive parsing, collection handling, and multi-host link extraction."
+    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v9 improves full-site Elementor archive parsing and keeps the page-type provider rewrite for movies, seasons, and collections."
     language = "hi"
 
     tvTypes = listOf("Anime", "TvSeries", "Movie")

@@ -230,11 +230,11 @@ class RareToonIndiaProvider : MainAPI() {
 
     private fun Element.toSearchCard(preferSearchHeading: Boolean): SearchResponse? {
         val anchor = if (preferSearchHeading) {
-            selectFirst("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href]")
+            selectFirst("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href], .elementor-post__thumbnail__link[href]")
                 ?: selectFirst("a[href]:has(img)")
         } else {
-            selectFirst("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href]")
-                ?: selectFirst("> a[href], a[href]:has(img)")
+            selectFirst("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href], .elementor-post__thumbnail__link[href]")
+                ?: selectFirst("a[href]:has(img)")
         } ?: return null
         return anchor.toSearchCardFromAnchor(this)
     }
