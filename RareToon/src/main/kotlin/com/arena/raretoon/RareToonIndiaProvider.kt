@@ -124,17 +124,29 @@ class RareToonIndiaProvider : MainAPI() {
         val urls = Regex("""https?://[^\s"'<>]+""").findAll(data)
             .map { it.value.trim().trim(')', ']', '.', ',', ';') }
             .map { it.removeSuffix("%0A").trim() }
+            .filter { it.startsWith("http", true) }
             .distinct()
             .toList()
         if (urls.isEmpty()) return false
+
+        var found = false
+        val wrappedSubtitle: (SubtitleFile) -> Unit = {
+            found = true
+            subtitleCallback(it)
+        }
+        val wrappedCallback: (ExtractorLink) -> Unit = {
+            found = true
+            callback(it)
+        }
+
         urls.forEach { url ->
             when {
-                url.contains("bysekoze.", ignoreCase = true) -> ByseKozE().getUrl(url, mainUrl, subtitleCallback, callback)
-                isDirectVideo(url) -> callback.invoke(newExtractorLink(name, name, url) { this.quality = directQuality(url) })
-                else -> loadExtractor(url, mainUrl, subtitleCallback, callback)
+                url.contains("bysekoze.", ignoreCase = true) -> ByseKozE().getUrl(url, mainUrl, wrappedSubtitle, wrappedCallback)
+                isDirectVideo(url) -> wrappedCallback.invoke(newExtractorLink(name, name, url) { this.quality = directQuality(url) })
+                else -> loadExtractor(url, mainUrl, wrappedSubtitle, wrappedCallback)
             }
         }
-        return true
+        return found
     }
 
     private enum class PageType { MOVIE, SEASON, COLLECTION }
