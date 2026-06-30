@@ -640,7 +640,7 @@ class KatMovieHDProvider : MainAPI() {
         val episodes = discoverEpisodes(doc, titleSeason, tmdbSeason, cine)
         Log.d(TAG, "load() discovered ${episodes.size} episodes")
 
-        if (episodes.isNotEmpty() && (isSeries || episodes.size > 1 || episodes.first().name?.contains("Pack", true) == true)) {
+        if (episodes.isNotEmpty() && (isSeries || episodes.size > 1)) {
             val actualType = when (guessedType) {
                 TvType.Anime -> TvType.Anime
                 TvType.AsianDrama -> TvType.AsianDrama
@@ -875,8 +875,7 @@ class KatMovieHDProvider : MainAPI() {
             val cineEp = cine?.videos?.firstOrNull { it.season == season && it.episode == ep }
             
             newEpisode(links.joinToString("\n")) {
-                val fallbackName = if (epMap.size == 1 && links.size > 1) "Pack / Full Movie" else "Episode $ep"
-                this.name = tmdbEp?.name ?: cineEp?.name ?: cineEp?.title ?: fallbackName
+                this.name = tmdbEp?.name ?: cineEp?.name ?: cineEp?.title ?: "Episode $ep"
                 this.season = season
                 this.episode = ep
                 this.posterUrl = tmdbEp?.stillUrl ?: cineEp?.thumbnail
@@ -961,7 +960,7 @@ class KatMovieHDProvider : MainAPI() {
             val href = a.attr("href").trim()
             if (!href.startsWith("http", ignoreCase = true)) return@forEach
             if (IGNORE_HOST_REGEX.containsMatchIn(href)) return@forEach
-            if (href.contains("kmhd.eu", ignoreCase = true)) return@forEach
+            if (Regex("""(?i)^https?://(?:www\.)?kmhd\.eu(?:/|$)""").containsMatchIn(href)) return@forEach
 
             val textAndUrl = "${a.text()} $href"
             val (parsedSeason, parsedEpisode) = parseSeasonEpisode(textAndUrl)

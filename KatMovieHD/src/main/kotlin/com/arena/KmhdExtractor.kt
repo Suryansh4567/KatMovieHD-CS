@@ -34,7 +34,7 @@ class KmhdExtractor : ExtractorApi() {
         // "Deadly Pickup 2016", and "Delhi Crime"). The page contains a flat list of mirror
         // links (acefile, drive.tv21, openload, mp4upload, etc.) or redirects 
         // to a new page holding mirrors.
-        if (Regex("""(?i)kmhd\.eu/(archives/\d+|atchs/)""").containsMatchIn(url)) {
+        if (Regex("""(?i)(?:^https?://(?:www\.)?kmhd\.eu/(?:archives/\d+|atchs/)|^https?://links\.kmhd\.eu/atchs/)""").containsMatchIn(url)) {
             handleArchivePage(url, subtitleCallback, callback)
             return
         }
