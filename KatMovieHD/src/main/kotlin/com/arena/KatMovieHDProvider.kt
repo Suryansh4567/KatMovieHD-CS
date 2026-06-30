@@ -44,6 +44,7 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
+import java.net.URLDecoder
 import java.net.URLEncoder
 
 /**
@@ -330,7 +331,8 @@ class KatMovieHDProvider : MainAPI() {
             "$base/${request.data}$page/"
         }
         val doc = safeGetDocument(url)
-        return newHomePageResponse(request.name, parseListing(doc, url), hasNext = true)
+        val results = parseListing(doc, url)
+        return newHomePageResponse(request.name, results, hasNext = results.isNotEmpty())
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
@@ -565,30 +567,74 @@ class KatMovieHDProvider : MainAPI() {
      * a URL reaches load(), resolve the search page to the first real post and
      * load that instead.
      */
+    private fun extractSearchQuery(input: String): String? {
+        Regex("""[?&]s=([^&#]+)""").find(input)?.groupValues?.getOrNull(1)?.let {
+            return URLDecoder.decode(it.replace("+", "%2B"), "UTF-8").replace("+", " ").trim()
+        }
+        Regex("""(?i)/search/([^/?#]+)/?""").find(input)?.groupValues?.getOrNull(1)?.let {
+            return URLDecoder.decode(it.replace("+", "%2B"), "UTF-8").replace("+", " ").trim()
+        }
+        return null
+    }
+
+    private fun recommendationSearchVariants(query: String): List<String> {
+        val cleaned = query
+            .replace(Regex("""(?i)\b(the\s+)?complete\b|\bseason\s*\d+\b|\bs\d{1,2}\b"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+        val beforeColon = cleaned.substringBefore(':').trim()
+        val beforeDash = cleaned.substringBefore(" - ").trim()
+        val importantWords = cleaned.split(Regex("""\s+""")).filter { word ->
+            word.length > 2 && !word.equals("the", true) && !word.equals("and", true) &&
+                !word.equals("story", true)
+        }.take(4).joinToString(" ")
+        return listOf(query, cleaned, beforeColon, beforeDash, importantWords)
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .distinct()
+    }
+
     private suspend fun resolveSearchPageToFirstResult(input: String): String? {
         val fixed = fixUrl(input)
         val isSearchPage = fixed.contains("?s=", ignoreCase = true) ||
             Regex("""(?i)/search/[^/]+/?$""").containsMatchIn(fixed)
         if (!isSearchPage) return null
 
-        return runCatching {
-            val doc = safeGetDocument(fixed)
-            parseListing(doc, fixed).firstOrNull { result ->
-                !result.url.contains("?s=", ignoreCase = true) &&
-                    !Regex("""(?i)/search/[^/]+/?$""").containsMatchIn(result.url)
-            }?.url
-        }.onFailure {
-            Log.w(TAG, "Failed to resolve recommendation search URL $fixed: ${it.message}")
-        }.getOrNull()
+        val query = extractSearchQuery(fixed).orEmpty()
+        val base = Regex("""(?i)^https?://[^/]+""").find(fixed)?.value ?: refreshMainUrl()
+        val candidates = buildList {
+            add(fixed)
+            recommendationSearchVariants(query).forEach { q ->
+                add("$base/?s=${URLEncoder.encode(q, "UTF-8")}")
+            }
+        }.distinct()
+
+        for (candidate in candidates) {
+            val resolved = runCatching {
+                val doc = safeGetDocument(candidate)
+                parseListing(doc, candidate).firstOrNull { result ->
+                    !result.url.contains("?s=", ignoreCase = true) &&
+                        !Regex("""(?i)/search/[^/]+/?$""").containsMatchIn(result.url)
+                }?.url
+            }.onFailure {
+                Log.w(TAG, "Failed to resolve recommendation search URL $candidate: ${it.message}")
+            }.getOrNull()
+            if (!resolved.isNullOrBlank()) return resolved
+        }
+        return null
     }
 
     override suspend fun load(url: String): LoadResponse {
         refreshMainUrl()
+        val isIncomingSearchPage = url.contains("?s=", ignoreCase = true) || Regex("""(?i)/search/[^/]+/?$""").containsMatchIn(url)
         resolveSearchPageToFirstResult(url)?.let { resolvedUrl ->
             if (!resolvedUrl.equals(url, ignoreCase = true)) {
                 Log.d(TAG, "Resolved recommendation search URL: $url -> $resolvedUrl")
                 return load(resolvedUrl)
             }
+        }
+        if (isIncomingSearchPage) {
+            throw Exception("No matching KatMovieHD post found for this recommendation")
         }
         val pageUrl = normalizeKatMovieUrl(url)
         val doc = safeGetDocument(pageUrl)
