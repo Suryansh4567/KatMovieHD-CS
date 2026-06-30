@@ -143,6 +143,11 @@ class RareToonIndiaProvider : MainAPI() {
             when {
                 url.contains("bysekoze.", ignoreCase = true) -> ByseKozE().getUrl(url, mainUrl, wrappedSubtitle, wrappedCallback)
                 isDirectVideo(url) -> wrappedCallback.invoke(newExtractorLink(name, name, url) { this.quality = directQuality(url) })
+                url.contains("mega.nz", ignoreCase = true) || url.contains("mediafire.com", ignoreCase = true) -> {
+                    wrappedCallback.invoke(newExtractorLink(name, name, url) {
+                        this.quality = directQuality(url)
+                    })
+                }
                 else -> loadExtractor(url, mainUrl, wrappedSubtitle, wrappedCallback)
             }
         }
