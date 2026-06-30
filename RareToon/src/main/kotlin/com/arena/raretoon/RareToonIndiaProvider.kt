@@ -23,9 +23,11 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import org.json.JSONArray
 import org.json.JSONObject
-import org.jsoup.nodes.Document
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import java.net.URI
 import java.net.URLEncoder
 
 class RareToonIndiaProvider : MainAPI() {
@@ -42,90 +44,74 @@ class RareToonIndiaProvider : MainAPI() {
     )
 
     override val mainPage = mainPageOf(
-        "/" to "Latest",
-        "/doraemon/" to "Doraemon",
-        "/doraemon/episodes/" to "Doraemon Episodes",
-        "/doraemon/all-movies/" to "Doraemon Movies",
-        "/animes/" to "Animes",
-        "/animes/attack-on-titan/" to "Attack on Titan",
-        "/animes/naruto/" to "Naruto",
-        "/animes/naruto-shippuden/" to "Naruto Shippuden",
-        "/animes/solo-leveling/" to "Solo Leveling",
-        "/animes/jujutsu-kaisen/" to "Jujutsu Kaisen",
-        "/animes/demon-slayer/" to "Demon Slayer",
-        "/animes/my-hero-academia/" to "My Hero Academia",
-        "/animes/dr-stone/" to "Dr. Stone",
-        "/animes/classroom-of-the-elite/" to "Classroom of the Elite",
-        "/pokemon/" to "Pokemon",
-        "/disney/" to "Disney",
-        "/movies/" to "Movies",
-        "/movies/shin-chan-movies/" to "Shin Chan Movies"
+        "latest" to "Latest",
+        "category:doraemon" to "Doraemon",
+        "category:episodes" to "Doraemon Episodes",
+        "category:all-movies" to "Doraemon Movies",
+        "category:animes" to "Animes",
+        "category:pokemon" to "Pokemon",
+        "category:disney" to "Disney",
+        "category:movies" to "Movies",
+        "category:shin-chan-movies" to "Shin Chan Movies"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         refreshMainUrl()
-        val url = pageUrl(request.data, page)
-        val doc = app.get(url, headers = headers, timeout = 25).document
-        val results = parseListing(doc)
-        return newHomePageResponse(request.name, results, hasNext = hasNextPage(doc, page))
+        val posts = when {
+            request.data == "latest" -> fetchPosts(page = page)
+            request.data.startsWith("category:") -> {
+                val slug = request.data.substringAfter("category:")
+                val categoryId = getCategoryId(slug)
+                fetchPosts(page = page, categories = categoryId)
+            }
+            else -> fetchPosts(page = page)
+        }
+        val results = posts.mapNotNull { it.toSearchResponse() }
+        return newHomePageResponse(request.name, results, hasNext = posts.size >= POSTS_PER_PAGE)
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         refreshMainUrl()
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = if (page <= 1) "$mainUrl/?s=$encoded" else "$mainUrl/page/$page/?s=$encoded"
-        val doc = app.get(url, headers = headers, timeout = 25).document
-        return parseSearchResults(doc).toNewSearchResponseList()
+        val posts = fetchPosts(page = page, search = query)
+        return posts.mapNotNull { it.toSearchResponse() }.toNewSearchResponseList()
     }
 
     override suspend fun load(url: String): LoadResponse {
         refreshMainUrl()
-        val pageUrl = fixUrl(url)
-        val doc = app.get(pageUrl, headers = headers, timeout = 25).document
-
-        if (isInvalidPage(doc)) {
-            throw Exception("RareToon returned invalid page for $pageUrl")
-        }
-
-        val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
-            ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
-            ?: doc.title()
+        val post = fetchPostByUrl(url) ?: throw Exception("RareToon post not found")
+        val rawTitle = decodeHtml(post.title)
         val title = cleanTitle(rawTitle)
-        val poster = extractPoster(doc) ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
-        val plot = doc.select("article p, .post p, main p")
-            .firstOrNull { it.text().length > 70 }?.text()
-            ?: doc.selectFirst("meta[name=description]")?.attr("content")
-
-        val pageType = classifyPage(doc, rawTitle)
+        val poster = post.posterUrl
+        val plot = post.excerpt?.ifBlank { post.description }
+        val pageType = classifyPost(post)
         Log.d(TAG, "RareToon page type for '$title' => $pageType")
 
         return when (pageType) {
             PageType.COLLECTION -> {
-                val entries = collectCollectionEntries(doc)
+                val entries = collectCollectionEntries(post.content)
                 val episodes = buildCollectionEpisodes(entries)
-                newTvSeriesLoadResponse(title, pageUrl, TvType.TvSeries, episodes) {
+                newTvSeriesLoadResponse(title, post.url, TvType.TvSeries, episodes) {
                     this.posterUrl = poster
                     this.plot = plot
                 }
             }
             PageType.SEASON -> {
                 val season = seasonNumber(rawTitle) ?: 1
-                val mirrors = collectPlayableMirrors(doc)
+                val mirrors = collectPlayableMirrors(post.content)
                 val episodes = buildEpisodes(mirrors, season)
-                newTvSeriesLoadResponse(title, pageUrl, guessSeriesType(rawTitle), episodes) {
+                newTvSeriesLoadResponse(title, post.url, guessSeriesType(rawTitle), episodes) {
                     this.posterUrl = poster
                     this.plot = plot
                 }
             }
             PageType.MOVIE -> {
-                val mirrors = collectPlayableMirrors(doc)
+                val mirrors = collectPlayableMirrors(post.content)
                 val data = mirrors.joinToString("\n") { it.url }.ifBlank { throw Exception("No links found") }
-                newMovieLoadResponse(title, pageUrl, TvType.Movie, data) {
+                newMovieLoadResponse(title, post.url, TvType.Movie, data) {
                     this.posterUrl = poster
                     this.plot = plot
                 }
             }
-            PageType.INVALID -> throw Exception("RareToon invalid/static page")
         }
     }
 
@@ -135,9 +121,6 @@ class RareToonIndiaProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        if (data.contains("raretoonindia.in", true) && !data.contains('\n')) {
-            return load(data).let { false }
-        }
         val urls = Regex("""https?://[^\s"'<>]+""").findAll(data)
             .map { it.value.trim().trim(')', ']', '.', ',', ';') }
             .map { it.removeSuffix("%0A").trim() }
@@ -154,7 +137,18 @@ class RareToonIndiaProvider : MainAPI() {
         return true
     }
 
-    private enum class PageType { MOVIE, SEASON, COLLECTION, INVALID }
+    private enum class PageType { MOVIE, SEASON, COLLECTION }
+
+    private data class RarePost(
+        val id: Int,
+        val url: String,
+        val slug: String,
+        val title: String,
+        val excerpt: String?,
+        val description: String?,
+        val content: String,
+        val posterUrl: String?
+    )
 
     private data class Mirror(
         val url: String,
@@ -175,174 +169,98 @@ class RareToonIndiaProvider : MainAPI() {
         return active.ifBlank { mainUrl }
     }
 
-    private fun fixUrl(url: String): String {
-        if (url.startsWith("http", ignoreCase = true)) return url
-        if (url.startsWith("//")) return "https:$url"
-        return mainUrl + (if (url.startsWith("/")) url else "/$url")
+    private suspend fun fetchPosts(page: Int, search: String? = null, categories: Int? = null): List<RarePost> {
+        val url = buildString {
+            append("$mainUrl/wp-json/wp/v2/posts?per_page=$POSTS_PER_PAGE&page=$page&_embed=1")
+            if (!search.isNullOrBlank()) append("&search=${URLEncoder.encode(search.trim(), "UTF-8")}")
+            if (categories != null) append("&categories=$categories")
+        }
+        val text = app.get(url, headers = headers, timeout = 25).text
+        val arr = JSONArray(text)
+        return (0 until arr.length()).mapNotNull { idx ->
+            arr.optJSONObject(idx)?.toRarePost()
+        }
     }
 
-    private fun pageUrl(path: String, page: Int): String {
-        val base = if (path.startsWith("http", true)) path.trimEnd('/') else mainUrl + path
-        if (page <= 1) return base
-        return base.trimEnd('/') + "/page/$page/"
+    private suspend fun fetchPostByUrl(url: String): RarePost? {
+        val normalized = normalizeContentUrl(url)
+        val slug = normalized.substringAfterLast('/').ifBlank { return null }
+        val text = app.get(
+            "$mainUrl/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}&_embed=1",
+            headers = headers,
+            timeout = 25
+        ).text
+        val arr = JSONArray(text)
+        if (arr.length() > 0) return arr.optJSONObject(0)?.toRarePost()
+
+        val search = slug.replace('-', ' ')
+        return fetchPosts(page = 1, search = search).firstOrNull {
+            normalizeContentUrl(it.url).endsWith("/$slug")
+        }
     }
 
-    private fun hasNextPage(doc: Document, page: Int): Boolean {
-        val nextHref = doc.selectFirst("a.next.page-numbers, a.next")?.absUrl("href").orEmpty()
-        if (nextHref.isNotBlank()) return true
-        return doc.select("a.page-numbers[href]").any { it.text().trim() == (page + 1).toString() }
+    private suspend fun getCategoryId(slug: String): Int? {
+        CATEGORY_CACHE[slug]?.let { return it }
+        val text = app.get(
+            "$mainUrl/wp-json/wp/v2/categories?slug=${URLEncoder.encode(slug, "UTF-8")}",
+            headers = headers,
+            timeout = 20
+        ).text
+        val arr = JSONArray(text)
+        val id = arr.optJSONObject(0)?.optInt("id")?.takeIf { it > 0 }
+        if (id != null) CATEGORY_CACHE[slug] = id
+        return id
     }
 
-    private fun parseSearchResults(doc: Document): List<SearchResponse> {
-        val root = doc.selectFirst("main, #content, .site-main, .content-area") ?: doc
-        val items = root.select("article, .post, .elementor-post")
-            .mapNotNull { it.toSearchCard(preferSearchHeading = true) }
-            .distinctBy { it.url }
-        if (items.isNotEmpty()) return items
-        return parseListing(doc)
+    private fun JSONObject.toRarePost(): RarePost? {
+        val id = optInt("id", 0).takeIf { it > 0 } ?: return null
+        val url = optString("link").ifBlank { return null }
+        val slug = optString("slug").ifBlank { return null }
+        val title = optJSONObject("title")?.optString("rendered").orEmpty().ifBlank { slug }
+        val excerpt = optJSONObject("excerpt")?.optString("rendered")?.let(::htmlToText)
+        val content = optJSONObject("content")?.optString("rendered").orEmpty()
+        val description = extractMetaDescription(content)
+        val poster = extractEmbeddedPoster(this) ?: extractFirstPoster(content)
+        return RarePost(id, url, slug, title, excerpt, description, content, poster)
     }
 
-    private fun parseListing(doc: Document): List<SearchResponse> {
-        val root = archiveRoot(doc) ?: doc
-        val cards = root.select("article, .post, .elementor-post, .e-loop-item, li[id^=post-]")
-            .mapNotNull { it.toSearchCard(preferSearchHeading = false) }
-            .distinctBy { it.url }
-        if (cards.isNotEmpty()) return cards
-
-        return root.select("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href]")
-            .mapNotNull { anchor -> anchor.toSearchCardFromAnchor() }
-            .distinctBy { it.url }
+    private fun classifyPost(post: RarePost): PageType {
+        val text = htmlToText(post.content)
+        val episodeMarkers = Regex("""(?i)\bEpisode\s*0*\d{1,3}\b""").findAll(text).count()
+        val playableLinks = collectPlayableMirrors(post.content)
+        val collectionEntries = collectCollectionEntries(post.content)
+        return when {
+            isCollectionTitle(post.title) || collectionEntries.size >= 8 -> PageType.COLLECTION
+            post.title.contains("season", true) || post.title.contains("episodes", true) || episodeMarkers >= 2 -> PageType.SEASON
+            playableLinks.isNotEmpty() -> PageType.MOVIE
+            else -> PageType.MOVIE
+        }
     }
 
-    private fun archiveRoot(doc: Document): Element? {
-        return listOf(
-            ".elementor-location-archive",
-            ".elementor-widget-theme-archive-posts",
-            ".site-main",
-            "main",
-            "#content",
-            ".content-area"
-        ).mapNotNull { doc.selectFirst(it) }
-            .firstOrNull { root ->
-                root.select("article, .post, .elementor-post, .e-loop-item").size >= 2
-            }
-    }
-
-    private fun Element.toSearchCard(preferSearchHeading: Boolean): SearchResponse? {
-        val anchor = if (preferSearchHeading) {
-            selectFirst("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href], .elementor-post__thumbnail__link[href]")
-                ?: selectFirst("a[href]:has(img)")
-        } else {
-            selectFirst("h2 a[href], h3 a[href], .entry-title a[href], .elementor-post__title a[href], .elementor-post__thumbnail__link[href]")
-                ?: selectFirst("a[href]:has(img)")
-        } ?: return null
-        return anchor.toSearchCardFromAnchor(this)
-    }
-
-    private fun Element.toSearchCardFromAnchor(parent: Element? = null): SearchResponse? {
-        val href = absUrl("href").ifBlank { attr("href") }.ifBlank { return null }
-        if (!isValidContentUrl(href)) return null
-        val rawTitle = attr("title").ifBlank { text() }
-            .ifBlank { parent?.selectFirst("img")?.attr("alt") ?: "" }
-            .ifBlank { return null }
-        val poster = extractPoster(parent ?: this)
-        return newMovieSearchResponse(cleanTitle(rawTitle), href, guessCardType(rawTitle, href)) {
-            this.posterUrl = poster
+    private fun RarePost.toSearchResponse(): SearchResponse? {
+        if (!isValidContentUrl(url)) return null
+        val rawTitle = decodeHtml(title)
+        return newMovieSearchResponse(cleanTitle(rawTitle), url, guessCardType(rawTitle, url)) {
+            this.posterUrl = posterUrl
             this.quality = detectQuality(rawTitle)
         }
     }
 
-    private fun classifyPage(doc: Document, rawTitle: String): PageType {
-        if (isInvalidPage(doc)) return PageType.INVALID
-        val content = contentContainer(doc)
-        val collectionEntries = collectCollectionEntries(doc)
-        val playableMirrors = collectPlayableMirrors(doc)
-        val episodeHeaders = content.select("h1,h2,h3,h4,h5,h6,strong,b,p,li")
-            .count { episodeNumber(it.text()) != null }
-        val title = rawTitle.lowercase()
-
-        val uniqueCollectionEntries = collectionEntries
-            .filterNot { it.url.contains("/all-doraemon-movies", true) || it.url.contains("/all-shinchan-movies", true) || it.url.contains("/doraemon-all-seasons", true) }
-
-        return when {
-            isCollectionTitle(rawTitle) || uniqueCollectionEntries.size >= 8 -> PageType.COLLECTION
-            title.contains("season") || title.contains("episodes") || episodeHeaders >= 2 -> PageType.SEASON
-            playableMirrors.isNotEmpty() -> PageType.MOVIE
-            else -> PageType.INVALID
-        }
-    }
-
-    private fun isInvalidPage(doc: Document): Boolean {
-        val title = doc.title().lowercase()
-        val h1 = doc.selectFirst("h1, h2")?.text()?.lowercase().orEmpty()
-        return title.contains("about us") ||
-            title.contains("page not found") ||
-            h1.contains("about us") ||
-            h1.contains("it looks like the link pointing here was faulty")
-    }
-
-    private fun contentContainer(doc: Document): Element = doc.selectFirst(
-        ".elementor-widget-theme-post-content .elementor-widget-container, article .entry-content, .entry-content, .single-post, main article, main, article, .post, body"
-    ) ?: doc
-
-    private fun collectPlayableMirrors(doc: Document): List<Mirror> {
-        val byseMirrors = collectByseLinks(doc)
-        val directMirrors = collectDirectLinks(doc)
-        return (byseMirrors + directMirrors)
-            .filter { !it.url.contains("telegram.me", true) && !it.url.contains("t.me/", true) }
-            .distinctBy { it.url }
-            .sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: Int.MAX_VALUE }, { it.quality ?: "" }, { it.url }))
-    }
-
-    private fun collectByseLinks(doc: Document): List<Mirror> {
-        val content = contentContainer(doc)
+    private fun collectPlayableMirrors(html: String): List<Mirror> {
+        val content = Jsoup.parseBodyFragment(html).body()
         val mirrors = mutableListOf<Mirror>()
         var currentEpisode: Int? = null
-        var currentSeason: Int? = seasonNumber(doc.title()) ?: seasonNumber(doc.selectFirst("h1")?.text().orEmpty())
+        var currentSeason: Int? = null
         var currentLabel: String? = null
-        var currentQuality: String? = null
-
-        content.select("h1,h2,h3,h4,h5,h6,p,li,div,span,strong,b,a[href]").forEach { el ->
-            val text = el.ownText().ifBlank { el.text() }.trim()
-            seasonNumber(text)?.let { currentSeason = it }
-            val ep = episodeNumber(text)
-            if (ep != null && !text.contains("episodes:", true) && !text.contains("all episodes", true)) {
-                currentEpisode = ep
-                currentLabel = episodeName(text, ep)
-            }
-            detectQualityLabel(text)?.let { currentQuality = it }
-
-            if (el.tagName().equals("a", true)) {
-                val href = el.absUrl("href").ifBlank { el.attr("href") }
-                val code = byseCode(href) ?: return@forEach
-                val watchUrl = "https://bysekoze.com/d/$code"
-                val parentText = el.parent()?.text()?.take(180)
-                mirrors.add(
-                    Mirror(
-                        url = watchUrl,
-                        label = currentLabel ?: parentText?.ifBlank { el.text() },
-                        episode = currentEpisode ?: episodeNumber(parentText),
-                        season = seasonNumber(parentText.orEmpty()) ?: currentSeason,
-                        quality = currentQuality ?: detectQualityLabel(parentText.orEmpty()) ?: detectQualityLabel(el.text())
-                    )
-                )
-            }
-        }
-
-        return mirrors.distinctBy { byseCode(it.url) ?: it.url }
-    }
-
-    private fun collectDirectLinks(doc: Document): List<Mirror> {
-        val content = contentContainer(doc)
-        val links = mutableListOf<Mirror>()
-        var currentEpisode: Int? = null
-        var currentSeason: Int? = seasonNumber(doc.title()) ?: seasonNumber(doc.selectFirst("h1")?.text().orEmpty())
         var currentQuality: String? = null
 
         content.select("h1,h2,h3,h4,h5,h6,p,li,div,span,strong,b,a[href],source[src],iframe[src],video source[src]").forEach { el ->
             val text = el.ownText().ifBlank { el.text() }.trim()
             seasonNumber(text)?.let { currentSeason = it }
-            episodeNumber(text)?.let { currentEpisode = it }
+            episodeNumber(text)?.let {
+                currentEpisode = it
+                currentLabel = episodeName(text, it)
+            }
             detectQualityLabel(text)?.let { currentQuality = it }
 
             val rawUrl = when {
@@ -353,10 +271,13 @@ class RareToonIndiaProvider : MainAPI() {
 
             if (!isPlayableExternalUrl(rawUrl)) return@forEach
             val parentText = el.parent()?.text()?.take(180).orEmpty()
-            links.add(
+            val url = if (rawUrl.contains("bysekoze.", true)) {
+                byseCode(rawUrl)?.let { "https://bysekoze.com/d/$it" } ?: rawUrl
+            } else rawUrl
+            mirrors.add(
                 Mirror(
-                    url = rawUrl,
-                    label = parentText.ifBlank { el.text() },
+                    url = url,
+                    label = currentLabel ?: parentText.ifBlank { el.text() },
                     episode = currentEpisode ?: episodeNumber(parentText),
                     season = seasonNumber(parentText).takeIf { it != null } ?: currentSeason,
                     quality = detectQualityLabel(rawUrl) ?: detectQualityLabel(parentText) ?: currentQuality
@@ -364,42 +285,20 @@ class RareToonIndiaProvider : MainAPI() {
             )
         }
 
-        return links.distinctBy { it.url }
+        return mirrors.distinctBy { it.url }
     }
 
-    private fun isPlayableExternalUrl(url: String): Boolean {
-        if (url.isBlank()) return false
-        val lower = url.lowercase()
-        if (!lower.startsWith("http")) return false
-        if (lower.contains("raretoonindia.in")) return false
-        if (lower.contains("yawncollaremotion.com") || lower.contains("foreseehawancestor.com")) return false
-        if (lower.contains("telegram.me") || lower.contains("t.me/")) return false
-        return lower.contains("bysekoze.") ||
-            lower.contains("filemoon") ||
-            lower.contains("mega.nz") ||
-            lower.contains("jwplayer.com") ||
-            lower.contains("mp4") ||
-            lower.contains("m3u8") ||
-            lower.contains("download/") ||
-            lower.contains("/d/")
-    }
-
-    private fun collectCollectionEntries(doc: Document): List<CollectionEntry> {
-        val content = contentContainer(doc)
+    private fun collectCollectionEntries(html: String): List<CollectionEntry> {
+        val content = Jsoup.parseBodyFragment(html).body()
         return content.select("a[href]")
             .mapNotNull { a ->
                 val href = a.absUrl("href").ifBlank { a.attr("href") }
-                val title = a.text().trim()
+                val title = htmlToText(a.html()).trim()
                 if (!isValidContentUrl(href)) return@mapNotNull null
                 if (title.length < 6) return@mapNotNull null
-                if (title.equals("click here to join", true)) return@mapNotNull null
-                if (title.contains("how to download", true)) return@mapNotNull null
-                if (title.contains("join our telegram", true)) return@mapNotNull null
-                if (title.contains("also check", true)) return@mapNotNull null
-                if (title.contains("staytooned", true)) return@mapNotNull null
-                if (href.contains("#comment", true) || href.contains("#respond", true)) return@mapNotNull null
-                val lowerTitle = title.lowercase()
-                val seemsContent = lowerTitle.contains("season") || lowerTitle.contains("episode") || lowerTitle.contains("movie") || lowerTitle.contains("doraemon") || lowerTitle.contains("shin") || lowerTitle.contains("pokemon") || lowerTitle.contains("leveling") || lowerTitle.contains("slayer") || lowerTitle.contains("hero academia")
+                if (title.contains("click here", true) || title.contains("join", true) || title.contains("telegram", true)) return@mapNotNull null
+                val lower = title.lowercase()
+                val seemsContent = lower.contains("season") || lower.contains("episode") || lower.contains("movie") || lower.contains("doraemon") || lower.contains("shin") || lower.contains("pokemon") || lower.contains("leveling") || lower.contains("slayer") || lower.contains("hero academia")
                 if (!seemsContent) return@mapNotNull null
                 CollectionEntry(cleanTitle(title), href)
             }
@@ -439,24 +338,35 @@ class RareToonIndiaProvider : MainAPI() {
         }.sortedWith(compareBy({ it.season ?: 1 }, { it.episode ?: 0 }))
     }
 
-    private fun extractPoster(element: Element): String? {
-        val img = element.selectFirst("img") ?: return null
+    private fun extractEmbeddedPoster(obj: JSONObject): String? {
+        val embedded = obj.optJSONObject("_embedded") ?: return null
+        val media = embedded.optJSONArray("wp:featuredmedia")?.optJSONObject(0) ?: return null
+        val src = media.optString("source_url")
+        return src.ifBlank { null }
+    }
+
+    private fun extractFirstPoster(html: String): String? {
+        val doc = Jsoup.parseBodyFragment(html)
+        val img = doc.selectFirst("img") ?: return null
         return listOf(
             img.absUrl("data-lazy-src"),
             img.absUrl("data-src"),
-            img.absUrl("data-original"),
-            img.absUrl("src"),
-            firstSrcSetUrl(img.attr("data-srcset")),
-            firstSrcSetUrl(img.attr("srcset"))
+            img.absUrl("src")
         ).firstOrNull { !it.isNullOrBlank() }
     }
 
-    private fun firstSrcSetUrl(srcset: String?): String? {
-        val value = srcset?.trim().orEmpty()
-        if (value.isBlank()) return null
-        return value.split(',')
-            .map { it.trim().substringBefore(' ').trim() }
-            .firstOrNull { it.startsWith("http", true) }
+    private fun extractMetaDescription(html: String): String? {
+        val text = htmlToText(html)
+        return text.takeIf { it.length > 40 }?.take(500)
+    }
+
+    private fun htmlToText(html: String): String = Jsoup.parse(html).text().replace(Regex("""\s+"""), " ").trim()
+
+    private fun decodeHtml(html: String): String = Jsoup.parse(html).text()
+
+    private fun normalizeContentUrl(url: String): String {
+        val clean = if (url.startsWith("http", true)) url else "$mainUrl/${url.trimStart('/')}"
+        return clean.trimEnd('/').substringBefore('#').substringBefore('?')
     }
 
     private fun seasonNumber(text: String): Int? = Regex("""(?i)\b(?:season|s)\s*0*(\d{1,2})\b""")
@@ -481,11 +391,28 @@ class RareToonIndiaProvider : MainAPI() {
     private fun byseCode(url: String): String? = Regex("""(?i)bysekoze\.[a-z]+/(?:d|e|download|dwn)/([a-z0-9]+)""")
         .find(url)?.groupValues?.getOrNull(1)
 
+    private fun isPlayableExternalUrl(url: String): Boolean {
+        if (url.isBlank()) return false
+        val lower = url.lowercase()
+        if (!lower.startsWith("http")) return false
+        if (lower.contains("raretoonindia.in")) return false
+        if (lower.contains("yawncollaremotion.com") || lower.contains("foreseehawancestor.com")) return false
+        if (lower.contains("telegram.me") || lower.contains("t.me/")) return false
+        return lower.contains("bysekoze.") ||
+            lower.contains("filemoon") ||
+            lower.contains("mega.nz") ||
+            lower.contains("jwplayer.com") ||
+            lower.contains("mp4") ||
+            lower.contains("m3u8") ||
+            lower.contains("download/") ||
+            lower.contains("/d/")
+    }
+
     private fun isValidContentUrl(url: String): Boolean {
         if (!url.contains("raretoonindia.in", true)) return false
-        val path = runCatching { java.net.URI(url).path.orEmpty().trimEnd('/') }.getOrDefault("")
+        val path = runCatching { URI(url).path.orEmpty().trimEnd('/') }.getOrDefault("")
         if (path.isBlank() || path == "/") return false
-        if (path.count { it == '/' } <= 1 && !path.contains('-', false)) return false
+        if (path.count { it == '/' } <= 1 && !path.contains('-')) return false
         val blockedPrefixes = setOf(
             "/about-us", "/contact-us", "/dmca", "/privacy-policy", "/copyright-issues",
             "/disclaimers", "/terms-and-conditions", "/wp-content", "/wp-json", "/feed", "/comments"
@@ -555,6 +482,8 @@ class RareToonIndiaProvider : MainAPI() {
         private const val DEFAULT_MAIN_URL = "https://raretoonindia.in"
         private const val DOMAINS_URL = "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/main/domains.json"
         private const val CACHE_TTL_MS = 6 * 60 * 60 * 1000L
+        private const val POSTS_PER_PAGE = 20
+        private val CATEGORY_CACHE = linkedMapOf<String, Int>()
 
         @Volatile
         private var cachedBase: String? = null
@@ -597,7 +526,7 @@ class RareToonIndiaProvider : MainAPI() {
                 else -> "https://$u"
             }
             return runCatching {
-                val uri = java.net.URI(full)
+                val uri = URI(full)
                 "${uri.scheme}://${uri.host}"
             }.getOrNull()
         }
