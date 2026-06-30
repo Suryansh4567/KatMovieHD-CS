@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 25
+version = 26
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v25: build-fixed release after correcting malformed escaped-string parsing in the content extractor."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v26: fixes SvelteKit sister-site parsing for Anime (PikaHD) and K-Drama (KatDrama), plus safer streamed content extraction."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")

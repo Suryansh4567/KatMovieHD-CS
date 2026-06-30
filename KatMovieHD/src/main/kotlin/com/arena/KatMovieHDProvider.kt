@@ -42,6 +42,7 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.parser.Parser
 import java.net.URLEncoder
 
 /**
@@ -258,8 +259,8 @@ class KatMovieHDProvider : MainAPI() {
         "category/dual-audio/page/" to "Dual Audio",
         "category/tv-series-dubbed/page/" to "TV Series (Dubbed)",
         "https://moviesbaba.lol/category/bollywood/" to "Bollywood",
-        "https://www.katdrama.net/category/tv-series-dubbed/" to "K-Drama",
-        "https://new.pikahd.co/category/anime-dubbed/" to "Anime",
+        "https://www.katdrama.net/" to "K-Drama",
+        "https://new.pikahd.co/" to "Anime",
         "category/netflix/page/" to "Netflix",
         "category/amazon-prime/page/" to "Prime Video",
         "category/disney/page/" to "Disney+ Hotstar",
@@ -272,13 +273,24 @@ class KatMovieHDProvider : MainAPI() {
         "category/bengali/page/" to "Bengali"
     )
 
+
+    private fun paginateAbsoluteUrl(url: String, page: Int): String {
+        if (page <= 1) return url
+        val clean = url.trimEnd('/')
+        return if (clean.contains(Regex("""(?i)/page/\d+$"""))) {
+            clean.replace(Regex("""(?i)/page/\d+$"""), "/page/$page") + "/"
+        } else {
+            "$clean/page/$page/"
+        }
+    }
+
     private suspend fun refreshMainUrl(): String {
         val active = KatMovieHDPlugin.getActiveMainUrl().trimEnd('/')
         if (active.isNotBlank() && active != mainUrl) {
             Log.d(TAG, "Active domain refreshed: $mainUrl -> $active")
             mainUrl = active
         }
-        return mainUrl
+        return active.ifBlank { mainUrl }
     }
 
     /**
@@ -309,7 +321,7 @@ class KatMovieHDProvider : MainAPI() {
     ): HomePageResponse {
         val base = refreshMainUrl()
         val url = if (request.data.startsWith("http")) {
-            if (page <= 1) request.data else "${request.data}page/$page/"
+            paginateAbsoluteUrl(request.data, page)
         } else {
             "$base/${request.data}$page/"
         }
@@ -335,6 +347,13 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     private fun parseListing(doc: Document): List<SearchResponse> {
+        // Sister sites (PikaHD anime / KatDrama K-drama) are SvelteKit apps.
+        // Their server-rendered HTML initially contains only a "Loading..." shell;
+        // the real cards arrive in a streamed __sveltekit.resolve(...) script.
+        // Parse that first so those categories do not appear empty.
+        val svelte = parseSvelteStreamedListing(doc)
+        if (svelte.isNotEmpty()) return svelte.distinctBy { it.url }
+
         // Primary: each result is an <li id="post-NNNN"> container (home page).
         val items = doc.select("li[id^=post-]").mapNotNull { it.toSearchResultFromItem() }
         if (items.isNotEmpty()) return items.distinctBy { it.url }
@@ -349,6 +368,73 @@ class KatMovieHDProvider : MainAPI() {
         return doc.select("a:has(img)").mapNotNull { it.toSearchResultFromAnchor() }
             .distinctBy { it.url }
     }
+
+    /** Parse streamed list cards emitted by SvelteKit sister sites. */
+    private fun parseSvelteStreamedListing(doc: Document): List<SearchResponse> {
+        val base = Regex("""(?i)^https?://[^/]+""").find(doc.location())?.value
+            ?: Regex("""(?i)^https?://[^/]+""").find(mainUrl)?.value
+            ?: mainUrl.trimEnd('/')
+        val html = doc.html()
+        if (!html.contains("__sveltekit", ignoreCase = true) || !html.contains("post_title")) {
+            return emptyList()
+        }
+
+        // Current streamed object order is stable: post_title -> slug -> thumbnail_image.
+        // The regex is intentionally local (no catastrophic .* over the entire page) and
+        // accepts escaped JS strings. If a future build reorders fields, the permissive
+        // fallback below still recovers title/slug pairs from each object block.
+        val cardRegex = Regex(
+            """post_title:"((?:\\.|[^"\\])*)"[\s\S]{0,500}?slug:"((?:\\.|[^"\\])*)"[\s\S]{0,300}?thumbnail_image:"((?:\\.|[^"\\])*)""""
+        )
+        val cards = cardRegex.findAll(html).mapNotNull { m ->
+            val title = decodeJsHtmlString(m.groupValues[1]).ifBlank { return@mapNotNull null }
+            val slug = decodeJsHtmlString(m.groupValues[2]).ifBlank { return@mapNotNull null }
+            val poster = decodeJsHtmlString(m.groupValues[3]).ifBlank { null }
+            newMovieSearchResponse(cleanTitle(title), "$base/${slug.trim('/')}", guessTvType(title)) {
+                this.posterUrl = poster
+                this.quality = detectSearchQuality(title)
+            }
+        }.toList()
+        if (cards.isNotEmpty()) return cards
+
+        return Regex("""\{categories:\[[\s\S]{0,1500}?\}""").findAll(html).mapNotNull { block ->
+            val text = block.value
+            val title = Regex("""post_title:"((?:\\.|[^"\\])*)"""").find(text)?.groupValues?.getOrNull(1)
+                ?.let(::decodeJsHtmlString)?.ifBlank { null } ?: return@mapNotNull null
+            val slug = Regex("""slug:"((?:\\.|[^"\\])*)"""").find(text)?.groupValues?.getOrNull(1)
+                ?.let(::decodeJsHtmlString)?.ifBlank { null } ?: return@mapNotNull null
+            val poster = Regex("""thumbnail_image:"((?:\\.|[^"\\])*)"""").find(text)?.groupValues?.getOrNull(1)
+                ?.let(::decodeJsHtmlString)?.ifBlank { null }
+            newMovieSearchResponse(cleanTitle(title), "$base/${slug.trim('/')}", guessTvType(title)) {
+                this.posterUrl = poster
+                this.quality = detectSearchQuality(title)
+            }
+        }.toList()
+    }
+
+    private data class SveltePostMeta(val title: String?, val poster: String?)
+
+    private fun extractSveltePostMeta(html: String): SveltePostMeta? {
+        if (!html.contains("post_meta", ignoreCase = true) && !html.contains("post_title")) return null
+        val title = Regex("""post_title:"((?:\\.|[^"\\])*)"""")
+            .find(html)?.groupValues?.getOrNull(1)?.let(::decodeJsHtmlString)?.ifBlank { null }
+        val poster = Regex("""thumbnail_image:"((?:\\.|[^"\\])*)"""")
+            .find(html)?.groupValues?.getOrNull(1)?.let(::decodeJsHtmlString)?.ifBlank { null }
+        return if (title != null || poster != null) SveltePostMeta(title, poster) else null
+    }
+
+    private fun decodeJsHtmlString(input: String): String = Parser.unescapeEntities(
+        input
+            .replace("\\/", "/")
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t")
+            .replace("\\u003C", "<")
+            .replace("\\u003E", ">")
+            .replace("\\u0026", "&"),
+        false
+    ).trim()
 
     /**
      * Parse one "<li id=post-NNNN>" search/listing card.
@@ -463,10 +549,16 @@ class KatMovieHDProvider : MainAPI() {
         refreshMainUrl()
         val pageUrl = normalizeKatMovieUrl(url)
         val doc = safeGetDocument(pageUrl)
-        val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
+        val svelteMeta = extractSveltePostMeta(doc.html())
+        val htmlTitle = doc.selectFirst("h1.entry-title, h1")?.text()?.takeIf {
+            !it.equals("Loading...", ignoreCase = true) && it.isNotBlank()
+        }
+        val rawTitle = svelteMeta?.title
+            ?: htmlTitle
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()
-        val sitePoster = doc.selectFirst("meta[property=og:image]")?.attr("content")
+        val sitePoster = svelteMeta?.poster
+            ?: doc.selectFirst("meta[property=og:image]")?.attr("content")
             ?: doc.selectFirst(".entry-content img, article img")?.absUrl("src")
         val sitePlot = doc.select(".entry-content p")
             .firstOrNull { it.text().length > 80 }?.text()
@@ -625,9 +717,11 @@ class KatMovieHDProvider : MainAPI() {
         // SvelteKit injects HTML inside dehydrated JSON. 
         // Extract iteratively to prevent Regex Catastrophic Backtracking (which freezes the app!)
         var raw = extractEscapedString(html, "\"post_content\":\"")
+            ?: extractEscapedString(html, "post_content:\"")
         
         if (raw == null) {
             raw = extractEscapedString(html, "\"\\u003Cp")?.let { "\\u003Cp$it" }
+                ?: extractEscapedString(html, "post_content:\"\\u003Cp")?.let { "\\u003Cp$it" }
         }
         if (raw == null) {
             raw = extractEscapedString(html, "\"\\u003Cdiv")?.let { "\\u003Cdiv$it" }
@@ -643,14 +737,7 @@ class KatMovieHDProvider : MainAPI() {
         }
         
         if (raw != null) {
-            val decoded = raw
-                .replace("\\\"", "\"")
-                .replace("\\u003C", "<")
-                .replace("\\u003E", ">")
-                .replace("\\/", "/")
-                .replace("\\n", "\n")
-                .replace("\\r", "\r")
-                .replace("\\t", "\t")
+            val decoded = decodeJsHtmlString(raw)
             
             val virtualDom = Jsoup.parse(decoded).body()
             if (virtualDom.select("a[href]").isNotEmpty()) {
