@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 7
+version = 8
 
 cloudstream {
     authors = listOf("arena")
@@ -10,7 +10,7 @@ cloudstream {
      */
     status = 1
 
-    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v7 adds collection-page episode generation for Doraemon/Shinchan bundles and improves misrouting resistance."
+    description = "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v8 rewrites provider logic around real page types: movie pages, season pages, and collection pages. Improves archive parsing, collection handling, and multi-host link extraction."
     language = "hi"
 
     tvTypes = listOf("Anime", "TvSeries", "Movie")
