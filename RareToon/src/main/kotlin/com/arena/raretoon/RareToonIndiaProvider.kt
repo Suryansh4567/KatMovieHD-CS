@@ -100,9 +100,15 @@ class RareToonIndiaProvider : MainAPI() {
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val mirrors = collectPlayableMirrors(doc)
-        val isSeries = isCollectionTitle(rawTitle) || looksSeries(rawTitle) || mirrors.any { it.episode != null } || mirrors.size > 2
+        val collectionEntries = collectCollectionEntries(doc)
+        val isCollection = isCollectionTitle(rawTitle)
+        val isSeries = isCollection || looksSeries(rawTitle) || mirrors.any { it.episode != null } || mirrors.size > 2 || collectionEntries.size >= 3
         val season = seasonNumber(rawTitle) ?: 1
-        val episodes = if (isSeries) buildEpisodes(mirrors, season) else emptyList()
+        val episodes = when {
+            isCollection && collectionEntries.isNotEmpty() -> buildCollectionEpisodes(collectionEntries)
+            isSeries -> buildEpisodes(mirrors, season)
+            else -> emptyList()
+        }
 
         return if (episodes.isNotEmpty()) {
             newTvSeriesLoadResponse(title, pageUrl, guessType(rawTitle), episodes) {
@@ -286,6 +292,37 @@ class RareToonIndiaProvider : MainAPI() {
         }
 
         return mirrors.distinctBy { byseCode(it.url) ?: it.url }
+    }
+
+    private data class CollectionEntry(val title: String, val url: String)
+
+    private fun collectCollectionEntries(doc: Document): List<CollectionEntry> {
+        val content = contentContainer(doc)
+        return content.select("a[href]")
+            .mapNotNull { a ->
+                val href = a.absUrl("href").ifBlank { a.attr("href") }
+                val title = a.text().trim()
+                if (href.isBlank() || title.isBlank()) return@mapNotNull null
+                if (!href.contains("raretoonindia.in", true)) return@mapNotNull null
+                if (isNotContentPath(href)) return@mapNotNull null
+                if (href == mainUrl || href.trimEnd('/') == doc.location().trimEnd('/')) return@mapNotNull null
+                if (title.length < 6) return@mapNotNull null
+                if (title.equals("also checkout all doraemon movie download here", true)) return@mapNotNull null
+                val lowered = title.lowercase()
+                if (!(lowered.contains("doraemon") || lowered.contains("shin") || lowered.contains("movie"))) return@mapNotNull null
+                CollectionEntry(cleanTitle(title), href)
+            }
+            .distinctBy { it.url }
+    }
+
+    private fun buildCollectionEpisodes(entries: List<CollectionEntry>): List<Episode> {
+        return entries.mapIndexed { index, entry ->
+            newEpisode(entry.url) {
+                this.name = entry.title.ifBlank { "Item ${index + 1}" }
+                this.season = 1
+                this.episode = index + 1
+            }
+        }
     }
 
     private fun collectDirectLinks(doc: Document): List<Mirror> {
