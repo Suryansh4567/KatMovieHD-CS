@@ -33,7 +33,9 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :RareToon:parseDebugLocalResources
 > Task :RareToon:generateDebugRFile
 > Task :KatMovieHD:generateDebugRFile
+
 > Task :RareToon:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/RareToon/src/main/kotlin/com/arena/raretoon/ByseKozEExtractor.kt:81:37 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
 
 > Task :RareToon:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/RareToon/build/intermediates/classes.dex
@@ -61,6 +63,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ka
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 41s
+BUILD SUCCESSFUL in 42s
 21 actionable tasks: 21 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
