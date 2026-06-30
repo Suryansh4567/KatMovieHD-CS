@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/RareToon.cs3",
         "status": 1,
-        "version": 11,
+        "version": 12,
         "name": "RareToon",
         "internalName": "RareToon",
         "authors": [
             "arena"
         ],
-        "description": "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v11 rewrites RareToon to be API-first using the site's WordPress REST endpoints for search, latest, categories, metadata, and cleaner content extraction.",
-        "fileSize": 40888,
+        "description": "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v12 fixes runtime no-links behavior by only returning success when extractors actually emit links.",
+        "fileSize": 41659,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -42,6 +42,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=raretoonindia.in&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-4a35f628ad17da682982749884c575f78260f82f72fead836d71c2231ed1c32f"
+        "fileHash": "sha256-c746317e9154622c11c21d45eb53e2c058c1f574a01195b9f35caf9c23cc0cff"
     }
 ]
