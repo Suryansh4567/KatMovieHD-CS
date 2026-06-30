@@ -464,9 +464,26 @@ class KatMovieHDProvider : MainAPI() {
      */
     private fun Element.toSearchResultFromItem(): SearchResponse? {
         // Title link: heading anchor is the reliable permalink.
-        val titleAnchor = selectFirst("h2 a[href], h3 a[href], .post-title a[href], .title a[href]")
-            ?: selectFirst("div.post-content a[href]")
-            ?: return null
+        // Some sister themes (KatMovie4K) put category anchors before the
+        // post title inside .post-content. Query selectors one-by-one instead
+        // of a broad comma selector so the card URL is the real permalink,
+        // not /category/2160p-hdr/ which opens as a 404 detail page.
+        val titleAnchor = listOf(
+            "div.post-content h2 a[href]",
+            "div.post-content h3 a[href]",
+            "h2.entry-title a[href]",
+            "h3.entry-title a[href]",
+            ".post-title a[href]",
+            ".title a[href]",
+            "div.post-thumb > a[href]"
+        ).firstNotNullOfOrNull { selector ->
+            selectFirst(selector)?.takeIf { a ->
+                val h = a.attr("href")
+                !h.contains("/category/", ignoreCase = true) &&
+                    !h.contains("/tag/", ignoreCase = true) &&
+                    !h.contains("#comment", ignoreCase = true)
+            }
+        } ?: return null
         val href = titleAnchor.attr("href").ifBlank { return null }
         val rawTitle = titleAnchor.attr("title")
             .ifBlank { titleAnchor.text() }
