@@ -6,12 +6,12 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.SearchQuality
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SearchResponseList
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.getQualityFromString
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
@@ -20,6 +20,7 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Document
@@ -114,13 +115,19 @@ class RareToonIndiaProvider : MainAPI() {
                 }
                 isDirectVideo(url) -> {
                     callback.invoke(newExtractorLink(name, name, url) {
-                        this.quality = getQualityFromString(url)
+                        this.quality = directQuality(url)
                     })
                 }
                 else -> loadExtractor(url, mainUrl, subtitleCallback, callback)
             }
         }
         return true
+    }
+
+    private fun fixUrl(url: String): String {
+        if (url.startsWith("http", ignoreCase = true)) return url
+        if (url.startsWith("//")) return "https:$url"
+        return mainUrl + (if (url.startsWith("/")) url else "/$url")
     }
 
     private fun pageUrl(path: String, page: Int): String {
@@ -211,10 +218,15 @@ class RareToonIndiaProvider : MainAPI() {
     private fun guessType(title: String): TvType = if (looksSeries(title)) TvType.Anime else TvType.Movie
 
     private fun detectQuality(title: String) = when {
-        title.contains("1080", true) -> getQualityFromString("1080p")
-        title.contains("720", true) -> getQualityFromString("720p")
-        title.contains("480", true) -> getQualityFromString("480p")
+        title.contains("1080", true) -> SearchQuality.HD
+        title.contains("720", true) -> SearchQuality.HD
+        title.contains("480", true) -> SearchQuality.SD
         else -> null
+    }
+
+    private fun directQuality(url: String): Int {
+        Regex("""(?i)(\d{3,4})p""").find(url)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { return it }
+        return Qualities.Unknown.value
     }
 
     private fun isDirectVideo(url: String): Boolean {
