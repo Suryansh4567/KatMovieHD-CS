@@ -360,9 +360,9 @@ class RareToonIndiaProvider : MainAPI() {
                 .map { it.value.trim() }
                 .distinct()
                 .forEach { url ->
-                    append("<p><a href="")
+                    append("<p><a href=\"")
                     append(url)
-                    append("">")
+                    append("\">")
                     append(if (url.contains("mega.nz", true)) "MEGA" else "MEDIAFIRE")
                     append("</a></p>")
                 }
