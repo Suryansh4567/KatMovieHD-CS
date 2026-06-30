@@ -85,6 +85,14 @@ class RareToonIndiaProvider : MainAPI() {
         val rawTitle = doc.selectFirst("h1.entry-title, h1")?.text()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")
             ?: doc.title()
+
+        resolveCanonicalContentUrl(doc, pageUrl)?.let { canonical ->
+            if (!canonical.equals(pageUrl, ignoreCase = true)) {
+                Log.d(TAG, "Resolved RareToon detail page: $pageUrl -> $canonical")
+                return load(canonical)
+            }
+        }
+
         val title = cleanTitle(rawTitle)
         val poster = extractPoster(doc)
         val plot = doc.select("article p, .post p, main p")
@@ -92,7 +100,7 @@ class RareToonIndiaProvider : MainAPI() {
             ?: doc.selectFirst("meta[name=description]")?.attr("content")
 
         val mirrors = collectPlayableMirrors(doc)
-        val isSeries = looksSeries(rawTitle) || mirrors.any { it.episode != null } || mirrors.size > 2
+        val isSeries = isCollectionTitle(rawTitle) || looksSeries(rawTitle) || mirrors.any { it.episode != null } || mirrors.size > 2
         val season = seasonNumber(rawTitle) ?: 1
         val episodes = if (isSeries) buildEpisodes(mirrors, season) else emptyList()
 
@@ -159,6 +167,15 @@ class RareToonIndiaProvider : MainAPI() {
     }
 
     private fun parseListing(doc: Document): List<SearchResponse> {
+        val scopedRoots = listOf(
+            "main",
+            "#content",
+            ".content-area",
+            ".site-main",
+            ".elementor-location-archive",
+            ".elementor-widget-theme-archive-posts"
+        ).mapNotNull { doc.selectFirst(it) }
+
         val selectors = listOf(
             "article.elementor-post",
             "article.type-post",
@@ -168,10 +185,16 @@ class RareToonIndiaProvider : MainAPI() {
             ".post.type-post",
             "li[id^=post-]"
         )
-        val items = selectors.flatMap { selector -> doc.select(selector).mapNotNull { it.toRareSearchResult() } }
-        if (items.isNotEmpty()) return items.distinctBy { it.url }
-        return doc.select("main a:has(img), .site-main a:has(img), a:has(img)")
-            .mapNotNull { it.toRareSearchResult() }
+
+        val scopedItems = scopedRoots.flatMap { root ->
+            selectors.flatMap { selector -> root.select(selector).mapNotNull { it.toRareSearchResult() } }
+        }
+        if (scopedItems.isNotEmpty()) return scopedItems.distinctBy { it.url }
+
+        val globalItems = selectors.flatMap { selector -> doc.select(selector).mapNotNull { it.toRareSearchResult() } }
+        if (globalItems.isNotEmpty()) return globalItems.distinctBy { it.url }
+
+        return scopedRoots.flatMap { root -> root.select("a:has(img)").mapNotNull { it.toRareSearchResult() } }
             .distinctBy { it.url }
     }
 
@@ -182,7 +205,8 @@ class RareToonIndiaProvider : MainAPI() {
             ?: return null
         val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.ifBlank { return null }
         if (!href.contains("raretoonindia.in", ignoreCase = true)) return null
-        if (listOf("/category/", "/tag/", "/page/", "#", "/dmca", "/contact", "/privacy", "/copyright", "/disclaimers", "/about-us", "/wp-").any { href.contains(it, true) }) return null
+        if (listOf("/category/", "/tag/", "/page/", "#", "/dmca", "/contact", "/privacy", "/copyright", "/disclaimers", "/about-us", "/wp-", "/cdn-cgi/").any { href.contains(it, true) }) return null
+        if (isNotContentPath(href)) return null
         val rawTitle = anchor.attr("title").ifBlank { anchor.text() }
             .ifBlank { selectFirst("img")?.attr("alt") ?: "" }
             .ifBlank { return null }
@@ -363,6 +387,31 @@ class RareToonIndiaProvider : MainAPI() {
     private fun byseCode(url: String): String? = Regex("""(?i)bysekoze\.[a-z]+/(?:d|e|download|dwn)/([a-z0-9]+)""")
         .find(url)?.groupValues?.getOrNull(1)
 
+    private fun isNotContentPath(url: String): Boolean {
+        val path = runCatching { java.net.URI(url).path.orEmpty().trimEnd('/') }.getOrDefault("")
+        if (path.isBlank() || path == "/") return true
+        val blocked = setOf(
+            "/about-us", "/contact-us", "/dmca", "/privacy-policy", "/copyright-issues",
+            "/disclaimers", "/terms-and-conditions"
+        )
+        if (path in blocked) return true
+        val segments = path.trim('/').split('/').filter { it.isNotBlank() }
+        if (segments.isEmpty()) return true
+        val first = segments.first().lowercase()
+        return first in setOf("about-us", "contact-us", "privacy-policy", "dmca", "copyright-issues", "disclaimers", "wp-content", "wp-json")
+    }
+
+    private fun resolveCanonicalContentUrl(doc: Document, currentUrl: String): String? {
+        if (!doc.title().contains("about", true) && !doc.title().contains("page not found", true)) return null
+        val candidates = doc.select("main a[href], article a[href], .entry-content a[href], .site-main a[href]")
+            .mapNotNull { a ->
+                val href = a.absUrl("href").ifBlank { a.attr("href") }
+                href.takeIf { it.isNotBlank() && !isNotContentPath(it) && it.contains("raretoonindia.in", true) }
+            }
+            .distinct()
+        return candidates.firstOrNull { !it.equals(currentUrl, ignoreCase = true) }
+    }
+
     private fun cleanTitle(title: String): String = title
         .replace(Regex("""(?i)\s*[-|–—]\s*Rare\s*Toons?\s*India.*$"""), "")
         .replace(Regex("""(?i)\b(download|watch online|episodes?|in hindi|hindi dubbed|hd)\b"""), " ")
@@ -370,9 +419,15 @@ class RareToonIndiaProvider : MainAPI() {
         .replace(Regex("""\s+"""), " ")
         .trim()
 
-    private fun looksSeries(title: String): Boolean = Regex("""(?i)\b(season|episodes?|all seasons|s\d{1,2})\b""").containsMatchIn(title)
+    private fun looksSeries(title: String): Boolean = Regex("""(?i)\b(season|episodes?|all seasons|all movies collection|movie collection|complete collection|s\d{1,2})\b""").containsMatchIn(title)
 
-    private fun guessType(title: String): TvType = if (looksSeries(title)) TvType.Anime else TvType.Movie
+    private fun isCollectionTitle(title: String): Boolean = Regex("""(?i)\b(all\s+doraemon\s+movies|all\s+shin\s*chan\s+movies|all\s+movies|movie\s+collection|complete\s+collection|all\s+seasons)\b""").containsMatchIn(title)
+
+    private fun guessType(title: String): TvType = when {
+        isCollectionTitle(title) -> TvType.TvSeries
+        looksSeries(title) -> TvType.Anime
+        else -> TvType.Movie
+    }
 
     private fun detectQualityLabel(text: String): String? = Regex("""(?i)\b(2160p|1080p|720p|480p|360p)\b""")
         .find(text)?.groupValues?.getOrNull(1)
