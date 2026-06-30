@@ -7,7 +7,6 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -15,6 +14,7 @@ import org.json.JSONObject
 import org.jsoup.nodes.Document
 import kotlinx.coroutines.CancellationException
 import java.net.URI
+import java.net.URLDecoder
 
 private const val EXTRACTOR_UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
@@ -93,6 +93,37 @@ fun getIndexQuality(str: String?): Int {
     }
 }
 
+private fun isDirectVideoUrlForExtractor(url: String): Boolean {
+    val clean = url.substringBefore('?').lowercase()
+    return clean.endsWith(".mp4") || clean.endsWith(".mkv") ||
+        clean.endsWith(".webm") || clean.endsWith(".avi") ||
+        clean.endsWith(".mov") || clean.endsWith(".m3u8") ||
+        url.contains("googleusercontent", ignoreCase = true) ||
+        url.contains("busycdn", ignoreCase = true) ||
+        url.contains("workers.dev", ignoreCase = true)
+}
+
+private fun extractQueryParameter(url: String, key: String): String? {
+    val query = url.substringAfter('?', "")
+    if (query.isBlank()) return null
+    return query.split('&').firstNotNullOfOrNull { part ->
+        val name = part.substringBefore('=')
+        if (name == key) URLDecoder.decode(part.substringAfter('=', ""), "UTF-8") else null
+    }
+}
+
+private suspend fun resolveBusyCdnDirectUrl(url: String): String? {
+    val res = app.get(url, headers = EXTRACTOR_HEADERS, referer = "https://new1.gdflix.io/", allowRedirects = false, timeout = 12)
+    val location = res.headers["Location"] ?: res.headers["location"] ?: return null
+    val target = when {
+        location.startsWith("http", ignoreCase = true) -> location
+        location.startsWith("//") -> "https:$location"
+        location.startsWith("/") -> getBaseUrl(url) + location
+        else -> getBaseUrl(url) + "/" + location
+    }
+    return extractQueryParameter(target, "url") ?: target.takeIf { isDirectVideoUrlForExtractor(it) }
+}
+
 // HubCloud
 open class HubCloud : ExtractorApi() {
     override val name = "Hub-Cloud"
@@ -165,20 +196,35 @@ open class GDFlix : ExtractorApi() {
                 val link = anchor.attr("href")
                 val absLink = absolutize(baseUrl, link)
                 when {
-                    text.contains("instant") || absLink.contains("instant.") || absLink.contains("busycdn") -> callback.invoke(newExtractorLink("$name[Instant]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
-                    text.contains("direct") -> callback.invoke(newExtractorLink("$name[Direct]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
-                    text.contains("fsl") -> callback.invoke(newExtractorLink("$name[FSL]", "$name $fileName[$fileSize]", absLink) { this.quality = quality })
-                    text.contains("cloud") || text.contains("zipdisk") || absLink.contains("/zfile/") -> callback.invoke(newExtractorLink("$name[Cloud]", "$name[Cloud] $fileName[$fileSize]", absLink) { this.quality = quality })
-                    text.contains("zipdisk") -> {
+                    // These GDFlix buttons are download-container pages, not video containers.
+                    // CloudStream's player reports ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED (3003)
+                    // if it receives them as plain ExtractorLink URLs. Do not emit them directly.
+                    // Keep the external dispatch for GoFile/MultiUp below, and prefer the real
+                    // Instant direct CDN URL when GDFlix exposes it in the page.
+                    text.contains("instant") || absLink.contains("instant.") || absLink.contains("busycdn") -> {
+                        if (absLink.contains("busycdn", ignoreCase = true)) {
+                            val direct = runCatching { resolveBusyCdnDirectUrl(absLink) }.getOrNull()
+                            val playable = direct?.takeIf { isDirectVideoUrlForExtractor(it) }
+                            if (!playable.isNullOrBlank()) {
+                                callback.invoke(newExtractorLink("$name[Instant]", "$name[Instant] $fileName[$fileSize]", playable) {
+                                    this.quality = quality
+                                })
+                            }
+                        }
+                    }
+                    text.contains("direct") && isDirectVideoUrlForExtractor(absLink) -> callback.invoke(newExtractorLink("$name[Direct]", "$name[Direct] $fileName[$fileSize]", absLink) { this.quality = quality })
+                    text.contains("fsl") && isDirectVideoUrlForExtractor(absLink) -> callback.invoke(newExtractorLink("$name[FSL]", "$name[FSL] $fileName[$fileSize]", absLink) { this.quality = quality })
+                    text.contains("zipdisk") || absLink.contains("/zfile/") -> {
                         try {
                             val zipDoc = getDocumentFutureProof(absLink, url)
-                            val btn = zipDoc.selectFirst("a[href*=workers.dev], a[href*=download], a.btn-success")?.attr("href")
-                            if (!btn.isNullOrBlank()) {
-                                callback.invoke(newExtractorLink("$name[ZipDisk]", "$name[ZipDisk] $fileName[$fileSize]", btn) { this.quality = quality })
+                            val btn = zipDoc.selectFirst("a[href*=workers.dev], a[href*=download], a[href*=cdn], a.btn-success, a.btn-primary")?.attr("href")
+                            val direct = btn?.let { absolutize(getBaseUrl(absLink), it) }
+                            if (!direct.isNullOrBlank() && isDirectVideoUrlForExtractor(direct)) {
+                                callback.invoke(newExtractorLink("$name[ZipDisk]", "$name[ZipDisk] $fileName[$fileSize]", direct) { this.quality = quality })
                             }
                         } catch(e: Exception) { Log.e("GDFlix", "ZipDisk error: ${e.message}") }
                     }
-                    text.contains("gofile") || text.contains("goflix") -> loadExtractor(absLink, baseUrl, subtitleCallback, callback)
+                    text.contains("gofile") || text.contains("goflix") || absLink.contains("goflix.sbs") -> loadExtractor(absLink, baseUrl, subtitleCallback, callback)
                 }
             }
         } catch (e: Exception) { if (e is CancellationException) throw e; Log.e("GDFlix", e.toString()) }
