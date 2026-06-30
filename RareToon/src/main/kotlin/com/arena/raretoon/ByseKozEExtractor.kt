@@ -8,7 +8,6 @@ import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.utils.newSubtitleFile
 import org.json.JSONObject
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
@@ -78,7 +77,7 @@ class ByseKozE : ExtractorApi() {
             val lang = track.optString("language")
                 .ifBlank { track.optString("title") }
                 .ifBlank { "Subtitle" }
-            subtitleCallback.invoke(newSubtitleFile(lang, url))
+            subtitleCallback.invoke(SubtitleFile(lang, url))
         }
     }
 
