@@ -160,7 +160,7 @@ class KatMovieHDProvider : MainAPI() {
                     // KMHD-native (handled by KmhdExtractor)
                     """links\.kmhd\.[a-z]+|kmhd\.net|gd\.kmhd|""" +
                     // GDFlix family (handled by GDFlix* extractors in Extractors.kt)
-                    """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|""" +
+                    """gdflix\.[a-z]+|gd-flix|gdlink|gdtot|gdmirror|gdstream|""" +
                     // HubCloud / Hubdrive / Katdrive family
                     """hubcloud\.[a-z]+|hubcdn|hubstream|hubdrive|katdrive|""" +
                     // Generic cloud / file-share hosts that Cloudstream knows
@@ -365,7 +365,7 @@ class KatMovieHDProvider : MainAPI() {
         // Fallback 1: category/search pages use bare <div class="post-content">
         // and <div class="post-thumb"> WITHOUT an <li id="post-N"> wrapper.
         // The heading anchor inside .post-content is still the correct permalink.
-        val direct = doc.select("article, .post, .post-content, .type-post, main section").mapNotNull { it.toSearchResult() }
+        val direct = doc.select("article.type-post, article[id^=post-], .post.type-post, .type-post, .post-content").mapNotNull { it.toSearchResult() }
         if (direct.isNotEmpty()) return direct.distinctBy { it.url }
 
         // Fallback 2: any anchor wrapping an <img> that points at a post.
@@ -494,11 +494,20 @@ class KatMovieHDProvider : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val anchor = selectFirst("h2 a, h1 a, .entry-title a")
-            ?: selectFirst("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=moviesbaba]")
-            ?: selectFirst("a")
+        val anchor = selectFirst(".entry-title a[href], h2.entry-title a[href], h1.entry-title a[href], h2 a[href], h1 a[href]")
+            ?: select("a[href*=katmoviehd], a[href*=katdrama], a[href*=pikahd], a[href*=moviesbaba]").firstOrNull { a ->
+                !a.attr("href").contains("#comment", ignoreCase = true) &&
+                    !a.attr("href").contains("/author/", ignoreCase = true) &&
+                    !a.attr("href").contains("/category/", ignoreCase = true)
+            }
+            ?: select("a[href]").firstOrNull { a ->
+                val h = a.attr("href")
+                h.startsWith("http", ignoreCase = true) && !h.contains("#comment", ignoreCase = true)
+            }
             ?: return null
         val href = anchor.attr("href").ifBlank { return null }
+        val badHref = listOf("#comment", "/author/", "/category/", "/tag/", "/feed/", "/wp-")
+        if (badHref.any { href.contains(it, ignoreCase = true) }) return null
         val rawTitle = anchor.attr("title")
             .ifBlank { anchor.text() }
             .ifBlank { return null }
@@ -749,21 +758,34 @@ class KatMovieHDProvider : MainAPI() {
             }
         }
         
+        val preferredContainer = listOf(
+            "article.type-post .entry-content",
+            "article[id^=post-] .entry-content",
+            ".entry-content",
+            ".post-content",
+            "main article.type-post",
+            "article.type-post",
+            "article[id^=post-]",
+            "div#content",
+            "main"
+        ).firstNotNullOfOrNull { selector ->
+            doc.selectFirst(selector)?.takeIf { it.select("a[href], iframe[src], embed[src], source[src]").isNotEmpty() || it.text().length > 80 }
+        }
+        if (preferredContainer != null) return preferredContainer
+
         // Ultra Fallback
-        if (doc.select("article, .entry-content, .post-content, div#content, main").isEmpty()) {
-            val urls = Regex("""https?://[a-zA-Z0-9.-]+/[^\s"\\]+""").findAll(html)
-            val builder = StringBuilder()
-            urls.forEach { 
-                if (it.value.contains(LINK_HOST_REGEX)) {
-                    builder.append("<a href='${it.value}'>Link</a><br>")
-                }
-            }
-            if (builder.isNotEmpty()) {
-                return Jsoup.parse(builder.toString()).body()
+        val urls = Regex("""https?://[a-zA-Z0-9.-]+/[^\s"\\]+""").findAll(html)
+        val builder = StringBuilder()
+        urls.forEach {
+            if (LINK_HOST_REGEX.containsMatchIn(it.value)) {
+                builder.append("<a href='${it.value}'>Link</a><br>")
             }
         }
-        
-        return doc.selectFirst("article, .entry-content, .post-content, div#content, main") ?: doc.body()
+        if (builder.isNotEmpty()) {
+            return Jsoup.parse(builder.toString()).body()
+        }
+
+        return doc.body()
     }
 
     private suspend fun discoverEpisodes(
@@ -1377,6 +1399,10 @@ class KatMovieHDProvider : MainAPI() {
                 }
                 Regex("""(?i)(gdtot)""").containsMatchIn(url) -> {
                     GDTot().getUrl(url, mainUrl, subtitleCallback, callback)
+                    true
+                }
+                Regex("""(?i)(gdstream)""").containsMatchIn(url) -> {
+                    loadExtractor(url, mainUrl, subtitleCallback, callback)
                     true
                 }
                 // Everything else: try Cloudstream's stock registry.
