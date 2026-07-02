@@ -29,10 +29,10 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :RareToon:generateDebugResources
 > Task :RareToon:packageDebugResources
 > Task :RareToon:processDebugNavigationResources
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :RareToon:parseDebugLocalResources
-> Task :RareToon:generateDebugRFile
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :KatMovieHD:generateDebugRFile
+> Task :RareToon:generateDebugRFile
 > Task :RareToon:compileDebugKotlin
 
 > Task :KatMovieHD:compileDebugKotlin
@@ -60,6 +60,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ra
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 44s
+BUILD SUCCESSFUL in 33s
 21 actionable tasks: 21 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
