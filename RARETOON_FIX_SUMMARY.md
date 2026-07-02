@@ -1,7 +1,7 @@
 # Rare Toon India Provider Fix Summary
 
 **Status:** ✅ Fixed, compiled, and pushed to `main`  
-**Commits:** `e03d995` (v16), `658a142` (v16.1 follow-up)  
+**Commits:** `e03d995` (v16), `658a142` (v16.1 follow-up), `83789ec` (v16.2 UA fix)  
 **Plugin version:** `16`
 
 ---
@@ -31,6 +31,9 @@
 
 8. **Episode numbers missing (v16.1)**  
    The site places `Episode 01` in a separate HTML element from the QuickWatch link, so all episodes were unlabeled/mis-grouped.
+
+9. **Desktop UA requirement (v16.2)**  
+   Bysekoze signs stream URLs against the UA class used for the API call. Requesting the API with a **mobile UA** produced tokens that only worked with that exact mobile UA, so CloudStream/VLC/ExoPlayer got 404. Requesting with a **desktop UA** produces tokens that work with the player's default UA, ExoPlayer, VLC, and even no UA.
 
 ---
 
@@ -62,6 +65,7 @@
 | **Quality** | Added 360p detection and passes the original referer through to extractor links. |
 | **M3U8 type** | (v16.1) Links are now created with `ExtractorLinkType.M3U8` so CloudStream uses the HLS player. |
 | **User-Agent** | (v16.1) Extractor links carry a browser `User-Agent`; the CDN edge returns 404 without one. |
+| **Desktop UA** | (v16.2) Bysekoze tokens are UA-class specific. Switched API requests to a desktop Chrome UA so the resulting m3u8 works with CloudStream, ExoPlayer and VLC. |
 
 ### `RareToon/build.gradle.kts`
 
