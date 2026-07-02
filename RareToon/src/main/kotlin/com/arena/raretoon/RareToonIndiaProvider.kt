@@ -52,9 +52,10 @@ class RareToonIndiaProvider : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Anime, TvType.TvSeries, TvType.Movie)
 
-    /** Request headers mimicking a real mobile browser. */
+    /** Request headers mimicking a real desktop browser (MediaFire serves the
+     *  download page only to desktop UAs; WordPress is UA-agnostic). */
     private val headers = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language" to "en-US,en;q=0.9,hi;q=0.8",
         "Referer" to "$DEFAULT_MAIN_URL/"
@@ -248,8 +249,8 @@ class RareToonIndiaProvider : MainAPI() {
                         }
                     }
                     url.contains("mega.nz", ignoreCase = true) -> {
-                        // MEGA requires a dedicated extractor; skip to avoid fake playable links.
-                        Log.d(TAG, "Skipping MEGA link: $url")
+                        // Let CloudStream's built-in extractors handle MEGA if available.
+                        loadExtractor(url, mainUrl, wrappedSubtitle, wrappedCallback)
                     }
                     else -> loadExtractor(url, mainUrl, wrappedSubtitle, wrappedCallback)
                 }
@@ -611,9 +612,13 @@ class RareToonIndiaProvider : MainAPI() {
     // -------------------------------------------------------------------------
 
     private suspend fun resolveMediaFire(url: String): String? = try {
-        val doc = app.get(url, headers = headers, timeout = 20).document
+        // MediaFire serves the download link only to desktop UAs.
+        val desktopHeaders = headers + mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        )
+        val doc = app.get(url, headers = desktopHeaders, timeout = 25).document
         doc.selectFirst("#downloadButton")?.absUrl("href")?.ifBlank { null }
-            ?: Regex("""https?://download\d+\.mediafire\.com/[^\"']+""", RegexOption.IGNORE_CASE)
+            ?: Regex("""https?://download\d+\.mediafire\.com/[^\"'<>\s]+""", RegexOption.IGNORE_CASE)
                 .find(doc.html())?.value
     } catch (e: Exception) {
         Log.e(TAG, "resolveMediaFire failed: ${e.message}")
