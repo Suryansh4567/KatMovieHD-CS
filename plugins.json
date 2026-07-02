@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/RareToon.cs3",
         "status": 1,
-        "version": 15,
+        "version": 16,
         "name": "RareToon",
         "internalName": "RareToon",
         "authors": [
             "arena"
         ],
-        "description": "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v15 adds MediaFire final-download resolution and stops exposing unsupported Mega landing pages as fake playable links.",
-        "fileSize": 44279,
+        "description": "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v16 improves search relevance, episode deduplication, home-page categories and error handling.",
+        "fileSize": 53279,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -42,6 +42,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=raretoonindia.in&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-4685ecdd73915a0c1980c85a8967aca5cad26424486576d4a8642d31e6be8902"
+        "fileHash": "sha256-dece048a617b233b3f259395fd6a6f89c213f42cc278828d52ac5e88de93cabd"
     }
 ]
