@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.json.JSONObject
@@ -92,9 +93,16 @@ class ByseKozE : ExtractorApi() {
                 }
 
                 callback.invoke(
-                    newExtractorLink(name, "$name ${label.ifBlank { title }}", streamUrl) {
+                    newExtractorLink(
+                        source = name,
+                        name = "$name ${label.ifBlank { title }}",
+                        url = streamUrl,
+                        type = ExtractorLinkType.M3U8
+                    ) {
                         this.quality = quality
                         this.referer = referer ?: mainUrl
+                        // Some CDN edge nodes return 404 if no User-Agent is present.
+                        this.headers = mapOf("User-Agent" to headers["User-Agent"].orEmpty())
                     }
                 )
             }

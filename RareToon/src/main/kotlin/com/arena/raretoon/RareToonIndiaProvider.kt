@@ -489,13 +489,27 @@ class RareToonIndiaProvider : MainAPI() {
     private fun collectPlayableMirrors(html: String, season: Int?): List<Mirror> {
         val doc = Jsoup.parseBodyFragment(html)
         val mirrors = mutableListOf<Mirror>()
+        var currentEpisode: Int? = null
+        var currentLabel: String? = null
+        var currentQuality: String? = null
         var lastHeadingText = ""
 
+        // Traverse the document in order. Whenever we see an episode/quality
+        // marker we keep it; when we see a playable link we assign the most
+        // recent marker. This handles sites that put "Episode 01" and the
+        // QuickWatch link in separate sibling elements.
         doc.select("h1,h2,h3,h4,h5,h6,p,li,div,span,strong,b,a[href]").forEach { el ->
-            val text = el.ownText().ifBlank { el.text() }.trim()
+            val text = el.text().trim()
             if (el.tagName().matches(Regex("""h[1-6]"""))) {
                 lastHeadingText = text
             }
+
+            // Update rolling markers from any element text.
+            episodeNumber(text)?.let {
+                currentEpisode = it
+                currentLabel = episodeLabel(text)
+            }
+            detectQualityLabel(text)?.let { currentQuality = it }
 
             val rawUrl = when {
                 el.hasAttr("href") -> el.absUrl("href").ifBlank { el.attr("href") }
@@ -505,8 +519,7 @@ class RareToonIndiaProvider : MainAPI() {
             if (!isPlayableExternalUrl(rawUrl)) return@forEach
 
             val code = extractByseCode(rawUrl)
-            val parentText = el.parent()?.text()?.take(180).orEmpty()
-            val context = "$lastHeadingText $parentText $text"
+            val context = "$lastHeadingText $text"
 
             val url = if (rawUrl.contains("bysekoze.", true)) {
                 code?.let { "https://bysekoze.com/d/$it" } ?: rawUrl
@@ -515,10 +528,10 @@ class RareToonIndiaProvider : MainAPI() {
             mirrors.add(
                 Mirror(
                     url = url,
-                    label = episodeLabel(context),
-                    episode = episodeNumber(context),
+                    label = currentLabel ?: episodeLabel(context),
+                    episode = currentEpisode ?: episodeNumber(context),
                     season = seasonNumber(context) ?: season,
-                    quality = detectQualityLabel(context) ?: detectQualityLabel(rawUrl),
+                    quality = currentQuality ?: detectQualityLabel(context) ?: detectQualityLabel(rawUrl),
                     code = code
                 )
             )
@@ -634,6 +647,12 @@ class RareToonIndiaProvider : MainAPI() {
     private fun extractEmbeddedPoster(obj: JSONObject): String? {
         val embedded = obj.optJSONObject("_embedded") ?: return null
         val media = embedded.optJSONArray("wp:featuredmedia")?.optJSONObject(0) ?: return null
+        // Prefer a down-sized image (large) to avoid huge WebP files that some
+        // CloudStream image loaders struggle with, but fall back to the full source_url.
+        val sizes = media.optJSONObject("media_details")?.optJSONObject("sizes")
+        listOf("large", "medium_large", "medium", "thumbnail").forEach { size ->
+            sizes?.optJSONObject(size)?.optString("source_url")?.ifBlank { null }?.let { return it }
+        }
         return media.optString("source_url").ifBlank { null }
     }
 
