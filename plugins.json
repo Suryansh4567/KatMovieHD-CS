@@ -32,7 +32,7 @@
             "arena"
         ],
         "description": "Rare Toon India: Hindi cartoons, anime, movies and series from raretoonindia.in with ByseKozE playback. v16 improves search relevance, episode deduplication, home-page categories and error handling.",
-        "fileSize": 53685,
+        "fileSize": 53712,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -42,6 +42,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=raretoonindia.in&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-0265c386a22cf52a6f15c375c63d955fbe130ca85aa90ca798d620c9e819b9b0"
+        "fileHash": "sha256-4fc8e84913e1f4d73a3e1391eaceab199173b0cb82dbadb1355382188619c065"
     }
 ]
