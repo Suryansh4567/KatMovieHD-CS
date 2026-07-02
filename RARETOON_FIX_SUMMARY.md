@@ -1,7 +1,7 @@
 # Rare Toon India Provider Fix Summary
 
 **Status:** ✅ Fixed, compiled, and pushed to `main`  
-**Commits:** `e03d995` (v16), `658a142` (v16.1 follow-up), `83789ec` (v16.2 UA fix)  
+**Commits:** `e03d995` (v16), `658a142` (v16.1 follow-up), `83789ec` (v16.2 UA fix), `59836b5` (v16.3 MediaFire fix)  
 **Plugin version:** `16`
 
 ---
@@ -35,6 +35,9 @@
 9. **Desktop UA requirement (v16.2)**  
    Bysekoze signs stream URLs against the UA class used for the API call. Requesting the API with a **mobile UA** produced tokens that only worked with that exact mobile UA, so CloudStream/VLC/ExoPlayer got 404. Requesting with a **desktop UA** produces tokens that work with the player's default UA, ExoPlayer, VLC, and even no UA.
 
+10. **Older posts with MediaFire / MEGA (v16.3)**  
+   Posts like *Shin Chan The Movie Masala Story* only offer MEGA + MediaFire links. The provider used a mobile UA, and MediaFire serves the download page **only to desktop UAs**, so MediaFire resolution returned nothing. MEGA links were also being skipped instead of passed to CloudStream's extractors.
+
 ---
 
 ## What was fixed
@@ -53,6 +56,7 @@
 | **Search types** | Uses `newAnimeSearchResponse`, `newTvSeriesSearchResponse`, and `newMovieSearchResponse` based on title/URL heuristics. |
 | **Episode numbering** | (v16.1) Fixed because the site puts `Episode 01` in a separate `<strong>`/`<p>` from the QuickWatch link; previous parent-text parsing always returned `null`. Now we keep a rolling "current episode" marker while traversing the document. |
 | **Poster** | (v16.1) Prefer smaller WordPress featured-image sizes to reduce image-loader failures. |
+| **MediaFire / older posts** | (v16.3) Older posts only provide MEGA + MediaFire links. MediaFire returns the direct download URL only to desktop UAs, and the provider was using a mobile UA. Switched provider to desktop UA, hardened `resolveMediaFire()`, and pass MEGA to `loadExtractor` instead of skipping it. |
 
 ### `ByseKozEExtractor.kt`
 
