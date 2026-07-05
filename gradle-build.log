@@ -29,19 +29,34 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :PagalMovies:generateDebugResources
 > Task :PagalMovies:packageDebugResources
 > Task :PagalMovies:processDebugNavigationResources
-> Task :PagalMovies:parseDebugLocalResources
 > Task :KatMovieHD:parseDebugLocalResources
-> Task :KatMovieHD:generateDebugRFile
+> Task :PagalMovies:parseDebugLocalResources
 > Task :PagalMovies:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
 
-> Task :PagalMovies:compileDebugKotlin FAILED
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:37:5 'client' overrides nothing.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:37:31 Unresolved reference 'client'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:38:27 Cannot infer type for value parameter 'chain'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:39:33 Unresolved reference 'request'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:43:19 Unresolved reference 'proceed'.
+> Task :PagalMovies:compileDebugKotlin
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:39:5 'client' overrides nothing.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:39:31 Unresolved reference 'client'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:40:27 Cannot infer type for value parameter 'chain'. Specify it explicitly.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:41:33 Unresolved reference 'request'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:45:19 Unresolved reference 'proceed'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:114:37 None of the following candidates is applicable:
+
+fun LoadResponse.addActors(actors: List<String>?): Unit:
+  Argument type mismatch: actual type is 'List<ActorData>?', but 'List<String>?' was expected.
+
+fun LoadResponse.addActors(actors: List<Pair<Actor, String?>>?): Unit:
+  Argument type mismatch: actual type is 'List<ActorData>?', but 'List<Pair<Actor, String?>>?' was expected.
+
+fun LoadResponse.addActors(actors: List<Pair<Actor, ActorRole?>>?): Unit:
+  Argument type mismatch: actual type is 'List<ActorData>?', but 'List<Pair<Actor, ActorRole?>>?' was expected.
+
+fun LoadResponse.addActors(actors: List<Actor>?): Unit:
+  Argument type mismatch: actual type is 'List<ActorData>?', but 'List<Actor>?' was expected.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:144:37 No parameter with name 'referer' found.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:145:37 No parameter with name 'quality' found.
+
+> Task :PagalMovies:compileDebugKotlin FAILED
 
 > Task :KatMovieHD:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
@@ -238,5 +253,5 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	... 2 more
 
 
-BUILD FAILED in 36s
+BUILD FAILED in 38s
 12 actionable tasks: 12 executed
