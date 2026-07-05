@@ -84,9 +84,9 @@ class PagalMoviesAlpha : MainAPI() {
         val poster = result?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } ?: sitePoster
         val plot = result?.overview ?: sitePlot
 
-        val fileLinks = doc.select("a[href*=file/]").joinToString("###") { it.attr("href") }
+        val fileLinks = doc.select("a[href*=file/]").map { it.attr("href") }
 
-        return newMovieLoadResponse(rawTitle, url, TvType.Movie, fileLinks) {
+        return newMovieLoadResponse(rawTitle, url, TvType.Movie, fileLinks.joinToString("###")) {
             this.posterUrl = poster
             this.plot = plot
             this.year = result?.release_date?.take(4)?.toIntOrNull()
@@ -96,13 +96,29 @@ class PagalMoviesAlpha : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        data.split("###").forEach { link ->
-            val serverUrl = fixUrl(app.get(fixUrl(link)).document.select("a:contains(Click Here to Go to Download Page)").attr("href"))
+        // Fix: Use for loop instead of forEach for suspending calls
+        for (link in data.split("###")) {
+            if (link.isBlank()) continue
+            val filePageDoc = app.get(fixUrl(link)).document
+            val serverUrl = fixUrl(filePageDoc.select("a:contains(Click Here to Go to Download Page)").attr("href"))
+            
             if (serverUrl.isNotBlank()) {
-                app.get(serverUrl).document.select("a[href*=/server/], a[href*=/download/]").forEach {
-                    val finalUrl = app.get(fixUrl(it.attr("href")), allowRedirects = true).url
-                    if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv")) {
-                        callback.invoke(ExtractorLink(this.name, it.text(), finalUrl, mainUrl, Qualities.Unknown.value))
+                val serverPageDoc = app.get(serverUrl).document
+                for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
+                    val href = it.attr("href")
+                    if (href.isBlank()) continue
+                    
+                    val finalUrl = app.get(fixUrl(href), allowRedirects = true).url
+                    if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
+                        callback.invoke(
+                            ExtractorLink(
+                                this.name, 
+                                it.text().ifEmpty { "High Speed Server" }, 
+                                finalUrl, 
+                                mainUrl, 
+                                if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
+                            )
+                        )
                     }
                 }
             }
