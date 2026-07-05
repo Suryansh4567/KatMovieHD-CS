@@ -31,16 +31,16 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :PagalMovies:processDebugNavigationResources
 > Task :KatMovieHD:parseDebugLocalResources
 > Task :PagalMovies:parseDebugLocalResources
-> Task :KatMovieHD:generateDebugRFile
 > Task :PagalMovies:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
 
 > Task :PagalMovies:compileDebugKotlin FAILED
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:20:5 'client' overrides nothing.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:20:31 Unresolved reference 'client'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:21:27 Cannot infer type for value parameter 'chain'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:22:33 Unresolved reference 'request'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:26:19 Unresolved reference 'proceed'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:114:29 'constructor(source: String, name: String, url: String, referer: String, quality: Int, isM3u8: Boolean = ..., headers: Map<String, String> = ..., extractorData: String? = ...): ExtractorLink' is deprecated. Use newExtractorLink.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:25:5 'client' overrides nothing.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:25:31 Unresolved reference 'client'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:26:27 Cannot infer type for value parameter 'chain'. Specify it explicitly.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:27:33 Unresolved reference 'request'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:31:19 Unresolved reference 'proceed'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:119:33 'constructor(source: String, name: String, url: String, referer: String, quality: Int, isM3u8: Boolean = ..., headers: Map<String, String> = ..., extractorData: String? = ...): ExtractorLink' is deprecated. Use newExtractorLink.
 
 > Task :KatMovieHD:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
@@ -237,5 +237,5 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	... 2 more
 
 
-BUILD FAILED in 37s
+BUILD FAILED in 36s
 12 actionable tasks: 12 executed
