@@ -1,5 +1,6 @@
 package com.arena
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -7,22 +8,23 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
-// Top-level classes for stable Jackson deserialization
+// Top-level classes with Proper Jackson Annotations
 data class TMDBResponse(
-    val results: List<TMDBResult>? = null
+    @JsonProperty("results") val results: List<TMDBResult>? = null
 )
 data class TMDBResult(
-    val poster_path: String? = null,
-    val overview: String? = null,
-    val release_date: String? = null,
-    val id: Int? = null
+    @JsonProperty("poster_path") val poster_path: String? = null,
+    @JsonProperty("overview") val overview: String? = null,
+    @JsonProperty("release_date") val release_date: String? = null,
+    @JsonProperty("id") val id: Int? = null,
+    @JsonProperty("title") val title: String? = null
 )
 data class TMDBStars(
-    val cast: List<TMDBActor>? = null
+    @JsonProperty("cast") val cast: List<TMDBActor>? = null
 )
 data class TMDBActor(
-    val name: String? = null,
-    val profile_path: String? = null
+    @JsonProperty("name") val name: String? = null,
+    @JsonProperty("profile_path") val profile_path: String? = null
 )
 
 class PagalMoviesAlpha : MainAPI() {
@@ -80,8 +82,7 @@ class PagalMoviesAlpha : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.attr("title").ifEmpty { this.select("img").attr("alt") } ?: return null
-        val href = this.attr("href")
-        if (href.isNullOrBlank()) return null
+        val href = this.attr("href") ?: return null
         return newMovieSearchResponse(title, fixUrl(href), TvType.Movie) {
             this.posterUrl = fixUrl(this@toSearchResult.select("img").attr("src"))
         }
@@ -109,7 +110,7 @@ class PagalMoviesAlpha : MainAPI() {
             this.posterUrl = poster
             this.plot = plot
             this.year = result?.release_date?.take(4)?.toIntOrNull()
-            addTrailer(cleanTitle)
+            addTrailer(result?.title ?: cleanTitle)
             result?.id?.let { id -> addActors(getActors(id)) }
         }
     }
@@ -129,8 +130,7 @@ class PagalMoviesAlpha : MainAPI() {
                 if (serverUrl.isNotBlank()) {
                     val serverPageDoc = app.get(serverUrl).document
                     for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
-                        val href = it.attr("href")
-                        if (href.isNullOrBlank()) continue
+                        val href = it.attr("href") ?: continue
                         
                         val finalRes = app.get(fixUrl(href), allowRedirects = true)
                         val finalUrl = finalRes.url
@@ -153,10 +153,10 @@ class PagalMoviesAlpha : MainAPI() {
         return true
     }
 
-    private suspend fun getActors(tmdbId: Int): List<Actor>? {
+    private suspend fun getActors(tmdbId: Int): List<ActorData>? {
         return try {
             val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").parsedSafe<TMDBStars>()
-            res?.cast?.take(5)?.map { Actor(it.name ?: "Unknown", "https://image.tmdb.org/t/p/w200${it.profile_path}") }
+            res?.cast?.take(5)?.map { ActorData(Actor(it.name ?: "Unknown", "https://image.tmdb.org/t/p/w200${it.profile_path}")) }
         } catch(e: Exception) { null }
     }
 }
