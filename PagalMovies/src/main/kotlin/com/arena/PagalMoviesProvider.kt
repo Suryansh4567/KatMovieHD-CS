@@ -7,11 +7,23 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
-// Top-level data classes for better Jackson parsing
-data class TMDBResponse(val results: List<TMDBResult>? = null)
-data class TMDBResult(val poster_path: String? = null, val overview: String? = null, val release_date: String? = null, val id: Int? = null)
-data class TMDBStars(val cast: List<TMDBActor>? = null)
-data class TMDBActor(val name: String? = null, val profile_path: String? = null)
+// Top-level classes for stable Jackson deserialization
+data class TMDBResponse(
+    val results: List<TMDBResult>? = null
+)
+data class TMDBResult(
+    val poster_path: String? = null,
+    val overview: String? = null,
+    val release_date: String? = null,
+    val id: Int? = null
+)
+data class TMDBStars(
+    val cast: List<TMDBActor>? = null
+)
+data class TMDBActor(
+    val name: String? = null,
+    val profile_path: String? = null
+)
 
 class PagalMoviesAlpha : MainAPI() {
     override var mainUrl = "https://www.pagalmovies.boutique"
@@ -68,7 +80,9 @@ class PagalMoviesAlpha : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.attr("title").ifEmpty { this.select("img").attr("alt") } ?: return null
-        return newMovieSearchResponse(title, fixUrl(this.attr("href")), TvType.Movie) {
+        val href = this.attr("href")
+        if (href.isNullOrBlank()) return null
+        return newMovieSearchResponse(title, fixUrl(href), TvType.Movie) {
             this.posterUrl = fixUrl(this@toSearchResult.select("img").attr("src"))
         }
     }
@@ -100,7 +114,12 @@ class PagalMoviesAlpha : MainAPI() {
         }
     }
 
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    override suspend fun loadLinks(
+        data: String, 
+        isCasting: Boolean, 
+        subtitleCallback: (SubtitleFile) -> Unit, 
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
         for (link in data.split("###")) {
             if (link.isBlank()) continue
             try {
@@ -111,17 +130,19 @@ class PagalMoviesAlpha : MainAPI() {
                     val serverPageDoc = app.get(serverUrl).document
                     for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
                         val href = it.attr("href")
-                        if (href.isBlank()) continue
+                        if (href.isNullOrBlank()) continue
                         
-                        val finalUrl = app.get(fixUrl(href), allowRedirects = true).url
+                        val finalRes = app.get(fixUrl(href), allowRedirects = true)
+                        val finalUrl = finalRes.url
+                        
                         if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
                             callback.invoke(
-                                ExtractorLink(
-                                    this.name, 
-                                    it.text().ifEmpty { "High Speed Server" }, 
-                                    finalUrl, 
-                                    mainUrl, 
-                                    if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
+                                newExtractorLink(
+                                    source = this.name,
+                                    name = it.text().ifEmpty { "High Speed Server" },
+                                    url = finalUrl,
+                                    referer = mainUrl,
+                                    quality = if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
                                 )
                             )
                         }
