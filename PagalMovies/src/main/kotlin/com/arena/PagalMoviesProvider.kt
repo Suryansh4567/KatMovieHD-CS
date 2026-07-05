@@ -3,117 +3,122 @@ package com.arena
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 
-class PagalMoviesProvider : MainAPI() {
+class PagalMoviesAlpha : MainAPI() {
     override var mainUrl = "https://www.pagalmovies.boutique"
-    override var name = "PagalMovies Elite (Arena)"
+    override var name = "PagalMovies Alpha-Omega"
     override val hasMainPage = true
     override var lang = "hi"
-    override val hasQuickSearch = true // Refined: Enabling QuickSearch for better UX
+    override val hasQuickSearch = true
     
-    // Skill Level: Advanced. Using a dynamic list to handle future categories.
+    private val tmdbApiKey = "a96013620f4c029df4f78326e7925c48"
+
+    // Ghost Proxy Interceptor
+    override val client = app.client.newBuilder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("Accept-Language", "en-US,en;q=0.5")
+                .build()
+            chain.proceed(request)
+        }
+        .build()
+
+    private suspend fun getWorkingDomain(): String {
+        val mirrors = listOf(
+            "https://www.pagalmovies.boutique",
+            "https://www.pagalmovies.com.co",
+            "https://www.pagalmovies.top"
+        )
+        for (mirror in mirrors) {
+            try {
+                if (app.get(mirror, timeout = 3).isSuccessful) return mirror
+            } catch (e: Exception) { continue }
+        }
+        return mainUrl
+    }
+
     override val mainPage = mainPageOf(
-        "$mainUrl/movielist/12/Hollywood_hindi_dubbed_movies/default/" to "Hollywood Hindi Dubbed",
-        "$mainUrl/movielist/4/Bollywood_hindi_full_movies/default/" to "Bollywood Movies",
-        "$mainUrl/movielist/14/South_indian_hindi_dubbed_movies/default/" to "South Hindi Dubbed",
-        "$mainUrl/movielist/21/Hindi_web_series/default/" to "Hindi Web Series"
+        "/movielist/12/Hollywood_hindi_dubbed_movies/default/" to "Hollywood Hindi Dubbed",
+        "/movielist/4/Bollywood_hindi_full_movies/default/" to "Bollywood Movies",
+        "/movielist/14/South_indian_hindi_dubbed_movies/default/" to "South Hindi Dubbed"
     )
 
-    // Skill Level: High Performance. Fetching with efficient selectors.
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val doc = app.get("${request.data}$page.html").document
-        val home = doc.select("div.main-container a:has(img), a:has(img[src*=thumb])").mapNotNull {
-            it.toSearchResult()
-        }
+        mainUrl = getWorkingDomain()
+        val doc = app.get("$mainUrl${request.data}$page.html").document
+        val home = doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }
         return newHomePageResponse(request.name, home)
     }
 
-    // Refined Search: Handles both Search & QuickSearch
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchUrl = "$mainUrl/search.php?search=$query"
-        val doc = app.get(searchUrl).document
-        return doc.select("a:has(img[src*=thumb])").mapNotNull {
-            it.toSearchResult()
-        }
+        val encodedQuery = URLEncoder.encode(query, "utf-8")
+        val doc = app.get("$mainUrl/search.php?search=$encodedQuery").document
+        return doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.attr("title").ifEmpty { this.select("img").attr("alt") } ?: return null
-        val href = fixUrl(this.attr("href"))
-        val poster = fixUrl(this.select("img").attr("src"))
-        return newMovieSearchResponse(title, href, TvType.Movie) {
-            this.posterUrl = poster
+        return newMovieSearchResponse(title, fixUrl(this.attr("href")), TvType.Movie) {
+            this.posterUrl = fixUrl(this@toSearchResult.select("img").attr("src"))
         }
     }
 
-    // Skill Level: Data Integrity. Extracting multiple quality variants if available.
     override suspend fun load(url: String): LoadResponse {
         val doc = app.get(url).document
-        val title = doc.selectFirst("h1")?.text() ?: ""
-        val poster = fixUrl(doc.selectFirst("img[src*=files/images/]")?.attr("src") ?: "")
-        val description = doc.select("b:contains(Description) + i").text()
-        val year = Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
+        val rawTitle = doc.selectFirst("h1")?.text() ?: ""
+        val cleanTitle = rawTitle.replace(Regex("(?i)\\(.*\\)|Full Movie|Hindi Dubbed"), "").trim()
         
-        // Endless Possibilities: We look for all possible file links, not just one.
-        val fileLinks = doc.select("a[href*=file/]")
-        val data = fileLinks.joinToString("###") { it.attr("href") }
+        // Metadata Enhancement Logic
+        val sitePoster = fixUrl(doc.selectFirst("img[src*=files/images/]")?.attr("src") ?: "")
+        val sitePlot = doc.select("b:contains(Description) + i").text()
+        
+        val tmdbSearch = try {
+            app.get("https://api.themoviedb.org/3/search/movie?api_key=$tmdbApiKey&query=$cleanTitle").parsedSafe<TMDBResponse>()
+        } catch(e: Exception) { null }
 
-        return newMovieLoadResponse(title, url, TvType.Movie, data) {
+        val result = tmdbSearch?.results?.firstOrNull()
+        val poster = result?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } ?: sitePoster
+        val plot = result?.overview ?: sitePlot
+
+        val fileLinks = doc.select("a[href*=file/]").joinToString("###") { it.attr("href") }
+
+        return newMovieLoadResponse(rawTitle, url, TvType.Movie, fileLinks) {
             this.posterUrl = poster
-            this.plot = description
-            this.year = year
-            // Adding a search for trailer on YouTube automatically
-            addTrailer(title)
+            this.plot = plot
+            this.year = result?.release_date?.take(4)?.toIntOrNull()
+            addTrailer(cleanTitle)
+            result?.id?.let { id -> addActors(getActors(id)) }
         }
     }
 
-    // Skill Level: The "Bypass Master". 
-    // Combines Phisher's scraping, CNC's extractor logic, and Megarix's speed.
-    override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        // Splitting multiple quality files if stored in data
-        data.split("###").forEach { fileLink ->
-            val filePageUrl = fixUrl(fileLink)
-            val filePage = app.get(filePageUrl).document
-            
-            // PagalMovies Redirection Trap Bypass
-            val downloadPageUrl = fixUrl(filePage.select("a:contains(Click Here to Go to Download Page), a.download-btn").attr("href"))
-            if (downloadPageUrl.isEmpty()) return@forEach
-
-            val serverPage = app.get(downloadPageUrl).document
-            
-            // Endless Possibilities: Smart Filtering for Servers
-            serverPage.select("a[href*=/server/], a[href*=/download/], a:contains(Server)").forEach {
-                val serverLink = fixUrl(it.attr("href"))
-                
-                // Using allowRedirects=true to catch the final .mp4 stream after 3+ jumps
-                val finalResponse = app.get(serverLink, allowRedirects = true, timeout = 15)
-                val finalUrl = finalResponse.url
-
-                if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
-                    val quality = when {
-                        finalUrl.contains("720p") -> Qualities.P720.value
-                        finalUrl.contains("1080p") -> Qualities.P1080.value
-                        else -> Qualities.P480.value
+    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        data.split("###").forEach { link ->
+            val serverUrl = fixUrl(app.get(fixUrl(link)).document.select("a:contains(Click Here to Go to Download Page)").attr("href"))
+            if (serverUrl.isNotBlank()) {
+                app.get(serverUrl).document.select("a[href*=/server/], a[href*=/download/]").forEach {
+                    val finalUrl = app.get(fixUrl(it.attr("href")), allowRedirects = true).url
+                    if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv")) {
+                        callback.invoke(ExtractorLink(this.name, it.text(), finalUrl, mainUrl, Qualities.Unknown.value))
                     }
-
-                    callback.invoke(
-                        ExtractorLink(
-                            this.name,
-                            it.text().ifEmpty { "Elite Stream" },
-                            finalUrl,
-                            referer = mainUrl,
-                            quality = quality
-                        )
-                    )
                 }
             }
         }
         return true
     }
+
+    private suspend fun getActors(tmdbId: Int): List<Actor>? {
+        return try {
+            val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").parsedSafe<TMDBStars>()
+            res?.cast?.take(5)?.map { Actor(it.name, "https://image.tmdb.org/t/p/w200${it.profile_path}") }
+        } catch(e: Exception) { null }
+    }
+
+    data class TMDBResponse(val results: List<TMDBResult>)
+    data class TMDBResult(val poster_path: String?, val overview: String?, val release_date: String?, val id: Int)
+    data class TMDBStars(val cast: List<TMDBActor>)
+    data class TMDBActor(val name: String, val profile_path: String?)
 }
