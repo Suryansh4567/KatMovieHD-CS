@@ -7,6 +7,12 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
+// Top-level data classes for better Jackson parsing
+data class TMDBResponse(val results: List<TMDBResult>? = null)
+data class TMDBResult(val poster_path: String? = null, val overview: String? = null, val release_date: String? = null, val id: Int? = null)
+data class TMDBStars(val cast: List<TMDBActor>? = null)
+data class TMDBActor(val name: String? = null, val profile_path: String? = null)
+
 class PagalMoviesAlpha : MainAPI() {
     override var mainUrl = "https://www.pagalmovies.boutique"
     override var name = "PagalMovies Alpha-Omega"
@@ -16,7 +22,6 @@ class PagalMoviesAlpha : MainAPI() {
     
     private val tmdbApiKey = "a96013620f4c029df4f78326e7925c48"
 
-    // Ghost Proxy Interceptor
     override val client = app.client.newBuilder()
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
@@ -35,7 +40,8 @@ class PagalMoviesAlpha : MainAPI() {
         )
         for (mirror in mirrors) {
             try {
-                if (app.get(mirror, timeout = 3).isSuccessful) return mirror
+                val res = app.get(mirror, timeout = 3)
+                if (res.isSuccessful) return mirror
             } catch (e: Exception) { continue }
         }
         return mainUrl
@@ -72,7 +78,6 @@ class PagalMoviesAlpha : MainAPI() {
         val rawTitle = doc.selectFirst("h1")?.text() ?: ""
         val cleanTitle = rawTitle.replace(Regex("(?i)\\(.*\\)|Full Movie|Hindi Dubbed"), "").trim()
         
-        // Metadata Enhancement Logic
         val sitePoster = fixUrl(doc.selectFirst("img[src*=files/images/]")?.attr("src") ?: "")
         val sitePlot = doc.select("b:contains(Description) + i").text()
         
@@ -96,32 +101,33 @@ class PagalMoviesAlpha : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        // Fix: Use for loop instead of forEach for suspending calls
         for (link in data.split("###")) {
             if (link.isBlank()) continue
-            val filePageDoc = app.get(fixUrl(link)).document
-            val serverUrl = fixUrl(filePageDoc.select("a:contains(Click Here to Go to Download Page)").attr("href"))
-            
-            if (serverUrl.isNotBlank()) {
-                val serverPageDoc = app.get(serverUrl).document
-                for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
-                    val href = it.attr("href")
-                    if (href.isBlank()) continue
-                    
-                    val finalUrl = app.get(fixUrl(href), allowRedirects = true).url
-                    if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
-                        callback.invoke(
-                            ExtractorLink(
-                                this.name, 
-                                it.text().ifEmpty { "High Speed Server" }, 
-                                finalUrl, 
-                                mainUrl, 
-                                if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
+            try {
+                val filePageDoc = app.get(fixUrl(link)).document
+                val serverUrl = fixUrl(filePageDoc.select("a:contains(Click Here to Go to Download Page)").attr("href"))
+                
+                if (serverUrl.isNotBlank()) {
+                    val serverPageDoc = app.get(serverUrl).document
+                    for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
+                        val href = it.attr("href")
+                        if (href.isBlank()) continue
+                        
+                        val finalUrl = app.get(fixUrl(href), allowRedirects = true).url
+                        if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
+                            callback.invoke(
+                                ExtractorLink(
+                                    this.name, 
+                                    it.text().ifEmpty { "High Speed Server" }, 
+                                    finalUrl, 
+                                    mainUrl, 
+                                    if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
+                                )
                             )
-                        )
+                        }
                     }
                 }
-            }
+            } catch(e: Exception) { continue }
         }
         return true
     }
@@ -129,12 +135,7 @@ class PagalMoviesAlpha : MainAPI() {
     private suspend fun getActors(tmdbId: Int): List<Actor>? {
         return try {
             val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").parsedSafe<TMDBStars>()
-            res?.cast?.take(5)?.map { Actor(it.name, "https://image.tmdb.org/t/p/w200${it.profile_path}") }
+            res?.cast?.take(5)?.map { Actor(it.name ?: "Unknown", "https://image.tmdb.org/t/p/w200${it.profile_path}") }
         } catch(e: Exception) { null }
     }
-
-    data class TMDBResponse(val results: List<TMDBResult>)
-    data class TMDBResult(val poster_path: String?, val overview: String?, val release_date: String?, val id: Int)
-    data class TMDBStars(val cast: List<TMDBActor>)
-    data class TMDBActor(val name: String, val profile_path: String?)
 }
