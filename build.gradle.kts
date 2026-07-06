@@ -25,7 +25,7 @@ buildscript {
         // Same versions Phisher uses in production — proven to build on
         // ubuntu-latest with JDK 17.
         classpath("com.android.tools.build:gradle:9.1.1")
-        classpath("com.github.recloudstream:gradle:81b1d424d2")
+        classpath("com.github.recloudstream.gradle:gradle:81b1d424d2")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
     }
 }
