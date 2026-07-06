@@ -164,7 +164,15 @@ class PagalMoviesProvider : MainAPI() {
         val actorsList = tmdbMeta?.actors ?: emptyList()
         val trailer = tmdbMeta?.trailer
 
-        val fileLinks = doc.select("a[href*=/file/], a[href*=/download/], a[href*=/movie/], a.dbtn").mapNotNull { a ->
+        // Only select items strictly from the content listing or file entries, excluding header recommendation banners
+        var fileAnchors = doc.select("div.list a.fileName, div.list a[href*=/file/], div.list a[href*=/folder/], div.list a[href*=/download/], div.list a[href*=/server/]")
+        if (fileAnchors.isEmpty()) {
+            fileAnchors = doc.select("a.fileName, a[href*=/file/], a[href*=/folder/]")
+        }
+
+        val fileLinks = fileAnchors.filterNot { a ->
+            a.parents().hasClass("Fun") || a.parents().hasClass("updates") || a.parents().any { it.tagName().equals("header", ignoreCase = true) }
+        }.mapNotNull { a ->
             val href = a.attr("href").trim()
             if (href.isNotBlank() && !href.equals(url, ignoreCase = true) && !href.contains("search.php", ignoreCase = true)) {
                 val title = a.text().trim().ifBlank { "Part / Episode" }
@@ -175,7 +183,7 @@ class PagalMoviesProvider : MainAPI() {
         val isSeries = doc.location().contains("web_series", ignoreCase = true) ||
             rawTitle.contains("season", ignoreCase = true) ||
             rawTitle.contains("series", ignoreCase = true) ||
-            (fileLinks.size > 2 && fileLinks.any { it.second.contains("episode", ignoreCase = true) })
+            (fileLinks.size > 1 && fileLinks.any { Regex("""(?i)\b(ep|episode|s\d+)\b""").containsMatchIn(it.second) })
 
         if (isSeries) {
             val episodes = fileLinks.mapIndexed { idx, (linkUrl, linkTitle) ->
@@ -323,7 +331,7 @@ class PagalMoviesProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        if (depth > 4 || url.isBlank()) return
+        if (depth > 5 || url.isBlank()) return
         val fixedUrl = fixUrl(url)
 
         val lower = fixedUrl.substringBefore('?').lowercase()
@@ -347,6 +355,20 @@ class PagalMoviesProvider : MainAPI() {
             app.get(fixedUrl, headers = headers + mapOf("Referer" to referer), allowRedirects = true, timeout = 25)
         } catch (_: Exception) {
             app.get(fixedUrl, headers = headers + mapOf("Referer" to referer), interceptor = CloudflareKiller(), allowRedirects = true, timeout = 25)
+        }
+
+        // Check redirect location header if present
+        val locHeader = res.headers["location"] ?: res.headers["Location"]
+        if (locHeader != null && (locHeader.contains(".mp4", ignoreCase = true) || locHeader.contains(".mkv", ignoreCase = true) || locHeader.contains("pmfiles", ignoreCase = true))) {
+            val streamUrl = fixUrl(locHeader)
+            val quality = if (streamUrl.contains("1080p", ignoreCase = true)) Qualities.P1080.value else if (streamUrl.contains("720p", ignoreCase = true)) Qualities.P720.value else Qualities.P480.value
+            callback.invoke(
+                newExtractorLink(this.name, "${this.name} High Speed", streamUrl) {
+                    this.quality = quality
+                    this.referer = fixedUrl
+                }
+            )
+            return
         }
 
         val finalUrl = res.url
@@ -373,8 +395,13 @@ class PagalMoviesProvider : MainAPI() {
             }
         }
 
-        val nextLinks = doc.select("a:contains(Click Here to Go to Download Page), a:contains(Go to Download Page), a.download-btn, a[href*=/server/], a[href*=/download/], a[href*=/dpage/], a:contains(Server 1), a:contains(Server 2), a:contains(Fast Server), a:contains(Direct Stream)")
-        for (a in nextLinks) {
+        var anchors = doc.select("div.list a.fileName, div.list a.dwnLink, a.dwnLink, a.fileName, a[href*=/file/], a[href*=/folder/], a[href*=/server/], a[href*=/download/], a[href*=/dpage/], a:contains(Click Here to Go to Download Page), a:contains(Go to Download Page), a:contains(Download Via Server), a:contains(Server 1), a:contains(Server 2)")
+        if (anchors.isEmpty()) {
+            anchors = doc.select("a[href*=/file/], a[href*=/server/], a[href*=/download/]")
+        }
+
+        for (a in anchors) {
+            if (a.parents().hasClass("Fun") || a.parents().hasClass("updates") || a.parents().any { it.tagName().equals("header", ignoreCase = true) }) continue
             val href = a.attr("href").trim()
             if (href.isBlank() || href.startsWith("#") || href.contains("javascript", ignoreCase = true)) continue
             val nextUrl = fixUrl(href)
