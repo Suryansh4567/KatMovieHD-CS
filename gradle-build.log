@@ -35,9 +35,9 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :PagalMovies:generateDebugRFile
 
 > Task :PagalMovies:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:62:83 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:63:38 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:120:52 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:61:83 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:62:38 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/src/main/kotlin/com/arena/PagalMoviesProvider.kt:116:58 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
 
 > Task :PagalMovies:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/PagalMovies/build/intermediates/classes.dex
@@ -65,6 +65,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ka
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 34s
+BUILD SUCCESSFUL in 30s
 21 actionable tasks: 21 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
