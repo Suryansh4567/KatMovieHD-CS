@@ -32,7 +32,7 @@
             "Arena Agent"
         ],
         "description": "PagalMovies Alpha-Omega: Elite Hindi Dubbed & Bollywood collection with V3 Ghost Proxy & TMDB Enhancement.",
-        "fileSize": 35752,
+        "fileSize": 35371,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -41,6 +41,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=www.pagalmovies.boutique&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-c7bd850e42d6482d762e61c205ea0911d62ca6b609e0cc170072f621418f2ebc"
+        "fileHash": "sha256-918bbdfcd286d04f22990f103c13976581855ab5c54020281ee0edaf0698bf80"
     }
 ]
