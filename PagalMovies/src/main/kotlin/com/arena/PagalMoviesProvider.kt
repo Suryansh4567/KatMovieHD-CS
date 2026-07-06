@@ -8,7 +8,7 @@ import org.jsoup.nodes.Element
 import org.json.JSONObject
 import java.net.URLEncoder
 
-class PagalMoviesAlpha : MainAPI() {
+class PagalMoviesProvider : MainAPI() {
     override var mainUrl = "https://www.pagalmovies.boutique"
     override var name = "PagalMovies Alpha-Omega"
     override val hasMainPage = true
@@ -17,16 +17,6 @@ class PagalMoviesAlpha : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     
     private val tmdbApiKey = "a96013620f4c029df4f78326e7925c48"
-
-    override val client = app.client.newBuilder()
-        .addInterceptor { chain ->
-            val request = chain.request().newBuilder()
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                .header("Accept-Language", "en-US,en;q=0.5")
-                .build()
-            chain.proceed(request)
-        }
-        .build()
 
     private suspend fun getWorkingDomain(): String {
         val mirrors = listOf(
@@ -52,7 +42,7 @@ class PagalMoviesAlpha : MainAPI() {
         mainUrl = getWorkingDomain()
         val doc = app.get("$mainUrl${request.data}$page.html").document
         val home = doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }
-        return newHomePageResponse(request.name, home)
+        return newHomePageResponse(request.name, home, hasNext = true)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
@@ -95,7 +85,10 @@ class PagalMoviesAlpha : MainAPI() {
             this.year = result?.optString("release_date")?.take(4)?.toIntOrNull()
             addTrailer(cleanTitle)
             result?.optInt("id", -1)?.let { id -> 
-                if (id > 0) addActors(getActors(id)) 
+                if (id > 0) {
+                    val actors = getActors(id)
+                    if (actors != null) addActors(actors)
+                }
             }
         }
     }
@@ -120,14 +113,16 @@ class PagalMoviesAlpha : MainAPI() {
                         val finalUrl = finalRes.url
                         
                         if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
+                            val quality = if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
                             callback.invoke(
                                 newExtractorLink(
-                                    source = this.name,
-                                    name = it.text().ifEmpty { "High Speed Server" },
-                                    url = finalUrl,
-                                    referer = mainUrl,
-                                    quality = if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
-                                )
+                                    this.name,
+                                    it.text().ifEmpty { "High Speed Server" },
+                                    finalUrl
+                                ) {
+                                    this.quality = quality
+                                    this.referer = mainUrl
+                                }
                             )
                         }
                     }
@@ -137,14 +132,14 @@ class PagalMoviesAlpha : MainAPI() {
         return true
     }
 
-    private suspend fun getActors(tmdbId: Int): List<ActorData>? {
+    private suspend fun getActors(tmdbId: Int): List<Actor>? {
         return try {
             val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").text
             val cast = JSONObject(res).optJSONArray("cast") ?: return null
-            val actors = mutableListOf<ActorData>()
+            val actors = mutableListOf<Actor>()
             for (i in 0 until minOf(cast.length(), 5)) {
                 val actor = cast.getJSONObject(i)
-                actors.add(ActorData(Actor(actor.getString("name"), "https://image.tmdb.org/t/p/w200${actor.optString("profile_path")}")))
+                actors.add(Actor(actor.getString("name"), "https://image.tmdb.org/t/p/w200${actor.optString("profile_path")}"))
             }
             actors
         } catch(e: Exception) { null }
