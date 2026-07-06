@@ -29,8 +29,8 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :PagalMovies:generateDebugResources
 > Task :PagalMovies:packageDebugResources
 > Task :PagalMovies:processDebugNavigationResources
-> Task :PagalMovies:parseDebugLocalResources
 > Task :KatMovieHD:parseDebugLocalResources
+> Task :PagalMovies:parseDebugLocalResources
 > Task :KatMovieHD:generateDebugRFile
 > Task :PagalMovies:generateDebugRFile
 > Task :PagalMovies:compileDebugKotlin
@@ -61,6 +61,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ka
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 42s
+BUILD SUCCESSFUL in 32s
 21 actionable tasks: 21 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
