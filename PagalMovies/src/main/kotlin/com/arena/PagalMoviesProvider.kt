@@ -8,12 +8,13 @@ import org.jsoup.nodes.Element
 import org.json.JSONObject
 import java.net.URLEncoder
 
-class PagalMoviesProvider : MainAPI() {
+class PagalMoviesAlpha : MainAPI() {
     override var mainUrl = "https://www.pagalmovies.boutique"
     override var name = "PagalMovies Alpha-Omega"
     override val hasMainPage = true
     override var lang = "hi"
     override val hasQuickSearch = true
+    override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     
     private val tmdbApiKey = "a96013620f4c029df4f78326e7925c48"
 
@@ -35,8 +36,7 @@ class PagalMoviesProvider : MainAPI() {
         )
         for (mirror in mirrors) {
             try {
-                val res = app.get(mirror, timeout = 3)
-                if (res.isSuccessful) return mirror
+                if (app.get(mirror, timeout = 3).isSuccessful) return mirror
             } catch (e: Exception) { continue }
         }
         return mainUrl
@@ -55,10 +55,10 @@ class PagalMoviesProvider : MainAPI() {
         return newHomePageResponse(request.name, home)
     }
 
-    override suspend fun search(query: String, page: Int): SearchResponseList {
+    override suspend fun search(query: String): List<SearchResponse> {
         val encodedQuery = URLEncoder.encode(query, "utf-8")
         val doc = app.get("$mainUrl/search.php?search=$encodedQuery").document
-        return doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
+        return doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -83,20 +83,20 @@ class PagalMoviesProvider : MainAPI() {
         } catch(e: Exception) { null }
 
         val result = tmdbSearch?.optJSONArray("results")?.optJSONObject(0)
-        
         val posterPath = result?.optString("poster_path")
         val poster = if (!posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500$posterPath" else sitePoster
         val plot = result?.optString("overview") ?: sitePlot
-        val year = result?.optString("release_date")?.take(4)?.toIntOrNull()
 
         val fileLinks = doc.select("a[href*=file/]").map { it.attr("href") }
 
         return newMovieLoadResponse(rawTitle, url, TvType.Movie, fileLinks.joinToString("###")) {
             this.posterUrl = poster
             this.plot = plot
-            this.year = year
+            this.year = result?.optString("release_date")?.take(4)?.toIntOrNull()
             addTrailer(cleanTitle)
-            result?.optInt("id", -1)?.let { if (it > 0) addActors(getActors(it)) }
+            result?.optInt("id", -1)?.let { id -> 
+                if (id > 0) addActors(getActors(id)) 
+            }
         }
     }
 
@@ -116,8 +116,9 @@ class PagalMoviesProvider : MainAPI() {
                     val serverPageDoc = app.get(serverUrl).document
                     for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
                         val href = it.attr("href") ?: continue
+                        val finalRes = app.get(fixUrl(href), allowRedirects = true)
+                        val finalUrl = finalRes.url
                         
-                        val finalUrl = app.get(fixUrl(href), allowRedirects = true).url
                         if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
                             callback.invoke(
                                 newExtractorLink(
@@ -136,14 +137,14 @@ class PagalMoviesProvider : MainAPI() {
         return true
     }
 
-    private suspend fun getActors(tmdbId: Int): List<Actor>? {
+    private suspend fun getActors(tmdbId: Int): List<ActorData>? {
         return try {
             val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").text
             val cast = JSONObject(res).optJSONArray("cast") ?: return null
-            val actors = mutableListOf<Actor>()
+            val actors = mutableListOf<ActorData>()
             for (i in 0 until minOf(cast.length(), 5)) {
                 val actor = cast.getJSONObject(i)
-                actors.add(Actor(actor.getString("name"), "https://image.tmdb.org/t/p/w200${actor.optString("profile_path")}"))
+                actors.add(ActorData(Actor(actor.getString("name"), "https://image.tmdb.org/t/p/w200${actor.optString("profile_path")}")))
             }
             actors
         } catch(e: Exception) { null }
