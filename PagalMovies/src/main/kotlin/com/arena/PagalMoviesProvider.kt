@@ -1,33 +1,14 @@
 package com.arena
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.nodes.Element
+import org.json.JSONObject
 import java.net.URLEncoder
 
-// Top-level classes with Proper Jackson Annotations
-data class TMDBResponse(
-    @JsonProperty("results") val results: List<TMDBResult>? = null
-)
-data class TMDBResult(
-    @JsonProperty("poster_path") val poster_path: String? = null,
-    @JsonProperty("overview") val overview: String? = null,
-    @JsonProperty("release_date") val release_date: String? = null,
-    @JsonProperty("id") val id: Int? = null,
-    @JsonProperty("title") val title: String? = null
-)
-data class TMDBStars(
-    @JsonProperty("cast") val cast: List<TMDBActor>? = null
-)
-data class TMDBActor(
-    @JsonProperty("name") val name: String? = null,
-    @JsonProperty("profile_path") val profile_path: String? = null
-)
-
-class PagalMoviesAlpha : MainAPI() {
+class PagalMoviesProvider : MainAPI() {
     override var mainUrl = "https://www.pagalmovies.boutique"
     override var name = "PagalMovies Alpha-Omega"
     override val hasMainPage = true
@@ -74,10 +55,10 @@ class PagalMoviesAlpha : MainAPI() {
         return newHomePageResponse(request.name, home)
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
+    override suspend fun search(query: String, page: Int): SearchResponseList {
         val encodedQuery = URLEncoder.encode(query, "utf-8")
         val doc = app.get("$mainUrl/search.php?search=$encodedQuery").document
-        return doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }
+        return doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }.toNewSearchResponseList()
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -97,21 +78,25 @@ class PagalMoviesAlpha : MainAPI() {
         val sitePlot = doc.select("b:contains(Description) + i").text()
         
         val tmdbSearch = try {
-            app.get("https://api.themoviedb.org/3/search/movie?api_key=$tmdbApiKey&query=$cleanTitle").parsedSafe<TMDBResponse>()
+            val res = app.get("https://api.themoviedb.org/3/search/movie?api_key=$tmdbApiKey&query=$cleanTitle").text
+            JSONObject(res)
         } catch(e: Exception) { null }
 
-        val result = tmdbSearch?.results?.firstOrNull()
-        val poster = result?.poster_path?.let { "https://image.tmdb.org/t/p/w500$it" } ?: sitePoster
-        val plot = result?.overview ?: sitePlot
+        val result = tmdbSearch?.optJSONArray("results")?.optJSONObject(0)
+        
+        val posterPath = result?.optString("poster_path")
+        val poster = if (!posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500$posterPath" else sitePoster
+        val plot = result?.optString("overview") ?: sitePlot
+        val year = result?.optString("release_date")?.take(4)?.toIntOrNull()
 
         val fileLinks = doc.select("a[href*=file/]").map { it.attr("href") }
 
         return newMovieLoadResponse(rawTitle, url, TvType.Movie, fileLinks.joinToString("###")) {
             this.posterUrl = poster
             this.plot = plot
-            this.year = result?.release_date?.take(4)?.toIntOrNull()
-            addTrailer(result?.title ?: cleanTitle)
-            result?.id?.let { id -> addActors(getActors(id)) }
+            this.year = year
+            addTrailer(cleanTitle)
+            result?.optInt("id", -1)?.let { if (it > 0) addActors(getActors(it)) }
         }
     }
 
@@ -132,9 +117,7 @@ class PagalMoviesAlpha : MainAPI() {
                     for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
                         val href = it.attr("href") ?: continue
                         
-                        val finalRes = app.get(fixUrl(href), allowRedirects = true)
-                        val finalUrl = finalRes.url
-                        
+                        val finalUrl = app.get(fixUrl(href), allowRedirects = true).url
                         if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
                             callback.invoke(
                                 newExtractorLink(
@@ -153,10 +136,16 @@ class PagalMoviesAlpha : MainAPI() {
         return true
     }
 
-    private suspend fun getActors(tmdbId: Int): List<ActorData>? {
+    private suspend fun getActors(tmdbId: Int): List<Actor>? {
         return try {
-            val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").parsedSafe<TMDBStars>()
-            res?.cast?.take(5)?.map { ActorData(Actor(it.name ?: "Unknown", "https://image.tmdb.org/t/p/w200${it.profile_path}")) }
+            val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").text
+            val cast = JSONObject(res).optJSONArray("cast") ?: return null
+            val actors = mutableListOf<Actor>()
+            for (i in 0 until minOf(cast.length(), 5)) {
+                val actor = cast.getJSONObject(i)
+                actors.add(Actor(actor.getString("name"), "https://image.tmdb.org/t/p/w200${actor.optString("profile_path")}"))
+            }
+            actors
         } catch(e: Exception) { null }
     }
 }
