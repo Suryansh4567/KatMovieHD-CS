@@ -17,7 +17,7 @@ class PagalMoviesProvider : MainAPI() {
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
     
     private val tmdbApiKey = "a96013620f4c029df4f78326e7925c48"
-    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    private val userAgent = "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
 
     private suspend fun getWorkingDomain(): String {
         val mirrors = listOf(
@@ -53,8 +53,7 @@ class PagalMoviesProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val base = getWorkingDomain()
-        val encodedQuery = URLEncoder.encode(query, "utf-8")
-        val doc = app.get("$base/search.php?search=$encodedQuery", headers = mapOf("User-Agent" to userAgent)).document
+        val doc = app.get("$base/search.php?search=${URLEncoder.encode(query, "utf-8")}", headers = mapOf("User-Agent" to userAgent)).document
         return doc.select("a:has(img[src*=thumb])").mapNotNull { it.toSearchResult() }
     }
 
@@ -71,26 +70,20 @@ class PagalMoviesProvider : MainAPI() {
         val rawTitle = doc.selectFirst("h1")?.text() ?: ""
         val cleanTitle = rawTitle.replace(Regex("(?i)\\(.*\\)|Full Movie|Hindi Dubbed|Hollywood|Bollywood"), "").trim()
         
-        val sitePoster = fixUrl(doc.selectFirst("img[src*=files/images/]")?.attr("src") ?: "")
-        val sitePlot = doc.select("b:contains(Description) + i").text()
-        
         val tmdbSearch = try {
-            val res = app.get("https://api.themoviedb.org/3/search/movie?api_key=$tmdbApiKey&query=${URLEncoder.encode(cleanTitle, "UTF-8")}").text
-            JSONObject(res)
+            JSONObject(app.get("https://api.themoviedb.org/3/search/movie?api_key=$tmdbApiKey&query=${URLEncoder.encode(cleanTitle, "UTF-8")}").text)
         } catch(e: Exception) { null }
 
         val result = tmdbSearch?.optJSONArray("results")?.optJSONObject(0)
-        val posterPath = result?.optString("poster_path")
-        val poster = if (!posterPath.isNullOrBlank()) "https://image.tmdb.org/t/p/w500$posterPath" else sitePoster
-        val plot = result?.optString("overview") ?: sitePlot
-        val year = result?.optString("release_date")?.take(4)?.toIntOrNull()
+        val poster = result?.optString("poster_path")?.let { "https://image.tmdb.org/t/p/w500$it" } ?: fixUrl(doc.selectFirst("img[src*=files/images/]")?.attr("src") ?: "")
+        val plot = result?.optString("overview") ?: doc.select("b:contains(Description) + i").text()
 
         val fileLinks = doc.select("a[href*=file/]").map { it.attr("href") }
 
         return newMovieLoadResponse(rawTitle, url, TvType.Movie, fileLinks.joinToString("###")) {
             this.posterUrl = poster
             this.plot = plot
-            this.year = year
+            this.year = result?.optString("release_date")?.take(4)?.toIntOrNull()
             addTrailer(cleanTitle)
             result?.optInt("id", -1)?.let { id -> 
                 if (id > 0) {
@@ -107,31 +100,33 @@ class PagalMoviesProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit, 
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        for (link in data.split("###")) {
+        val links = data.split("###")
+        for (link in links) {
             if (link.isBlank()) continue
             try {
                 val filePageUrl = fixUrl(link)
                 val filePageDoc = app.get(filePageUrl, headers = mapOf("User-Agent" to userAgent)).document
-                val downloadPageUrl = fixUrl(filePageDoc.select("a:contains(Click Here to Go to Download Page)").attr("href"))
+                val dPageUrl = fixUrl(filePageDoc.select("a:contains(Click Here to Go to Download Page), a.download-btn").attr("href"))
                 
-                if (downloadPageUrl.isNotBlank()) {
-                    val serverPageDoc = app.get(downloadPageUrl, headers = mapOf("User-Agent" to userAgent), referer = filePageUrl).document
-                    for (it in serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")) {
-                        val href = it.attr("href") ?: continue
-                        val absoluteHref = fixUrl(href)
-                        
-                        val finalRes = app.get(absoluteHref, headers = mapOf("User-Agent" to userAgent), referer = downloadPageUrl, allowRedirects = true)
+                if (dPageUrl.isNotBlank()) {
+                    val serverPageDoc = app.get(dPageUrl, headers = mapOf("User-Agent" to userAgent), referer = filePageUrl).document
+                    val servers = serverPageDoc.select("a[href*=/server/], a[href*=/download/], a:contains(Server)")
+                    
+                    for (it in servers) {
+                        val serverHref = it.attr("href") ?: continue
+                        val finalRes = app.get(fixUrl(serverHref), headers = mapOf("User-Agent" to userAgent), allowRedirects = true)
                         val finalUrl = finalRes.url
                         
-                        if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm")) {
+                        if (finalUrl.contains(".mp4") || finalUrl.contains(".mkv") || finalUrl.contains(".webm") || finalRes.code == 200) {
+                            val quality = if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
                             callback.invoke(
                                 newExtractorLink(
                                     this.name,
                                     it.text().ifEmpty { "Elite Stream" },
                                     finalUrl
                                 ) {
-                                    this.quality = if (finalUrl.contains("720p")) Qualities.P720.value else Qualities.P480.value
-                                    this.referer = downloadPageUrl
+                                    this.quality = quality
+                                    this.referer = dPageUrl
                                 }
                             )
                         }
@@ -144,12 +139,11 @@ class PagalMoviesProvider : MainAPI() {
 
     private suspend fun getActors(tmdbId: Int): List<Actor>? {
         return try {
-            val res = app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").text
-            val cast = JSONObject(res).optJSONArray("cast") ?: return null
+            val cast = JSONObject(app.get("https://api.themoviedb.org/3/movie/$tmdbId/credits?api_key=$tmdbApiKey").text).optJSONArray("cast") ?: return null
             val actors = mutableListOf<Actor>()
-            for (i in 0 until minOf(cast.length(), 5)) {
-                val actor = cast.getJSONObject(i)
-                actors.add(Actor(actor.getString("name"), "https://image.tmdb.org/t/p/w200${actor.optString("profile_path")}"))
+            for (i in 0 until minOf(cast.length(), 10)) {
+                val a = cast.getJSONObject(i)
+                actors.add(Actor(a.getString("name"), "https://image.tmdb.org/t/p/w200${a.optString("profile_path")}"))
             }
             actors
         } catch(e: Exception) { null }
