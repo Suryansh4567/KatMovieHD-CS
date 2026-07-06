@@ -164,7 +164,6 @@ class PagalMoviesProvider : MainAPI() {
         val actorsList = tmdbMeta?.actors ?: emptyList()
         val trailer = tmdbMeta?.trailer
 
-        // Only select items strictly from the content listing or file entries, excluding header recommendation banners
         var fileAnchors = doc.select("div.list a.fileName, div.list a[href*=/file/], div.list a[href*=/folder/], div.list a[href*=/download/], div.list a[href*=/server/]")
         if (fileAnchors.isEmpty()) {
             fileAnchors = doc.select("a.fileName, a[href*=/file/], a[href*=/folder/]")
@@ -331,7 +330,7 @@ class PagalMoviesProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        if (depth > 5 || url.isBlank()) return
+        if (depth > 6 || url.isBlank()) return
         val fixedUrl = fixUrl(url)
 
         val lower = fixedUrl.substringBefore('?').lowercase()
@@ -351,37 +350,33 @@ class PagalMoviesProvider : MainAPI() {
             if (dispatched) return
         }
 
+        // Use allowRedirects = false so we NEVER download a 500 MB MP4 file into RAM.
+        // Instead, we catch the 302 Location header instantly.
         val res = try {
-            app.get(fixedUrl, headers = headers + mapOf("Referer" to referer), allowRedirects = true, timeout = 25)
+            app.get(fixedUrl, headers = headers + mapOf("Referer" to referer), allowRedirects = false, timeout = 15)
         } catch (_: Exception) {
-            app.get(fixedUrl, headers = headers + mapOf("Referer" to referer), interceptor = CloudflareKiller(), allowRedirects = true, timeout = 25)
+            app.get(fixedUrl, headers = headers + mapOf("Referer" to referer), interceptor = CloudflareKiller(), allowRedirects = false, timeout = 15)
         }
 
-        // Check redirect location header if present
         val locHeader = res.headers["location"] ?: res.headers["Location"]
-        if (locHeader != null && (locHeader.contains(".mp4", ignoreCase = true) || locHeader.contains(".mkv", ignoreCase = true) || locHeader.contains("pmfiles", ignoreCase = true))) {
-            val streamUrl = fixUrl(locHeader)
-            val quality = if (streamUrl.contains("1080p", ignoreCase = true)) Qualities.P1080.value else if (streamUrl.contains("720p", ignoreCase = true)) Qualities.P720.value else Qualities.P480.value
-            callback.invoke(
-                newExtractorLink(this.name, "${this.name} High Speed", streamUrl) {
-                    this.quality = quality
-                    this.referer = fixedUrl
-                }
-            )
-            return
-        }
-
-        val finalUrl = res.url
-        val lowerFinal = finalUrl.substringBefore('?').lowercase()
-        if (lowerFinal.endsWith(".mp4") || lowerFinal.endsWith(".mkv") || lowerFinal.endsWith(".webm") || lowerFinal.endsWith(".m3u8") || res.headers["content-type"]?.contains("video") == true) {
-            val quality = if (lowerFinal.contains("1080p")) Qualities.P1080.value else if (lowerFinal.contains("720p")) Qualities.P720.value else Qualities.P480.value
-            callback.invoke(
-                newExtractorLink(this.name, "${this.name} High Speed", finalUrl) {
-                    this.quality = quality
-                    this.referer = fixedUrl
-                }
-            )
-            return
+        if (res.code in 300..399 && locHeader != null) {
+            var target = fixUrl(locHeader.trim())
+            // Fix double slash path issues produced by PHP redirectors (e.g. .vip//files/)
+            target = target.replace(Regex("""(https?://[^/]+)//+"""), "$1/")
+            val lowerLoc = target.substringBefore('?').lowercase()
+            if (lowerLoc.endsWith(".mp4") || lowerLoc.endsWith(".mkv") || lowerLoc.endsWith(".webm") || lowerLoc.endsWith(".m3u8") || target.contains("pmfiles", ignoreCase = true)) {
+                val quality = if (target.contains("1080p", ignoreCase = true)) Qualities.P1080.value else if (target.contains("720p", ignoreCase = true)) Qualities.P720.value else Qualities.P480.value
+                callback.invoke(
+                    newExtractorLink(this.name, "${this.name} High Speed", target) {
+                        this.quality = quality
+                        this.referer = fixedUrl
+                    }
+                )
+                return
+            } else {
+                extractLinksRecursive(target, fixedUrl, depth + 1, subtitleCallback, callback)
+                return
+            }
         }
 
         val doc = res.document
