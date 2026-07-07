@@ -1,5 +1,26 @@
 [
     {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CNCVerse.cs3",
+        "status": 1,
+        "version": 81,
+        "name": "CNCVerse",
+        "internalName": "CNCVerse",
+        "authors": [
+            "NivinCNC"
+        ],
+        "description": "Netflix, PrimeVideo, Disney+ Hotstar Contents in Multiple Languages",
+        "fileSize": 72223,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "ta",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "iconUrl": "https://github.com/NivinCNC/CNCVerse-Cloud-Stream-Extension/raw/refs/heads/master/CNC%20Verse/icon.png",
+        "apiVersion": 1,
+        "fileHash": "sha256-6b93cc6b6104da6e5019c1ff4841538c9b3aac481369ba0c823178f060c8e13b"
+    },
+    {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
         "version": 42,
