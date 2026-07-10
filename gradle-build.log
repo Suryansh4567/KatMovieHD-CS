@@ -35,20 +35,20 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :CastleTvProvider:preDebugBuild UP-TO-DATE
 > Task :CastleTvProvider:generateDebugBuildConfig
 > Task :CastleTvProvider:generateDebugResources
-> Task :BilibiliProvider:parseDebugLocalResources
-> Task :AnimeSuge:parseDebugLocalResources
 > Task :CastleTvProvider:packageDebugResources
 > Task :CastleTvProvider:processDebugNavigationResources
 > Task :CineTvProvider:preBuild UP-TO-DATE
 > Task :CineTvProvider:preDebugBuild UP-TO-DATE
 > Task :CineTvProvider:generateDebugBuildConfig
-> Task :AnimeSuge:generateDebugRFile
-> Task :BilibiliProvider:generateDebugRFile
 > Task :CineTvProvider:generateDebugResources
+> Task :BilibiliProvider:parseDebugLocalResources
+> Task :AnimeSuge:parseDebugLocalResources
 > Task :CastleTvProvider:parseDebugLocalResources
-> Task :CastleTvProvider:generateDebugRFile
 > Task :CineTvProvider:packageDebugResources
 > Task :CineTvProvider:processDebugNavigationResources
+> Task :BilibiliProvider:generateDebugRFile
+> Task :CastleTvProvider:generateDebugRFile
+> Task :AnimeSuge:generateDebugRFile
 > Task :CineTvProvider:parseDebugLocalResources
 > Task :CineTvProvider:generateDebugRFile
 
@@ -129,7 +129,7 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ci
 /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml: note: compiling XML.
 note: including /usr/local/lib/android/sdk/platforms/android-36/android.jar.
 note: linking package 'com.arena' using package ID 7f.
-note: merging archive /tmp/res380778347685239541.zip.
+note: merging archive /tmp/res12345265563305060225.zip.
 note: merging 'drawable/outline' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/outline.xml.
 note: merging 'drawable/save_icon' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/save_icon.xml.
 note: merging 'layout/settings' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml.
@@ -153,27 +153,105 @@ note: writing resources.arsc to archive.
 > Task :CricifyProvider:packageDebugResources
 > Task :CricifyProvider:processDebugNavigationResources
 > Task :CricifyProvider:generateDebugBuildConfig
+> Task :CricifyProvider:parseDebugLocalResources
+> Task :CricifyProvider:processDebugManifest
+> Task :CricifyProvider:dataBindingGenBaseClassesDebug
+> Task :CricifyProvider:generateDebugRFile
+
+> Task :CricifyProvider:compileResources
+/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/outline.xml: note: compiling XML.
+/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/save_icon.xml: note: compiling XML.
+/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/layout/settings.xml: note: compiling XML.
+note: including /usr/local/lib/android/sdk/platforms/android-36/android.jar.
+note: linking package 'com.arena' using package ID 7f.
+note: merging archive /tmp/res9518551022929097849.zip.
+note: merging 'drawable/outline' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/outline.xml.
+note: merging 'drawable/save_icon' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/save_icon.xml.
+note: merging 'layout/settings' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/layout/settings.xml.
+note: enabling pre-O feature split ID rewriting.
+note: collapsing resource versions for minimum SDK 21.
+note: Running VersionCollapser with minSdk = 21.
+AndroidManifest.xml: note: writing to archive (keep_raw_values=false).
+note: writing AndroidManifest.xml to archive.
+note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/outline.xml (com.arena:drawable/outline).
+res/drawable/outline.xml: note: writing to archive (keep_raw_values=false).
+note: writing res/drawable/outline.xml to archive.
+note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/save_icon.xml (com.arena:drawable/save_icon).
+res/drawable/save_icon.xml: note: writing to archive (keep_raw_values=false).
+note: writing res/drawable/save_icon.xml to archive.
+note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/layout/settings.xml (com.arena:layout/settings).
+res/layout/settings.xml: note: writing to archive (keep_raw_values=false).
+note: writing res/layout/settings.xml to archive.
+note: writing resources.arsc to archive.
+
 > Task :DesiSerialsProvider:preBuild UP-TO-DATE
 > Task :DesiSerialsProvider:preDebugBuild UP-TO-DATE
-> Task :CricifyProvider:parseDebugLocalResources
 > Task :DesiSerialsProvider:generateDebugBuildConfig
+> Task :DesiSerialsProvider:generateDebugResources
+> Task :DesiSerialsProvider:packageDebugResources
+> Task :DesiSerialsProvider:processDebugNavigationResources
+> Task :DoFlixProvider:preBuild UP-TO-DATE
+> Task :DoFlixProvider:preDebugBuild UP-TO-DATE
+> Task :DoFlixProvider:generateDebugBuildConfig
+> Task :DesiSerialsProvider:parseDebugLocalResources
+> Task :DoFlixProvider:generateDebugResources
+> Task :DesiSerialsProvider:generateDebugRFile
+> Task :DoFlixProvider:packageDebugResources
+> Task :DoFlixProvider:processDebugNavigationResources
+> Task :DoFlixProvider:parseDebugLocalResources
+> Task :DoFlixProvider:generateDebugRFile
 
-> Task :CricifyProvider:processDebugManifest FAILED
-Incorrect package="com.cncverse" found in source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
-Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
-Recommendation: remove package="com.cncverse" from the source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+> Task :DesiSerialsProvider:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/DesiSerialsProvider/src/main/kotlin/com/cncverse/desiserials/DesiSerialsProvider.kt:278:73 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/DesiSerialsProvider/src/main/kotlin/com/cncverse/desiserials/DesiSerialsProvider.kt:304:69 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
 
-> Task :CricifyProvider:dataBindingGenBaseClassesDebug
+> Task :DesiSerialsProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/DesiSerialsProvider/build/intermediates/classes.dex
+
+> Task :DesiSerialsProvider:generateManifest
+
+> Task :DesiSerialsProvider:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/DesiSerialsProvider/build/DesiSerialsProvider.cs3
+
+> Task :DesiSerialsProvider:writeCacheEntry
+> Task :EinthusanProvider:preBuild UP-TO-DATE
+> Task :EinthusanProvider:preDebugBuild UP-TO-DATE
+> Task :EinthusanProvider:generateDebugBuildConfig
+> Task :EinthusanProvider:generateDebugResources
+> Task :EinthusanProvider:packageDebugResources
+> Task :EinthusanProvider:processDebugNavigationResources
+> Task :EinthusanProvider:parseDebugLocalResources
+> Task :EinthusanProvider:generateDebugRFile
+> Task :DoFlixProvider:compileDebugKotlin
+> Task :EinthusanProvider:compileDebugKotlin
+
+> Task :CricifyProvider:compileDebugKotlin
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:9:42 Property delegate must have a 'getValue(CryptoUtils, KProperty1<CryptoUtils, ??? (Unknown type for type parameter T)>)' method. None of the following functions is applicable:
+fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:9:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:9:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:9:52 Unresolved reference 'BuildConfig'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:10:42 Property delegate must have a 'getValue(CryptoUtils, KProperty1<CryptoUtils, ??? (Unknown type for type parameter T)>)' method. None of the following functions is applicable:
+fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:10:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:10:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/CryptoUtils.kt:10:52 Unresolved reference 'BuildConfig'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/FirebaseRemoteConfigFetcher.kt:24:26 Unresolved reference 'BuildConfig'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/FirebaseRemoteConfigFetcher.kt:31:26 Unresolved reference 'BuildConfig'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/FirebaseRemoteConfigFetcher.kt:38:26 Unresolved reference 'BuildConfig'.
+
+> Task :CricifyProvider:compileDebugKotlin FAILED
 > Task :CNCVerse:compileDebugKotlin
+
+> Task :DoFlixProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/DoFlixProvider/build/intermediates/classes.dex
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
-Execution failed for task ':CricifyProvider:processDebugManifest'.
-> A failure occurred while executing com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction
-   > Incorrect package="com.cncverse" found in source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
-     Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
-     Recommendation: remove package="com.cncverse" from the source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+Execution failed for task ':CricifyProvider:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
+   > Compilation error. See log for more details
 
 * Try:
 > Run with --info or --debug option to get more log output.
@@ -181,7 +259,7 @@ Execution failed for task ':CricifyProvider:processDebugManifest'.
 > Get more help at https://help.gradle.org.
 
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CricifyProvider:processDebugManifest'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CricifyProvider:compileDebugKotlin'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
@@ -213,40 +291,9 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':Cricify
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:146)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:131)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$11(DefaultBuildLifecycleController.java:323)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:304)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$9(StateTransitionController.java:215)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:215)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:314)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:182)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
-Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
 	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:289)
 	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
 	at org.gradle.internal.Factories$1.create(Factories.java:30)
@@ -329,7 +376,7 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:85)
+	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:90)
 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
@@ -355,16 +402,10 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 61 more
-Caused by: java.lang.RuntimeException: Incorrect package="com.cncverse" found in source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
-Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
-Recommendation: remove package="com.cncverse" from the source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
-	at com.android.manifmerger.ManifestMerger2.merge(ManifestMerger2.java:258)
-	at com.android.manifmerger.ManifestMerger2$Invoker.merge(ManifestMerger2.java:2218)
-	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests(ManifestHelper.kt:128)
-	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests$default(ManifestHelper.kt:44)
-	at com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction.run(ProcessLibraryManifest.kt:144)
-	at com.android.build.gradle.internal.profile.ProfileAwareWorkAction.execute(ProfileAwareWorkAction.kt:66)
+	... 30 more
+Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
+	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
 	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:68)
 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:64)
 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:61)
@@ -397,5 +438,5 @@ Recommendation: remove package="com.cncverse" from the source AndroidManifest.xm
 	... 2 more
 
 
-BUILD FAILED in 1m 16s
-62 actionable tasks: 62 executed
+BUILD FAILED in 1m 19s
+90 actionable tasks: 90 executed
