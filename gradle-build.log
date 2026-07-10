@@ -34,19 +34,19 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :CastleTvProvider:preBuild UP-TO-DATE
 > Task :CastleTvProvider:preDebugBuild UP-TO-DATE
 > Task :CastleTvProvider:generateDebugBuildConfig
+> Task :AnimeSuge:parseDebugLocalResources
 > Task :CastleTvProvider:generateDebugResources
 > Task :BilibiliProvider:parseDebugLocalResources
-> Task :AnimeSuge:parseDebugLocalResources
 > Task :CastleTvProvider:packageDebugResources
 > Task :CastleTvProvider:processDebugNavigationResources
 > Task :CineTvProvider:preBuild UP-TO-DATE
 > Task :CineTvProvider:preDebugBuild UP-TO-DATE
 > Task :BilibiliProvider:generateDebugRFile
-> Task :CineTvProvider:generateDebugBuildConfig
 > Task :AnimeSuge:generateDebugRFile
+> Task :CineTvProvider:generateDebugBuildConfig
 > Task :CastleTvProvider:parseDebugLocalResources
-> Task :CineTvProvider:generateDebugResources
 > Task :CastleTvProvider:generateDebugRFile
+> Task :CineTvProvider:generateDebugResources
 > Task :CineTvProvider:packageDebugResources
 > Task :CineTvProvider:processDebugNavigationResources
 > Task :CineTvProvider:parseDebugLocalResources
@@ -116,12 +116,12 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ci
 > Task :CNCVerse:generateDebugResources
 > Task :CNCVerse:packageDebugResources
 > Task :CNCVerse:processDebugNavigationResources
+> Task :CNCVerse:parseDebugLocalResources
 > Task :CricifyProvider:preBuild UP-TO-DATE
 > Task :CricifyProvider:preDebugBuild UP-TO-DATE
-> Task :CNCVerse:parseDebugLocalResources
+> Task :CNCVerse:generateDebugRFile
 > Task :CNCVerse:processDebugManifest
 > Task :CricifyProvider:dataBindingMergeDependencyArtifactsDebug
-> Task :CNCVerse:generateDebugRFile
 
 > Task :CNCVerse:compileResources
 /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/outline.xml: note: compiling XML.
@@ -129,7 +129,7 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ci
 /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml: note: compiling XML.
 note: including /usr/local/lib/android/sdk/platforms/android-36/android.jar.
 note: linking package 'com.cncverse' using package ID 7f.
-note: merging archive /tmp/res11543361250812318702.zip.
+note: merging archive /tmp/res15403801497862660975.zip.
 note: merging 'drawable/outline' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/outline.xml.
 note: merging 'drawable/save_icon' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/save_icon.xml.
 note: merging 'layout/settings' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml.
@@ -156,8 +156,8 @@ note: writing resources.arsc to archive.
 > Task :DesiSerialsProvider:preBuild UP-TO-DATE
 > Task :DesiSerialsProvider:preDebugBuild UP-TO-DATE
 > Task :CricifyProvider:parseDebugLocalResources
-> Task :CricifyProvider:processDebugManifest
 > Task :DesiSerialsProvider:generateDebugBuildConfig
+> Task :CricifyProvider:processDebugManifest
 > Task :CricifyProvider:dataBindingGenBaseClassesDebug
 > Task :CricifyProvider:generateDebugRFile
 
@@ -167,7 +167,7 @@ note: writing resources.arsc to archive.
 /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/layout/settings.xml: note: compiling XML.
 note: including /usr/local/lib/android/sdk/platforms/android-36/android.jar.
 note: linking package 'com.cncverse' using package ID 7f.
-note: merging archive /tmp/res16556248464013276683.zip.
+note: merging archive /tmp/res12747095722556360642.zip.
 note: merging 'drawable/outline' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/outline.xml.
 note: merging 'drawable/save_icon' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/drawable/save_icon.xml.
 note: merging 'layout/settings' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/res/layout/settings.xml.
@@ -242,48 +242,14 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Do
 > Task :GoldenAudiobook:parseDebugLocalResources
 > Task :GoldenAudiobook:generateDebugRFile
 > Task :EinthusanProvider:compileDebugKotlin
+> Task :CNCVerse:compileDebugKotlin
 
 > Task :EinthusanProvider:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/EinthusanProvider/build/intermediates/classes.dex
 
-> Task :EinthusanProvider:generateManifest
-
-> Task :EinthusanProvider:make
-Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/EinthusanProvider/build/EinthusanProvider.cs3
-
-> Task :EinthusanProvider:writeCacheEntry
-> Task :HDOProvider:preBuild UP-TO-DATE
-> Task :HDOProvider:preDebugBuild UP-TO-DATE
-> Task :HDOProvider:generateDebugBuildConfig
-> Task :HDOProvider:generateDebugResources
-> Task :HDOProvider:packageDebugResources
-> Task :HDOProvider:processDebugNavigationResources
-> Task :HDOProvider:parseDebugLocalResources
-> Task :HDOProvider:generateDebugRFile
-
 > Task :GoldenAudiobook:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/GoldenAudiobook/src/main/kotlin/com/cncverse/GoldenAudiobook.kt:98:51 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/GoldenAudiobook/src/main/kotlin/com/cncverse/GoldenAudiobook.kt:111:55 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
-
-> Task :GoldenAudiobook:compileDex
-Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/GoldenAudiobook/build/intermediates/classes.dex
-
-> Task :GoldenAudiobook:generateManifest
-
-> Task :GoldenAudiobook:make
-Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/GoldenAudiobook/build/GoldenAudiobook.cs3
-
-> Task :GoldenAudiobook:writeCacheEntry
-> Task :HDrezkaProvider:preBuild UP-TO-DATE
-> Task :HDrezkaProvider:preDebugBuild UP-TO-DATE
-> Task :HDrezkaProvider:generateDebugBuildConfig
-> Task :HDrezkaProvider:generateDebugResources
-> Task :HDrezkaProvider:packageDebugResources
-> Task :HDrezkaProvider:processDebugNavigationResources
-> Task :HDrezkaProvider:parseDebugLocalResources
-> Task :HDrezkaProvider:generateDebugRFile
-> Task :CNCVerse:compileDebugKotlin
-> Task :HDOProvider:compileDebugKotlin
 
 > Task :CNCVerse:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/build/intermediates/classes.dex
@@ -294,14 +260,52 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/build
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/build/CNCVerse.cs3
 
 > Task :CNCVerse:writeCacheEntry
+> Task :EinthusanProvider:generateManifest
+
+> Task :EinthusanProvider:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/EinthusanProvider/build/EinthusanProvider.cs3
+
+> Task :EinthusanProvider:writeCacheEntry
+
+> Task :GoldenAudiobook:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/GoldenAudiobook/build/intermediates/classes.dex
+
+> Task :GoldenAudiobook:generateManifest
+
+> Task :GoldenAudiobook:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/GoldenAudiobook/build/GoldenAudiobook.cs3
+
+> Task :GoldenAudiobook:writeCacheEntry
+> Task :HDOProvider:preBuild UP-TO-DATE
+> Task :HDOProvider:preDebugBuild UP-TO-DATE
+> Task :HDOProvider:generateDebugBuildConfig
+> Task :HDOProvider:generateDebugResources
+> Task :HDOProvider:packageDebugResources
+> Task :HDOProvider:processDebugNavigationResources
+> Task :HDrezkaProvider:preBuild UP-TO-DATE
+> Task :HDrezkaProvider:preDebugBuild UP-TO-DATE
+> Task :HDrezkaProvider:generateDebugBuildConfig
+> Task :HDOProvider:parseDebugLocalResources
+> Task :HDrezkaProvider:generateDebugResources
+> Task :HDOProvider:generateDebugRFile
+> Task :HDrezkaProvider:packageDebugResources
+> Task :HDrezkaProvider:processDebugNavigationResources
+> Task :KatMovieHD:preBuild UP-TO-DATE
+> Task :KatMovieHD:preDebugBuild UP-TO-DATE
+> Task :KatMovieHD:generateDebugBuildConfig
+> Task :HDrezkaProvider:parseDebugLocalResources
+> Task :KatMovieHD:generateDebugResources
+> Task :HDrezkaProvider:generateDebugRFile
+> Task :KatMovieHD:packageDebugResources
+> Task :KatMovieHD:processDebugNavigationResources
+> Task :KatMovieHD:parseDebugLocalResources
+> Task :KatMovieHD:generateDebugRFile
 
 > Task :CricifyProvider:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/kotlin/com/cncverse/ProviderManager.kt:192:35 Elvis operator (?:) always returns the left operand of non-nullable type 'List<Map<String, Comparable<*> & Serializable>>'.
 
+> Task :HDOProvider:compileDebugKotlin
 > Task :HDrezkaProvider:compileDebugKotlin
-
-> Task :HDOProvider:compileDex
-Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/HDOProvider/build/intermediates/classes.dex
 
 > Task :CricifyProvider:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/build/intermediates/classes.dex
@@ -312,6 +316,10 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvide
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/build/CricifyProvider.cs3
 
 > Task :CricifyProvider:writeCacheEntry
+
+> Task :HDOProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/HDOProvider/build/intermediates/classes.dex
+
 > Task :HDOProvider:generateManifest
 
 > Task :HDOProvider:make
@@ -328,633 +336,93 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/HDrezkaProvide
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/HDrezkaProvider/build/HDrezkaProvider.cs3
 
 > Task :HDrezkaProvider:writeCacheEntry
-> Task :KatMovieHD:preBuild UP-TO-DATE
-> Task :KatMovieHD:preDebugBuild UP-TO-DATE
-> Task :KatMovieHD:generateDebugBuildConfig
-> Task :KatMovieHD:generateDebugResources
-> Task :KatMovieHD:packageDebugResources
-> Task :KatMovieHD:processDebugNavigationResources
 > Task :KMMovies:preBuild UP-TO-DATE
 > Task :KMMovies:preDebugBuild UP-TO-DATE
 > Task :KMMovies:generateDebugBuildConfig
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:generateDebugResources
-> Task :KatMovieHD:generateDebugRFile
 > Task :KMMovies:packageDebugResources
 > Task :KMMovies:processDebugNavigationResources
-> Task :LivXowProvider:preBuild UP-TO-DATE
-> Task :LivXowProvider:preDebugBuild UP-TO-DATE
+> Task :MLSBDProvider:preBuild UP-TO-DATE
+> Task :MLSBDProvider:preDebugBuild UP-TO-DATE
 > Task :KMMovies:parseDebugLocalResources
-> Task :LivXowProvider:dataBindingMergeDependencyArtifactsDebug
-> Task :LivXowProvider:generateDebugResources
+> Task :MLSBDProvider:generateDebugBuildConfig
 > Task :KMMovies:generateDebugRFile
-> Task :LivXowProvider:packageDebugResources
-> Task :LivXowProvider:processDebugNavigationResources
-> Task :LivXowProvider:generateDebugBuildConfig
-> Task :LivXowProvider:parseDebugLocalResources
-> Task :LivXowProvider:processDebugManifest
-> Task :LivXowProvider:dataBindingGenBaseClassesDebug
-> Task :LivXowProvider:generateDebugRFile
+> Task :MLSBDProvider:generateDebugResources
+> Task :MLSBDProvider:packageDebugResources
+> Task :MLSBDProvider:processDebugNavigationResources
+> Task :MovieBoxProvider:preBuild UP-TO-DATE
+> Task :MovieBoxProvider:preDebugBuild UP-TO-DATE
+> Task :MLSBDProvider:parseDebugLocalResources
+> Task :MovieBoxProvider:generateDebugBuildConfig
+> Task :MovieBoxProvider:generateDebugResources
+> Task :MLSBDProvider:generateDebugRFile
+> Task :MovieBoxProvider:packageDebugResources
+> Task :MovieBoxProvider:processDebugNavigationResources
+> Task :MovieBoxProvider:parseDebugLocalResources
+> Task :MovieBoxProvider:generateDebugRFile
 
-> Task :LivXowProvider:compileResources
-/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/drawable/outline.xml: note: compiling XML.
-/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/drawable/save_icon.xml: note: compiling XML.
-/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/layout/settings.xml: note: compiling XML.
-note: including /usr/local/lib/android/sdk/platforms/android-36/android.jar.
-note: linking package 'com.cncverse' using package ID 7f.
-note: merging archive /tmp/res9466636556224819385.zip.
-note: merging 'drawable/outline' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/drawable/outline.xml.
-note: merging 'drawable/save_icon' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/drawable/save_icon.xml.
-note: merging 'layout/settings' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/layout/settings.xml.
-note: enabling pre-O feature split ID rewriting.
-note: collapsing resource versions for minimum SDK 21.
-note: Running VersionCollapser with minSdk = 21.
-AndroidManifest.xml: note: writing to archive (keep_raw_values=false).
-note: writing AndroidManifest.xml to archive.
-note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/drawable/outline.xml (com.cncverse:drawable/outline).
-res/drawable/outline.xml: note: writing to archive (keep_raw_values=false).
-note: writing res/drawable/outline.xml to archive.
-note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/drawable/save_icon.xml (com.cncverse:drawable/save_icon).
-res/drawable/save_icon.xml: note: writing to archive (keep_raw_values=false).
-note: writing res/drawable/save_icon.xml to archive.
-note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/res/layout/settings.xml (com.cncverse:layout/settings).
-res/layout/settings.xml: note: writing to archive (keep_raw_values=false).
-note: writing res/layout/settings.xml to archive.
-note: writing resources.arsc to archive.
-
-> Task :M3UPlaylistPlayerProvider:preBuild UP-TO-DATE
-> Task :M3UPlaylistPlayerProvider:preDebugBuild UP-TO-DATE
-> Task :M3UPlaylistPlayerProvider:dataBindingMergeDependencyArtifactsDebug
-> Task :M3UPlaylistPlayerProvider:generateDebugResources
-> Task :M3UPlaylistPlayerProvider:packageDebugResources
-> Task :M3UPlaylistPlayerProvider:processDebugNavigationResources
-> Task :M3UPlaylistPlayerProvider:parseDebugLocalResources
-> Task :M3UPlaylistPlayerProvider:dataBindingGenBaseClassesDebug
-> Task :M3UPlaylistPlayerProvider:generateDebugBuildConfig
-> Task :M3UPlaylistPlayerProvider:generateDebugRFile
+> Task :MLSBDProvider:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MLSBDProvider/src/main/kotlin/com/cncverse/MlsbdProvider.kt:118:54 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MLSBDProvider/src/main/kotlin/com/cncverse/MlsbdProvider.kt:164:58 Unnecessary safe call on a non-null receiver of type 'String'.
 
 > Task :KMMovies:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:231:65 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:266:69 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:479:60 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
-> Task :M3UPlaylistPlayerProvider:compileDebugKotlin
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:213:35 Missing return statement.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:215:50 Unresolved reference 'decryptedContent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:9 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:16 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:35 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:40 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:41 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:46 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:47 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:54 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:54 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:55 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:84 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:85 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:89 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:89 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:91 Unresolved reference 'group'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:216:97 Syntax error: Unexpected tokens (use ';' to separate expressions on the same line).
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:217:25 Unresolved reference 'group'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:218:24 Unresolved reference 'group'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:218:42 Cannot infer type for value parameter 'channel'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:219:41 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:220:43 Unresolved reference 'title'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:221:41 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:222:38 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:223:35 Unresolved reference 'key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:224:37 Unresolved reference 'keyid'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:225:41 Unresolved reference 'userAgent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:226:38 Unresolved reference 'cookie'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:227:42 Unresolved reference 'licenseUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:228:39 Unresolved reference 'headers'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:229:155 Unresolved reference 'drmKeys'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:233:31 Assignment type mismatch: actual type is 'MatchGroup?', but 'String?' was expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:233:41 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:241:10 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:241:12 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:241:17 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:244:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:245:26 Unresolved reference 'getWithCustomHeaders'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:245:47 Unresolved reference 'mainUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:246:32 Unresolved reference 'decryptContent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:248:21 Unresolved reference 'items'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:248:36 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:248:98 Cannot infer type for value parameter 'channel'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:249:37 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:250:39 Unresolved reference 'title'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:251:37 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:252:34 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:253:31 Unresolved reference 'key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:254:33 Unresolved reference 'keyid'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:255:37 Unresolved reference 'userAgent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:256:34 Unresolved reference 'cookie'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:257:38 Unresolved reference 'licenseUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:258:35 Unresolved reference 'headers'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:259:13 Unresolved reference 'newLiveSearchResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:259:151 Unresolved reference 'drmKeys'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:261:17 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:261:22 Unresolved reference 'posterUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:262:17 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:262:22 Unresolved reference 'apiName'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:263:17 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:263:22 Unresolved reference 'lang'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:263:37 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:268:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:270:16 Unresolved reference 'newLiveStreamLoadResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:272:13 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:272:18 Unresolved reference 'posterUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:273:13 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:273:18 Unresolved reference 'plot'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:291:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:301:30 Unresolved reference 'getMpdStream'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:303:37 Unresolved reference 'headers'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:316:33 Unresolved reference 'getDRMKeysFromLicenseServer'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:323:29 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:323:34 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:324:29 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:324:34 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:343:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:343:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:344:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:344:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:361:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:361:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:362:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:362:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:9 Missing return statement.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:11 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:16 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:18 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:19 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:27 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:28 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:31 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:32 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:40 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:41 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:42 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:49 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:50 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:51 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:53 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:374:53 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:376:28 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:377:17 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:378:41 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:382:17 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:383:37 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:385:13 Unresolved reference 'callback'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:385:22 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:386:17 Suspend function 'suspend fun newExtractorLink(source: String, name: String, url: String, type: ExtractorLinkType? = ..., initializer: suspend ExtractorLink.() -> Unit = ...): ExtractorLink' can only be called from a coroutine or another suspend function.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:387:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:387:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:388:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:388:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:389:27 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:11 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:16 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:18 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:19 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:27 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:28 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:31 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:32 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:40 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:41 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:42 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:51 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:52 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:53 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:55 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:399:55 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:400:33 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:400:66 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:402:28 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:403:17 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:404:37 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:406:13 Unresolved reference 'callback'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:406:22 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:407:17 Suspend function 'suspend fun newExtractorLink(source: String, name: String, url: String, type: ExtractorLinkType? = ..., initializer: suspend ExtractorLink.() -> Unit = ...): ExtractorLink' can only be called from a coroutine or another suspend function.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:408:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:408:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:409:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:409:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:410:27 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:418:11 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:418:16 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:418:16 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:420:28 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:421:17 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:422:41 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:426:17 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:427:37 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:429:13 Unresolved reference 'callback'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:429:22 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:430:17 Suspend function 'suspend fun newExtractorLink(source: String, name: String, url: String, type: ExtractorLinkType? = ..., initializer: suspend ExtractorLink.() -> Unit = ...): ExtractorLink' can only be called from a coroutine or another suspend function.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:431:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:431:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:432:21 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:433:27 Unresolved reference 'loadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:444:9 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:444:16 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:445:5 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:448:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:496:19 Function invocation 'context(...)' expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:497:13 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:498:25 Unresolved reference 'getSharedPreferences'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:499:64 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:500:9 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:501:63 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:504:30 Unresolved reference 'resources'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:584:29 Unresolved reference 'startActivity'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/M3UPlaylistPlayerProvider/src/main/kotlin/com/cncverse/m3uplaylistplayer/M3UPlaylistPlayer.kt:593:1 Syntax error: Expecting a top level declaration.
-
-> Task :M3UPlaylistPlayerProvider:compileDebugKotlin FAILED
+> Task :MLSBDProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MLSBDProvider/build/intermediates/classes.dex
 
 > Task :KMMovies:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/intermediates/classes.dex
 
-> Task :LivXowProvider:compileDebugKotlin
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowCryptoUtils.kt:30:13 Return type mismatch: expected 'Char', actual 'Char?'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowCryptoUtils.kt:30:30 Unresolved reference 'decodeTable'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowCryptoUtils.kt:56:31 Unresolved reference 'AES_KEY'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowCryptoUtils.kt:57:33 Unresolved reference 'AES_IV'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:73:41 Unresolved reference 'APP_VERSION'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:77:39 Unresolved reference 'APP_BUILD'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:78:44 Unresolved reference 'APP_INSTANCE_ID'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:82:46 Unresolved reference 'PLATFORM_VERSION'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:83:41 Unresolved reference 'SDK_VERSION'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:84:42 Unresolved reference 'PACKAGE_NAME'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:93:50 Unresolved reference 'PACKAGE_NAME'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:144:6 Syntax error: Missing '}.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowFirebaseFetcher.kt:151:1 Syntax error: Unclosed comment.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:41:28 Unresolved reference 'DEFAULT_WEB_URL'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:60:9 Unresolved reference 'cachedWebUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:60:23 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:60:23 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:60:27 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:65:13 Unresolved reference 'cachedWebUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:66:23 Unresolved reference 'cachedWebUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:67:20 Unresolved reference 'cachedWebUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:71:9 Unresolved reference 'cachedWebUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:71:24 Unresolved reference 'DEFAULT_WEB_URL'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:72:19 Unresolved reference 'DEFAULT_WEB_URL'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:73:16 Unresolved reference 'DEFAULT_WEB_URL'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:254:19 Function invocation 'context(...)' expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:255:13 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:256:25 Unresolved reference 'getSharedPreferences'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:257:64 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:258:9 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:259:63 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:262:30 Unresolved reference 'resources'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:348:29 Unresolved reference 'startActivity'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:358:19 Function invocation 'context(...)' expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:360:19 Unresolved reference 'lastBrowserOpenMs'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:360:37 'operator' modifier is required on 'fun String.compareTo(other: String, ignoreCase: Boolean = ...): Int'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:360:39 Unresolved reference 'BROWSER_DEBOUNCE_MS'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:361:9 Unresolved reference 'lastBrowserOpenMs'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:364:21 Unresolved reference 'startActivity'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:373:103 Missing return statement.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:379:44 Suspend function 'suspend fun fetchLiveEvents(): List<LiveEventData>' can only be called from a coroutine or another suspend function.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:9 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:16 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:35 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:36 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:49 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:51 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:59 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:61 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:454:66 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:455:5 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:457:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:457:22 Conflicting overloads:
-suspend fun search(query: String): List<SearchResponse>
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:476:40 Unresolved reference 'createDisplayTitle'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:477:34 Unresolved reference 'getEventStatus'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:482:37 Unresolved reference 'generateMatchCardUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:485:29 Unresolved reference 'LiveEventLoadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:494:21 Unresolved reference 'newLiveSearchResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:498:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:498:30 Unresolved reference 'posterUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:502:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:502:22 Conflicting overloads:
-suspend fun load(url: String): LoadResponse
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:504:20 Inapplicable candidate(s): fun <reified T : Any> parseJson(value: String): T
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:504:30 Unresolved reference 'LiveEventLoadData'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:506:30 Unresolved reference 'eventInfo'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:508:24 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:508:24 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:508:30 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:509:22 Unresolved reference 'eventType'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:509:33 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:509:33 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:509:37 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:510:22 Unresolved reference 'eventName'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:510:33 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:510:33 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:510:37 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:511:22 Unresolved reference 'startTime'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:511:33 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:511:33 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:511:37 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:522:52 Unresolved reference 'formats'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:525:16 Unresolved reference 'newLiveStreamLoadResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:525:54 Unresolved reference 'title'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:526:13 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:526:18 Unresolved reference 'posterUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:526:35 Unresolved reference 'poster'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:527:13 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:527:18 Unresolved reference 'plot'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:531:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:531:22 Conflicting overloads:
-suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:538:9 Unresolved reference 'streamResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:538:45 Cannot infer type for value parameter 'stream'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:539:37 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:542:42 Unresolved reference 'tokenApi'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:542:77 Unresolved reference 'streamUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:545:39 Inapplicable candidate(s): fun <reified T : Any> parseJson(value: String): T
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:545:49 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:545:72 Unresolved reference 'tokenApi'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:546:21 Suspension functions can only be called within coroutine body.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:546:61 Return type mismatch: expected '??? (Unknown type for value parameter it)', actual 'Unit'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:549:21 Return type mismatch: expected '??? (Unknown type for value parameter it)', actual 'Unit'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:552:24 Unresolved reference 'streamUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:552:37 Return type mismatch: expected '??? (Unknown type for value parameter it)', actual 'Unit'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:558:34 Unresolved reference 'headers'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:558:43 Cannot infer type for type parameter 'K'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:558:43 Cannot infer type for type parameter 'V'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:558:61 Cannot infer type for type parameter 'K'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:558:61 Cannot infer type for type parameter 'V'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:561:32 Return type mismatch: expected '??? (Unknown type for value parameter it)', actual 'Unit'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:568:37 Unresolved reference 'drmInfo'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:568:37 Cannot infer type for type parameter 'V'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:578:37 Suspension functions can only be called within coroutine body.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:579:45 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:579:50 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:587:52 Unresolved reference 'drmKidBase64'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:593:31 Syntax error: Expecting '->'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:596:37 Suspension functions can only be called within coroutine body.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:597:54 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:597:59 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:610:21 Syntax error: Expecting an element.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:610:26 Syntax error: Unexpected tokens (use ';' to separate expressions on the same line).
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:612:52 Cannot infer type for type parameter 'K'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:612:52 Cannot infer type for type parameter 'V'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:617:33 Suspension functions can only be called within coroutine body.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:618:50 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:618:55 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:624:54 Cannot infer type for type parameter 'K'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:624:54 Cannot infer type for type parameter 'V'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:630:18 Syntax error: Expecting 'catch' or 'finally'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:631:15 Unresolved reference 'catch'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:631:22 Unresolved reference 'e'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:631:23 Syntax error: Expecting ')'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:631:23 Syntax error: Unexpected tokens (use ';' to separate expressions on the same line).
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:632:17 Unresolved reference 'e'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:634:9 Missing return statement.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:636:9 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:636:16 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:637:1 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:643:57 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:646:78 Unresolved reference 'type'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:648:49 Unresolved reference 'type'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:667:55 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:670:39 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:670:44 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:670:51 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:670:81 Unresolved reference 'api'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:670:86 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:670:93 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:675:28 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:680:30 None of the following candidates is applicable:
+> Task :KMMovies:generateManifest
 
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean
+> Task :KMMovies:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/KMMovies.cs3
 
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:680:60 None of the following candidates is applicable:
+> Task :KMMovies:writeCacheEntry
+> Task :MLSBDProvider:generateManifest
 
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean
+> Task :MLSBDProvider:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MLSBDProvider/build/MLSBDProvider.cs3
 
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:681:30 None of the following candidates is applicable:
+> Task :MLSBDProvider:writeCacheEntry
+> Task :MovieBoxProviderIN:preBuild UP-TO-DATE
+> Task :MovieBoxProviderIN:preDebugBuild UP-TO-DATE
+> Task :MovieBoxProviderIN:generateDebugBuildConfig
+> Task :MovieBoxProviderIN:generateDebugResources
+> Task :MovieBoxProviderIN:packageDebugResources
+> Task :MovieBoxProviderIN:processDebugNavigationResources
+> Task :MovieLinkBDProvider:preBuild UP-TO-DATE
+> Task :MovieLinkBDProvider:preDebugBuild UP-TO-DATE
+> Task :MovieBoxProviderIN:parseDebugLocalResources
+> Task :MovieLinkBDProvider:generateDebugBuildConfig
+> Task :MovieLinkBDProvider:generateDebugResources
+> Task :MovieBoxProviderIN:generateDebugRFile
+> Task :MovieLinkBDProvider:packageDebugResources
+> Task :MovieLinkBDProvider:processDebugNavigationResources
+> Task :MovieLinkBDProvider:parseDebugLocalResources
+> Task :MovieLinkBDProvider:generateDebugRFile
+> Task :MovieBoxProvider:compileDebugKotlin
 
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:681:59 None of the following candidates is applicable:
-
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:682:30 None of the following candidates is applicable:
-
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:682:59 None of the following candidates is applicable:
-
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : ClosedRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean:
-  Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T : Comparable<T>, R : OpenEndRange<T>, Iterable<T>> R.contains(element: T?): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:684:40 Return type mismatch: expected 'Nothing?', actual 'Any'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:688:55 Argument type mismatch: actual type is 'Any', but 'String' was expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:700:70 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:704:60 Unresolved reference 'context'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:711:43 Argument type mismatch: actual type is 'Any', but 'Context' was expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:850:54 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:853:37 Unresolved reference 'api'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:858:22 Unresolved reference 'header'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:861:32 Unresolved reference 'client'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:867:33 Unresolved reference 'link_key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:870:57 Unresolved reference 'link_key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:892:54 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:895:37 Unresolved reference 'api'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:900:22 Unresolved reference 'header'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:903:32 Unresolved reference 'client'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:936:57 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:939:37 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:939:51 Unresolved reference 'api'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:955:65 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:958:39 Unresolved reference 'ip_api'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:958:47 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:958:47 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:958:51 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:971:22 Unresolved reference 'header'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:974:32 Unresolved reference 'client'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:980:33 Unresolved reference 'link_key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:983:57 Unresolved reference 'link_key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1005:53 Unresolved reference 'TokenApiConfig'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1008:37 Unresolved reference 'api'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1013:22 Unresolved reference 'header'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1016:32 Unresolved reference 'client'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1022:33 Unresolved reference 'link_key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1025:57 Unresolved reference 'link_key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowLiveEventsProvider.kt:1082:1 Syntax error: Expecting a top level declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowPlugin.kt:18:34 Unresolved reference 'context'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:234:35 Missing return statement.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:240:26 Suspend function 'suspend fun getWithCustomHeaders(url: String): String' can only be called from a coroutine or another suspend function.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:9 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:16 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:35 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:40 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:41 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:46 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:47 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:54 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:54 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:55 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:84 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:85 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:89 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:89 Function declaration must have a name.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:91 Unresolved reference 'group'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:243:97 Syntax error: Unexpected tokens (use ';' to separate expressions on the same line).
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:244:25 Unresolved reference 'group'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:245:24 Unresolved reference 'group'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:245:42 Cannot infer type for value parameter 'channel'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:246:41 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:247:43 Unresolved reference 'title'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:248:41 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:249:38 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:250:34 Unresolved reference 'key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:251:36 Unresolved reference 'keyid'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:252:41 Unresolved reference 'userAgent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:253:38 Unresolved reference 'cookie'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:254:42 Unresolved reference 'licenseUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:255:39 Unresolved reference 'headers'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:256:155 Unresolved reference 'drmKeys'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:260:30 Assignment type mismatch: actual type is 'MatchGroup?', but 'String?' was expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:260:39 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:268:10 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:268:11 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:268:16 Syntax error: Expecting member declaration.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:271:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:271:22 Conflicting overloads:
-suspend fun search(query: String): List<SearchResponse>
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:273:26 Unresolved reference 'getWithCustomHeaders'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:273:47 Unresolved reference 'mainUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:274:32 Unresolved reference 'decryptContent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:276:21 Unresolved reference 'items'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:276:36 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:276:97 Cannot infer type for value parameter 'channel'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:277:41 Unresolved reference 'url'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:278:43 Unresolved reference 'title'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:279:41 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:280:38 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:281:35 Unresolved reference 'key'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:282:37 Unresolved reference 'keyid'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:283:41 Unresolved reference 'userAgent'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:284:38 Unresolved reference 'cookie'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:285:42 Unresolved reference 'licenseUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:286:13 Unresolved reference 'newLiveSearchResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:286:151 Unresolved reference 'drmKeys'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:286:160 Unresolved reference 'headers'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:288:17 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:288:22 Unresolved reference 'posterUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:289:17 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:289:22 Unresolved reference 'apiName'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:290:17 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:290:22 Unresolved reference 'lang'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:290:35 Unresolved reference 'attributes'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:295:5 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:295:22 Conflicting overloads:
-suspend fun load(url: String): LoadResponse
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:298:16 Unresolved reference 'newLiveStreamLoadResponse'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:300:13 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:300:18 Unresolved reference 'posterUrl'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:301:13 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:301:18 Unresolved reference 'plot'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:323:19 Function invocation 'context(...)' expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:324:13 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:329:25 Unresolved reference 'getSharedPreferences'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:330:64 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:331:9 Unresolved reference 'telegramPopupShown'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:332:63 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:335:30 Unresolved reference 'resources'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:396:29 Unresolved reference 'startActivity'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:406:19 Function invocation 'context(...)' expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:412:19 Unresolved reference 'lastBrowserOpenMs'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:412:37 'operator' modifier is required on 'fun String.compareTo(other: String, ignoreCase: Boolean = ...): Int'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:412:39 Unresolved reference 'BROWSER_DEBOUNCE_MS'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:413:9 Unresolved reference 'lastBrowserOpenMs'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:416:21 Unresolved reference 'startActivity'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:425:1 Modifier 'override' is not applicable to 'top level function'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:425:18 Conflicting overloads:
-suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:450:50 Unresolved reference 'base64ToHexOrNull'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:451:52 Unresolved reference 'base64ToHexOrNull'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:454:34 Unresolved reference 'getMpdStream'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:475:47 Unresolved reference 'hexToBase64UrlOrNull'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:476:47 Unresolved reference 'hexToBase64UrlOrNull'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:480:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:480:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:481:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:481:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:497:28 Unresolved reference 'getMpdStream'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:512:31 Unresolved reference 'getDRMKeysFromLicenseServer'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:519:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:519:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:520:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:520:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:539:19 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:539:24 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:540:19 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:540:24 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:557:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:557:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:558:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:558:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:583:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:583:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:584:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:584:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:606:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:606:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:607:25 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:607:30 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:630:21 'this' is not defined in this context.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:630:26 Unresolved reference 'name'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/LivXowProvider/src/main/kotlin/com/cncverse/LivXowProvider.kt:646:1 Syntax error: Expecting a top level declaration.
-
-> Task :LivXowProvider:compileDebugKotlin FAILED
+> Task :MovieLinkBDProvider:compileDebugKotlin FAILED
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MovieLinkBDProvider/src/main/kotlin/com/cncverse/MovieLinkBDProvider.kt:293:22 'var rating: Int?' is deprecated. `rating` is the old scoring system, use score instead.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MovieLinkBDProvider/src/main/kotlin/com/cncverse/MovieLinkBDProvider.kt:365:18 'var rating: Int?' is deprecated. `rating` is the old scoring system, use score instead.
 
 > Task :KatMovieHD:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
-FAILURE: Build completed with 2 failures.
+> Task :MovieBoxProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MovieBoxProvider/build/intermediates/classes.dex
 
-1: Task failed with an exception.
------------
+> Task :MovieBoxProviderIN:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/MovieBoxProviderIN/src/main/kotlin/com/cncverse/MovieBoxProviderIN.kt:198:41 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+
+FAILURE: Build failed with an exception.
+
 * What went wrong:
-Execution failed for task ':M3UPlaylistPlayerProvider:compileDebugKotlin'.
+Execution failed for task ':MovieLinkBDProvider:compileDebugKotlin'.
 > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
    > Compilation error. See log for more details
 
@@ -964,7 +432,7 @@ Execution failed for task ':M3UPlaylistPlayerProvider:compileDebugKotlin'.
 > Get more help at https://help.gradle.org.
 
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':M3UPlaylistPlayerProvider:compileDebugKotlin'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':MovieLinkBDProvider:compileDebugKotlin'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
@@ -1142,239 +610,6 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
 	... 2 more
 
-==============================================================================
 
-2: Task failed with an exception.
------------
-* What went wrong:
-Execution failed for task ':LivXowProvider:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
-
-* Try:
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights from a Build Scan (powered by Develocity).
-> Get more help at https://help.gradle.org.
-
-* Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':LivXowProvider:compileDebugKotlin'.
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
-	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:121)
-	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskExecuter.java:41)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.DefaultNodeExecutor.executeLocalTaskNode(DefaultNodeExecutor.java:55)
-	at org.gradle.execution.plan.DefaultNodeExecutor.execute(DefaultNodeExecutor.java:34)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:355)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:343)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:339)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:339)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:146)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:131)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$11(DefaultBuildLifecycleController.java:323)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:304)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$9(StateTransitionController.java:215)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:215)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:314)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:182)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
-	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
-	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
-	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
-	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
-	at java.base/java.lang.Thread.run(Thread.java:840)
-Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:289)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
-	at org.gradle.internal.Factories$1.create(Factories.java:30)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withoutLocks$2(DefaultWorkerLeaseService.java:350)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:348)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:332)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:337)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:267)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:244)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:227)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:210)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:176)
-	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:167)
-	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:47)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:137)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:134)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:134)
-	at org.gradle.internal.execution.steps.ExecuteStep$Mutable.execute(ExecuteStep.java:80)
-	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
-	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
-	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
-	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:51)
-	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:29)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:67)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:39)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:42)
-	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:24)
-	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
-	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:39)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:28)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
-	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:76)
-	at org.gradle.internal.Either$Right.fold(Either.java:176)
-	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:74)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:49)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:46)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:35)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
-	at java.base/java.util.Optional.orElseGet(Optional.java:364)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
-	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:70)
-	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:32)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:69)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:37)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:63)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:34)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:79)
-	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:65)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:99)
-	at org.gradle.internal.execution.steps.ValidateStep$Mutable.execute(ValidateStep.java:65)
-	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.executeMutable(CaptureMutableStateBeforeExecutionStep.java:86)
-	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
-	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:90)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:23)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:77)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:43)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$executeMutable$0(AssignMutableWorkspaceStep.java:34)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:305)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:30)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:21)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
-	at java.base/java.util.Optional.orElseGet(Optional.java:364)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:56)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
-	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 66 more
-Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
-	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
-	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:68)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:64)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:61)
-	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:102)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:61)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:58)
-	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:176)
-	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
-	at org.gradle.internal.Factories$1.create(Factories.java:30)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:133)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	... 7 more
-
-==============================================================================
-
-BUILD FAILED in 1m 40s
-173 actionable tasks: 173 executed
+BUILD FAILED in 1m 36s
+189 actionable tasks: 189 executed
