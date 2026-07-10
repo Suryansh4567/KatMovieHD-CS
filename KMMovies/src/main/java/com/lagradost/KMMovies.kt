@@ -522,7 +522,7 @@ class KMMovies : MainAPI() {
                         resolveZipZap(srcUrl, label, callback)
                     }
                     isSkydropUrl(srcUrl) -> {
-                        resolveSkydrop(srcUrl, callback)
+                        resolveSkydrop(srcUrl, subtitleCallback, callback)
                     }
                     isDirectVideo(srcUrl) -> {
                         emitDirect(srcUrl, label, srcUrl, callback)
