@@ -1,6 +1,6 @@
 {
     "name": "KatMovieHD CS Repo",
-    "description": "CloudStream extensions for KatMovieHD and Rare Toon India",
+    "description": "CloudStream extensions for KatMovieHD and KMMovies",
     "manifestVersion": 1,
     "pluginLists": [
         "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/plugins.json"

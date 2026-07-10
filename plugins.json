@@ -1,26 +1,5 @@
 [
     {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CNCVerse.cs3",
-        "status": 1,
-        "version": 81,
-        "name": "CNCVerse",
-        "internalName": "CNCVerse",
-        "authors": [
-            "NivinCNC"
-        ],
-        "description": "Netflix, PrimeVideo, Disney+ Hotstar Contents in Multiple Languages",
-        "fileSize": 72223,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "ta",
-        "tvTypes": [
-            "Movie",
-            "TvSeries"
-        ],
-        "iconUrl": "https://github.com/NivinCNC/CNCVerse-Cloud-Stream-Extension/raw/refs/heads/master/CNC%20Verse/icon.png",
-        "apiVersion": 1,
-        "fileHash": "sha256-6b93cc6b6104da6e5019c1ff4841538c9b3aac481369ba0c823178f060c8e13b"
-    },
-    {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
         "version": 42,
@@ -44,24 +23,24 @@
         "fileHash": "sha256-9f59294f8e6713c1922b7ac2905981a0fd333f62b2b95530c30f08f675d77354"
     },
     {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/PagalMovies.cs3",
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
         "status": 1,
         "version": 1,
-        "name": "PagalMovies",
-        "internalName": "PagalMovies",
+        "name": "KMMovies",
+        "internalName": "KMMovies",
         "authors": [
-            "Arena Agent"
+            "arena"
         ],
-        "description": "PagalMovies Alpha-Omega: Elite Hindi Dubbed & Bollywood collection with V3 Ghost Proxy & TMDB Enhancement.",
-        "fileSize": 35371,
+        "description": "Bollywood, Hollywood and South Indian movies / TV series from KMMovies.",
+        "fileSize": 50502,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
             "Movie",
             "TvSeries"
         ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=www.pagalmovies.boutique&sz=64",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-918bbdfcd286d04f22990f103c13976581855ab5c54020281ee0edaf0698bf80"
+        "fileHash": "sha256-7a50e707670e632bc173c103cbb3ceda032e582365702b67211a96071afebe6b"
     }
 ]
