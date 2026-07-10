@@ -73,8 +73,25 @@ subprojects {
         namespace = "com.arena"
         compileSdk = 36
 
+        buildFeatures {
+            buildConfig = true
+        }
+
         defaultConfig {
             minSdk = 21
+
+            // A few legacy providers reference these optional BuildConfig
+            // constants. Keep empty defaults so the full multi-provider repo
+            // remains buildable when no local/CI secrets are configured.
+            // Providers that require them will fail gracefully at runtime
+            // rather than breaking every plugin compilation.
+            buildConfigField("String", "CASTLE_SUFFIX", "\"\"")
+            buildConfigField("String", "CINETV_SECRET_KEY_ENCRYPTED", "\"\"")
+            buildConfigField("String", "CINETV_DES_KEY", "\"\"")
+            buildConfigField("String", "CINETV_DES_IV", "\"\"")
+            buildConfigField("String", "CINETV_AES_KEY", "\"\"")
+            buildConfigField("String", "CINETV_AES_IV", "\"\"")
+            buildConfigField("String", "CINETV_WS_SECRET", "\"\"")
         }
 
         lint { targetSdk = 36 }

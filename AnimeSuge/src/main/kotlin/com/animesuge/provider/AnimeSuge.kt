@@ -1,4 +1,4 @@
-﻿package com.animesuge.provider
+package com.animesuge.provider
 
 import android.util.Base64
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -124,7 +124,7 @@ class AnimeSuge : MainAPI() {
 
     // ── Search ───────────────────────────────────────────────────────────────
 
-    override suspend fun search(query: String): List<SearchResponse> {        if 
+    override suspend fun search(query: String): List<SearchResponse> {
         val encoded = URLEncoder.encode(query, "UTF-8")
         return app.get("$mainUrl/filter?keyword=$encoded").document
             .select("div.item").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
