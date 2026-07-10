@@ -29,10 +29,6 @@
   "kmmovies_candidates": [
     "https://kmmovies.shop"
   ],
-  "_comment": "Plugins probe official hubs first, then candidate lists, then public fallbacks. Update any URL if a site moves domain.",
-  "_updated": "2026-07-10",
-  "raretoon": "https://raretoonindia.in",
-  "raretoon_candidates": [
-    "https://raretoonindia.in"
-  ]
+  "_comment": "Domains used by the KatMovieHD and KMMovies extensions. Update a URL if a site moves domain.",
+  "_updated": "2026-07-10"
 }
