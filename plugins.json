@@ -25,7 +25,7 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
         "status": 1,
-        "version": 1,
+        "version": 2,
         "name": "KMMovies",
         "internalName": "KMMovies",
         "authors": [
@@ -41,6 +41,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-5e9ccbda453fe5b5407301ff27dd3a79936fbf18221af8b9b4533f2cdaa1a91b"
+        "fileHash": "sha256-9bc5ad5b3fd5178881c6803b7921fc59c0eb8954527873e0bce784b56dcc211e"
     }
 ]
