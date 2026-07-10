@@ -40,6 +40,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.supervisorScope
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.URI
 import java.net.URLEncoder
 
@@ -143,7 +145,9 @@ class KMMovies : MainAPI() {
     private fun absoluteUrl(document: Document, value: String): String {
         if (value.isBlank()) return ""
         if (value.startsWith("//")) return "https:$value"
-        return if (value.startsWith("http", ignoreCase = true)) value
+        return if (value.startsWith("http", ignoreCase = true)) {
+            value.replace(" ", "%20")
+        }
         else document.location().let { location ->
             runCatching { URI(location).resolve(value).toString() }
                 .getOrElse { fixUrl(value) }
@@ -518,6 +522,104 @@ class KMMovies : MainAPI() {
             .distinctBy { it.url }
     }
 
+    private data class SourceTarget(val url: String, val label: String)
+
+    private fun isMagicLinksPost(url: String): Boolean {
+        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val path = runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+        return host.contains("magiclinks.lol") &&
+            Regex("""/\d+-\d+/?$""").containsMatchIn(path)
+    }
+
+    /**
+     * MagicLinks deliberately serves a decoy WordPress article to plain HTTP
+     * clients. The real file metadata is still exposed by the site's public
+     * WordPress REST endpoint. Resolve the post by its numeric slug instead of
+     * depending on browser JavaScript, cookies, or the decoy HTML page.
+     */
+    private suspend fun extractMagicLinksSources(url: String): List<SourceTarget> {
+        if (!isMagicLinksPost(url)) return emptyList()
+        val uri = runCatching { URI(url) }.getOrNull() ?: return emptyList()
+        val host = uri.host ?: return emptyList()
+        val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return emptyList()
+        val apiUrl = "${uri.scheme ?: "https"}://$host/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}&_fields=content,meta,link"
+        val jsonText = runCatching {
+            app.get(
+                apiUrl,
+                headers = headers + mapOf("Accept" to "application/json", "Referer" to url),
+                timeout = 20
+            ).text
+        }.getOrNull() ?: return emptyList()
+
+        val root = runCatching { JSONArray(jsonText).optJSONObject(0) }.getOrNull() ?: return emptyList()
+        val output = linkedMapOf<String, SourceTarget>()
+        fun add(raw: String?, label: String) {
+            val candidate = raw?.trim().orEmpty()
+            if (candidate.isBlank()) return
+            val absolute = if (candidate.startsWith("http", true)) {
+                candidate.replace(" ", "%20")
+            } else {
+                runCatching { URI(url).resolve(candidate).toString() }.getOrElse { return }
+            }
+            if (isCandidateUrl(absolute, label) || isDirectVideo(absolute) ||
+                absolute.contains("download", true) || absolute.contains("online.php", true)) {
+                output.putIfAbsent(absolute, SourceTarget(absolute, label))
+            }
+        }
+
+        val meta = root.optJSONObject("meta")
+        val metaFields = listOf(
+            "watch_online_url" to "Watch Online",
+            "watch_online2_url" to "Watch Online 2",
+            "zip_zap_url" to "Zip-Zap",
+            "skydrop_url" to "SkyDrop",
+            "cloud_porter_url" to "Cloud Porter",
+            "hubcloud_url" to "HubCloud",
+            "gdtot_url" to "GDTot",
+            "gofile_url" to "GoFile",
+            "pixeldrain_url" to "Pixeldrain",
+            "gdflix_url" to "GDFlix",
+            "filepress_url" to "Filepress",
+            "one_click_url" to "One Click",
+            "transfer_it_url" to "Transfer.it",
+            "ultra_fast_download_url" to "Fast Download"
+        )
+        metaFields.forEach { (key, label) -> add(meta?.optString(key), label) }
+
+        val rendered = root.optJSONObject("content")?.optString("rendered").orEmpty()
+        if (rendered.isNotBlank()) {
+            val renderedDocument = org.jsoup.Jsoup.parse(rendered, url)
+            renderedDocument.select("a[href]").forEach { anchor ->
+                add(anchor.absUrl("href").ifBlank { anchor.attr("href") }, anchor.text().normalise())
+            }
+            Regex("""https?://[^\s\"'<>\\]+""")
+                .findAll(rendered)
+                .forEach { add(it.value.trimEnd('\\', ',', '.', ';'), "MagicLinks source") }
+        }
+        return output.values.toList().take(12)
+    }
+
+    /** Extracts JWPlayer/video URLs embedded in wrapper-page JavaScript. */
+    private fun extractEmbeddedMediaUrls(document: Document): List<String> {
+        val output = linkedSetOf<String>()
+        val scripts = document.select("script").joinToString("\n") { it.data() + "\n" + it.html() }
+        val patterns = listOf(
+            Regex("""(?i)\bfile\s*:\s*['\"]([^'\"]+)['\"]"""),
+            Regex("""(?i)\b(?:src|url|source)\s*[:=]\s*['\"]([^'\"]+)['\"]"""),
+            Regex("""(?i)\"(?:file|src|url)\"\s*:\s*\"([^\"]+)\"""")
+        )
+        patterns.forEach { pattern ->
+            pattern.findAll(scripts).forEach { match ->
+                val raw = match.groupValues.getOrNull(1).orEmpty()
+                    .replace("\\/", "/")
+                    .replace("\\u0026", "&")
+                val absolute = absoluteUrl(document, raw)
+                if (isDirectVideo(absolute)) output += absolute
+            }
+        }
+        return output.toList()
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -537,15 +639,33 @@ class KMMovies : MainAPI() {
 
         var attempted = false
         links.distinctBy { "${it.episode}:${it.label}:${it.url}" }.forEach { link ->
-            attempted = true
-            runCatching {
-                // `data` is the serialized source payload, not a valid HTTP
-                // Referer. Start with the provider origin; nested pages then
-                // replace it with their own URL.
-                dispatchLink(link.url, link.label, link.season, link.episode, mainUrl, 0, subtitleCallback, callback)
-            }.onFailure { error ->
-                if (error is CancellationException) throw error
-                Log.w(TAG, "Link failed ${link.url}: ${error.message}")
+            val targets = if (isMagicLinksPost(link.url)) {
+                extractMagicLinksSources(link.url).ifEmpty {
+                    listOf(SourceTarget(link.url, link.label))
+                }
+            } else {
+                listOf(SourceTarget(link.url, link.label))
+            }
+            targets.forEach { target ->
+                attempted = true
+                runCatching {
+                    // `data` is the serialized source payload, not a valid
+                    // HTTP Referer. Start with the provider origin; nested
+                    // pages then replace it with their own URL.
+                    dispatchLink(
+                        target.url,
+                        target.label.ifBlank { link.label },
+                        link.season,
+                        link.episode,
+                        mainUrl,
+                        0,
+                        subtitleCallback,
+                        callback
+                    )
+                }.onFailure { error ->
+                    if (error is CancellationException) throw error
+                    Log.w(TAG, "Link failed ${target.url}: ${error.message}")
+                }
             }
         }
         return attempted
@@ -682,8 +802,10 @@ class KMMovies : MainAPI() {
                 val raw = node.attr("src").ifBlank { node.attr("content") }
                 absoluteUrl(document, raw).takeIf { isDirectVideo(it) }
             }
-        if (inline.isNotEmpty()) {
-            inline.forEach { emitDirect(it, label, pageToParse, callback) }
+        val embedded = extractEmbeddedMediaUrls(document)
+        val playable = (inline + embedded).distinct()
+        if (playable.isNotEmpty()) {
+            playable.forEach { emitDirect(it, label, pageToParse, callback) }
             return
         }
 
