@@ -35,39 +35,35 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :CastleTvProvider:preDebugBuild UP-TO-DATE
 > Task :CastleTvProvider:generateDebugBuildConfig
 > Task :CastleTvProvider:generateDebugResources
+> Task :BilibiliProvider:parseDebugLocalResources
+> Task :AnimeSuge:parseDebugLocalResources
 > Task :CastleTvProvider:packageDebugResources
 > Task :CastleTvProvider:processDebugNavigationResources
 > Task :CineTvProvider:preBuild UP-TO-DATE
 > Task :CineTvProvider:preDebugBuild UP-TO-DATE
 > Task :CineTvProvider:generateDebugBuildConfig
+> Task :AnimeSuge:generateDebugRFile
+> Task :BilibiliProvider:generateDebugRFile
 > Task :CineTvProvider:generateDebugResources
-> Task :AnimeSuge:parseDebugLocalResources
-> Task :BilibiliProvider:parseDebugLocalResources
 > Task :CastleTvProvider:parseDebugLocalResources
+> Task :CastleTvProvider:generateDebugRFile
 > Task :CineTvProvider:packageDebugResources
 > Task :CineTvProvider:processDebugNavigationResources
 > Task :CineTvProvider:parseDebugLocalResources
-> Task :BilibiliProvider:generateDebugRFile
-> Task :CastleTvProvider:generateDebugRFile
-> Task :AnimeSuge:generateDebugRFile
 > Task :CineTvProvider:generateDebugRFile
-
-> Task :CastleTvProvider:compileDebugKotlin
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CastleTvProvider/src/main/kotlin/com/cncverse/CastleTvProvider.kt:41:42 Unresolved reference 'CASTLE_SUFFIX'.
-
-> Task :CastleTvProvider:compileDebugKotlin FAILED
-
-> Task :CineTvProvider:compileDebugKotlin FAILED
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:32:56 Unresolved reference 'CINETV_SECRET_KEY_ENCRYPTED'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:33:43 Unresolved reference 'CINETV_DES_KEY'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:34:42 Unresolved reference 'CINETV_DES_IV'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:37:43 Unresolved reference 'CINETV_AES_KEY'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:38:42 Unresolved reference 'CINETV_AES_IV'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:41:45 Unresolved reference 'CINETV_WS_SECRET'.
 
 > Task :AnimeSuge:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:116:61 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:120:19 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
+
+> Task :CineTvProvider:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:339:49 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:418:50 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:453:50 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:489:50 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:529:50 Unnecessary safe call on a non-null receiver of type 'ResponseBody'.
+
+> Task :CastleTvProvider:compileDebugKotlin
 
 > Task :BilibiliProvider:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/src/main/kotlin/com/cncverse/BilibiliProvider.kt:671:46 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
@@ -75,14 +71,109 @@ w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/src
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/src/main/kotlin/com/cncverse/BilibiliProvider.kt:704:120 Unnecessary safe call on a non-null receiver of type 'String'.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/src/main/kotlin/com/cncverse/BilibiliProvider.kt:742:50 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
 
-FAILURE: Build completed with 2 failures.
+> Task :AnimeSuge:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/build/intermediates/classes.dex
 
-1: Task failed with an exception.
------------
+> Task :AnimeSuge:generateManifest
+
+> Task :AnimeSuge:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/build/AnimeSuge.cs3
+
+> Task :AnimeSuge:writeCacheEntry
+
+> Task :BilibiliProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/build/intermediates/classes.dex
+
+> Task :BilibiliProvider:generateManifest
+
+> Task :BilibiliProvider:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/build/BilibiliProvider.cs3
+
+> Task :BilibiliProvider:writeCacheEntry
+
+> Task :CastleTvProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CastleTvProvider/build/intermediates/classes.dex
+
+> Task :CastleTvProvider:generateManifest
+
+> Task :CastleTvProvider:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CastleTvProvider/build/CastleTvProvider.cs3
+
+> Task :CastleTvProvider:writeCacheEntry
+
+> Task :CineTvProvider:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/build/intermediates/classes.dex
+
+> Task :CineTvProvider:generateManifest
+
+> Task :CineTvProvider:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/build/CineTvProvider.cs3
+
+> Task :CineTvProvider:writeCacheEntry
+> Task :CNCVerse:preBuild UP-TO-DATE
+> Task :CNCVerse:preDebugBuild UP-TO-DATE
+> Task :CNCVerse:generateDebugBuildConfig
+> Task :CNCVerse:generateDebugResources
+> Task :CNCVerse:packageDebugResources
+> Task :CNCVerse:processDebugNavigationResources
+> Task :CricifyProvider:preBuild UP-TO-DATE
+> Task :CricifyProvider:preDebugBuild UP-TO-DATE
+> Task :CNCVerse:parseDebugLocalResources
+> Task :CNCVerse:processDebugManifest
+> Task :CricifyProvider:dataBindingMergeDependencyArtifactsDebug
+> Task :CNCVerse:generateDebugRFile
+
+> Task :CNCVerse:compileResources
+/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/outline.xml: note: compiling XML.
+/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/save_icon.xml: note: compiling XML.
+/home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml: note: compiling XML.
+note: including /usr/local/lib/android/sdk/platforms/android-36/android.jar.
+note: linking package 'com.arena' using package ID 7f.
+note: merging archive /tmp/res380778347685239541.zip.
+note: merging 'drawable/outline' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/outline.xml.
+note: merging 'drawable/save_icon' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/save_icon.xml.
+note: merging 'layout/settings' from compiled file /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml.
+note: enabling pre-O feature split ID rewriting.
+note: collapsing resource versions for minimum SDK 21.
+note: Running VersionCollapser with minSdk = 21.
+AndroidManifest.xml: note: writing to archive (keep_raw_values=false).
+note: writing AndroidManifest.xml to archive.
+note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/outline.xml (com.arena:drawable/outline).
+res/drawable/outline.xml: note: writing to archive (keep_raw_values=false).
+note: writing res/drawable/outline.xml to archive.
+note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/drawable/save_icon.xml (com.arena:drawable/save_icon).
+res/drawable/save_icon.xml: note: writing to archive (keep_raw_values=false).
+note: writing res/drawable/save_icon.xml to archive.
+note: linking /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CNCVerse/src/main/res/layout/settings.xml (com.arena:layout/settings).
+res/layout/settings.xml: note: writing to archive (keep_raw_values=false).
+note: writing res/layout/settings.xml to archive.
+note: writing resources.arsc to archive.
+
+> Task :CricifyProvider:generateDebugResources
+> Task :CricifyProvider:packageDebugResources
+> Task :CricifyProvider:processDebugNavigationResources
+> Task :CricifyProvider:generateDebugBuildConfig
+> Task :DesiSerialsProvider:preBuild UP-TO-DATE
+> Task :DesiSerialsProvider:preDebugBuild UP-TO-DATE
+> Task :CricifyProvider:parseDebugLocalResources
+> Task :DesiSerialsProvider:generateDebugBuildConfig
+
+> Task :CricifyProvider:processDebugManifest FAILED
+Incorrect package="com.cncverse" found in source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
+Recommendation: remove package="com.cncverse" from the source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+
+> Task :CricifyProvider:dataBindingGenBaseClassesDebug
+> Task :CNCVerse:compileDebugKotlin
+
+FAILURE: Build failed with an exception.
+
 * What went wrong:
-Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
+Execution failed for task ':CricifyProvider:processDebugManifest'.
+> A failure occurred while executing com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction
+   > Incorrect package="com.cncverse" found in source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+     Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
+     Recommendation: remove package="com.cncverse" from the source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
 
 * Try:
 > Run with --info or --debug option to get more log output.
@@ -90,200 +181,7 @@ Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
 > Get more help at https://help.gradle.org.
 
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
-	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:121)
-	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskExecuter.java:41)
-	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
-	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
-	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
-	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
-	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
-	at org.gradle.execution.plan.DefaultNodeExecutor.executeLocalTaskNode(DefaultNodeExecutor.java:55)
-	at org.gradle.execution.plan.DefaultNodeExecutor.execute(DefaultNodeExecutor.java:34)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:355)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:343)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:339)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:339)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
-	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
-	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
-Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:289)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
-	at org.gradle.internal.Factories$1.create(Factories.java:30)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withoutLocks$2(DefaultWorkerLeaseService.java:350)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:348)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:332)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:337)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
-	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:267)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:30)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:27)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:48)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:244)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:227)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:210)
-	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:176)
-	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:167)
-	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:47)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:137)
-	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:134)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:134)
-	at org.gradle.internal.execution.steps.ExecuteStep$Mutable.execute(ExecuteStep.java:80)
-	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
-	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
-	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
-	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:51)
-	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:29)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:67)
-	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.executeMutable(RemovePreviousOutputsStep.java:39)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:42)
-	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:24)
-	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
-	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:39)
-	at org.gradle.internal.execution.steps.ResolveInputChangesStep.executeMutable(ResolveInputChangesStep.java:28)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
-	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$1(BuildCacheStep.java:76)
-	at org.gradle.internal.Either$Right.fold(Either.java:176)
-	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:74)
-	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:49)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:46)
-	at org.gradle.internal.execution.steps.StoreExecutionStateStep.executeMutable(StoreExecutionStateStep.java:35)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
-	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
-	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:70)
-	at org.gradle.internal.execution.steps.ResolveMutableCachingStateStep.executeDelegate(ResolveMutableCachingStateStep.java:32)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:69)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:37)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:63)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.executeMutable(ResolveChangesStep.java:34)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:79)
-	at org.gradle.internal.execution.steps.ValidateStep$Mutable.executeDelegate(ValidateStep.java:65)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:99)
-	at org.gradle.internal.execution.steps.ValidateStep$Mutable.execute(ValidateStep.java:65)
-	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.executeMutable(CaptureMutableStateBeforeExecutionStep.java:86)
-	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
-	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:90)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:36)
-	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.executeMutable(LoadPreviousExecutionStateStep.java:23)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:77)
-	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.executeMutable(HandleStaleOutputsStep.java:43)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$executeMutable$0(AssignMutableWorkspaceStep.java:34)
-	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:305)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:30)
-	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.executeMutable(AssignMutableWorkspaceStep.java:21)
-	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
-	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
-	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
-	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:56)
-	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
-	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
-	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 30 more
-Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
-	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
-	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:68)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:64)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:61)
-	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:102)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:61)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
-	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
-	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:58)
-	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:176)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
-	at org.gradle.internal.Factories$1.create(Factories.java:30)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:133)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
-	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	... 2 more
-
-==============================================================================
-
-2: Task failed with an exception.
------------
-* What went wrong:
-Execution failed for task ':CineTvProvider:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
-
-* Try:
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights from a Build Scan (powered by Develocity).
-> Get more help at https://help.gradle.org.
-
-* Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CineTvProvider:compileDebugKotlin'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CricifyProvider:processDebugManifest'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
@@ -346,14 +244,9 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CineTvP
 	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
 	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
 	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
-	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
-	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
-	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
-	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
-	at java.base/java.lang.Thread.run(Thread.java:840)
-Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction
 	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:289)
 	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
 	at org.gradle.internal.Factories$1.create(Factories.java:30)
@@ -417,7 +310,6 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
 	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
 	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
-	at java.base/java.util.Optional.orElseGet(Optional.java:364)
 	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
 	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
@@ -437,7 +329,7 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:65)
 	at org.gradle.internal.execution.steps.CaptureMutableStateBeforeExecutionStep.execute(CaptureMutableStateBeforeExecutionStep.java:45)
 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeWithNonEmptySources(SkipEmptyMutableWorkStep.java:210)
-	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:90)
+	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:85)
 	at org.gradle.internal.execution.steps.SkipEmptyMutableWorkStep.executeMutable(SkipEmptyMutableWorkStep.java:53)
 	at org.gradle.internal.execution.steps.MutableStep.execute(MutableStep.java:26)
 	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
@@ -455,7 +347,6 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
 	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
-	at java.base/java.util.Optional.orElseGet(Optional.java:364)
 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
 	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
 	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
@@ -464,10 +355,16 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 66 more
-Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
-	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
-	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
+	... 61 more
+Caused by: java.lang.RuntimeException: Incorrect package="com.cncverse" found in source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported.
+Recommendation: remove package="com.cncverse" from the source AndroidManifest.xml: /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CricifyProvider/src/main/AndroidManifest.xml.
+	at com.android.manifmerger.ManifestMerger2.merge(ManifestMerger2.java:258)
+	at com.android.manifmerger.ManifestMerger2$Invoker.merge(ManifestMerger2.java:2218)
+	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests(ManifestHelper.kt:128)
+	at com.android.build.gradle.internal.tasks.manifest.ManifestHelperKt.mergeManifests$default(ManifestHelper.kt:44)
+	at com.android.build.gradle.tasks.ProcessLibraryManifest$ProcessLibWorkAction.run(ProcessLibraryManifest.kt:144)
+	at com.android.build.gradle.internal.profile.ProfileAwareWorkAction.execute(ProfileAwareWorkAction.kt:66)
 	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:68)
 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:64)
 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:61)
@@ -485,7 +382,6 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
 	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:58)
 	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:176)
-	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
@@ -498,9 +394,8 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:133)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	... 7 more
+	... 2 more
 
-==============================================================================
 
-BUILD FAILED in 53s
-28 actionable tasks: 28 executed
+BUILD FAILED in 1m 16s
+62 actionable tasks: 62 executed
