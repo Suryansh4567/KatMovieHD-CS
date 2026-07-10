@@ -620,21 +620,37 @@ class KMMovies : MainAPI() {
         return output.toList()
     }
 
+    private fun parseSourceData(data: String): List<DownloadLink> {
+        // CloudStream normally stores the String payload verbatim, but older
+        // clients may return it JSON-escaped or with literal \\n sequences.
+        // Normalize those variants before decoding the structured KMM2 data.
+        val normalized = data.trim()
+            .trim('"')
+            .replace("""\n""", "\n")
+            .replace("""\r""", "\r")
+            .replace("""\"""", "\"")
+            .replace("&amp;", "&")
+        val structured = normalized.lines().mapNotNull { DownloadLink.decode(it.trim()) }
+        if (structured.isNotEmpty()) return structured
+
+        // Last-resort URL recovery. This prevents a player/cache format change
+        // from turning a valid source payload into an empty source list.
+        return Regex("""https?://[^\s\"'<>\\]+""")
+            .findAll(normalized)
+            .map { it.value.trimEnd(',', '.', ';', ')', ']') }
+            .distinct()
+            .map { DownloadLink(0, 0, "Source", it) }
+            .toList()
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val links = data.lines().mapNotNull { DownloadLink.decode(it.trim()) }
-            .ifEmpty {
-                // Backward-compatible fallback for cached data from a very
-                // early build that stored one URL per line.
-                data.lines().mapNotNull { line ->
-                    line.trim().takeIf { it.startsWith("http", true) }
-                        ?.let { DownloadLink(0, 0, "Source", it) }
-                }
-            }
+        val links = parseSourceData(data)
+        Log.d(TAG, "loadLinks: parsed ${links.size} source payload(s)")
         if (links.isEmpty()) return false
 
         var attempted = false
