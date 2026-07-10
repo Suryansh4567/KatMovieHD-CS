@@ -70,7 +70,9 @@ subprojects {
     }
 
     android {
-        namespace = "com.arena"
+        // Match the package used by the legacy CNCVerse providers so their
+        // generated BuildConfig constants resolve correctly.
+        namespace = "com.cncverse"
         compileSdk = 36
 
         buildFeatures {
@@ -92,6 +94,26 @@ subprojects {
             buildConfigField("String", "CINETV_AES_KEY", "\"\"")
             buildConfigField("String", "CINETV_AES_IV", "\"\"")
             buildConfigField("String", "CINETV_WS_SECRET", "\"\"")
+            buildConfigField("String", "CRICIFY_PROVIDER_SECRET1", "\"\"")
+            buildConfigField("String", "CRICIFY_PROVIDER_SECRET2", "\"\"")
+            buildConfigField("String", "CRICFY_FIREBASE_API_KEY", "\"\"")
+            buildConfigField("String", "CRICFY_FIREBASE_APP_ID", "\"\"")
+            buildConfigField("String", "CRICFY_FIREBASE_PROJECT_NUMBER", "\"\"")
+            buildConfigField("String", "LIVXOW_FIREBASE_API_KEY", "\"\"")
+            buildConfigField("String", "LIVXOW_FIREBASE_APP_ID", "\"\"")
+            buildConfigField("String", "LIVXOW_FIREBASE_PROJECT_NUMBER", "\"\"")
+            buildConfigField("String", "PIKASHOW_API_KEY", "\"\"")
+            buildConfigField("String", "PIKASHOW_HMAC_SECRET", "\"\"")
+            buildConfigField("String", "SKTECH_FIREBASE_API_KEY", "\"\"")
+            buildConfigField("String", "SKTECH_FIREBASE_APP_ID", "\"\"")
+            buildConfigField("String", "SKTECH_FIREBASE_PROJECT_NUMBER", "\"\"")
+            buildConfigField("String", "SKLIVE_KEY", "\"\"")
+            buildConfigField("String", "SKLIVE_IV", "\"\"")
+            buildConfigField("String", "SKLIVE_V23_KEY", "\"\"")
+            buildConfigField("String", "SKLIVE_V23_IV", "\"\"")
+            buildConfigField("String", "XON_FIREBASE_API_KEY", "\"\"")
+            buildConfigField("String", "XON_FIREBASE_APP_ID", "\"\"")
+            buildConfigField("String", "XON_FIREBASE_PROJECT_NUMBER", "\"\"")
         }
 
         lint { targetSdk = 36 }
