@@ -430,7 +430,7 @@ class KMMovies : MainAPI() {
                     isMagicLinksPost(url) -> resolveMagicLinks(url, subtitleCallback, callback)
                     isSkydropUrl(url) -> resolveSkydrop(url, subtitleCallback, callback)
                     isDirectVideo(url) -> emitDirect(url, "Direct", url, callback)
-                    else -> loadExtractor(url, subtitleCallback, mainUrl, callback)
+                    else -> loadExtractor(url, mainUrl, subtitleCallback, callback)
                 }
             }.onFailure { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
@@ -528,7 +528,7 @@ class KMMovies : MainAPI() {
                         emitDirect(srcUrl, label, srcUrl, callback)
                     }
                     else -> {
-                        loadExtractor(srcUrl, subtitleCallback, resolvedBase, callback)
+                        loadExtractor(srcUrl, resolvedBase, subtitleCallback, callback)
                     }
                 }
             }.onFailure { Log.w(TAG, "MagicLinks source failed ${safeUrl(srcUrl)}: ${it.message}") }
@@ -626,7 +626,7 @@ class KMMovies : MainAPI() {
                         } else if (value.contains("googleusercontent", true)) {
                             emitDirect(value, "SkyDrop", url, callback)
                         } else {
-                            loadExtractor(value, subtitleCallback, url, callback)
+                            loadExtractor(value, url, subtitleCallback, callback)
                         }
                     }
                 }
