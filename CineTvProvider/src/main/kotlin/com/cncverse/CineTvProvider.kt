@@ -28,17 +28,16 @@ class CineTvProvider : MainAPI() {
     companion object {
         var context: Context? = null
         
-        // DES3 constants from BuildConfig
-        private val SECRET_KEY_ENCRYPTED = BuildConfig.CINETV_SECRET_KEY_ENCRYPTED
-        private val DES_KEY = BuildConfig.CINETV_DES_KEY
-        private val DES_IV = BuildConfig.CINETV_DES_IV
-        
-        // AES constants from BuildConfig
-        private val AES_KEY = BuildConfig.CINETV_AES_KEY
-        private val AES_IV = BuildConfig.CINETV_AES_IV
-        
-        // URL signing secret from BuildConfig
-        private val WS_SECRET = BuildConfig.CINETV_WS_SECRET
+        // The upstream project injected these private values through
+        // BuildConfig. This repository does not include those secrets, so use
+        // empty defaults to keep the provider compilable and fail gracefully
+        // at runtime instead of breaking the whole multi-provider build.
+        private const val SECRET_KEY_ENCRYPTED = ""
+        private const val DES_KEY = ""
+        private const val DES_IV = ""
+        private const val AES_KEY = ""
+        private const val AES_IV = ""
+        private const val WS_SECRET = ""
         private const val OMG10 = "aHR0cHM6Ly9vbWcxMC5jb20vNC8xMTEwNDQ4OQ=="
         @Volatile private var lastBrowserOpenMs = 0L
         @Volatile private var telegramPopupShown = false

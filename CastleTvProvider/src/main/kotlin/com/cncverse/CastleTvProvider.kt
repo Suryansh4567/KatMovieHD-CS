@@ -1,4 +1,4 @@
-﻿package com.cncverse
+package com.cncverse
 
 import android.content.Context
 import com.lagradost.cloudstream3.*
@@ -38,7 +38,9 @@ class CastleTvProvider : MainAPI() {
     override var lang = "ta"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
-    private val keySupFixx = BuildConfig.CASTLE_SUFFIX
+    // Optional signing suffix. The original upstream build injected this via
+    // BuildConfig, but this repository does not ship that private value.
+    private val keySupFixx = ""
     
     // Configure Jackson to ignore unknown properties
     private val mapper = jacksonObjectMapper().apply {
