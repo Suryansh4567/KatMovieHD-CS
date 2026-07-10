@@ -43,25 +43,14 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :CineTvProvider:generateDebugResources
 > Task :CineTvProvider:packageDebugResources
 > Task :CineTvProvider:processDebugNavigationResources
-> Task :CastleTvProvider:parseDebugLocalResources
 > Task :BilibiliProvider:parseDebugLocalResources
 > Task :AnimeSuge:parseDebugLocalResources
+> Task :CastleTvProvider:parseDebugLocalResources
 > Task :CineTvProvider:parseDebugLocalResources
+> Task :BilibiliProvider:generateDebugRFile
 > Task :CastleTvProvider:generateDebugRFile
 > Task :AnimeSuge:generateDebugRFile
-> Task :BilibiliProvider:generateDebugRFile
 > Task :CineTvProvider:generateDebugRFile
-
-> Task :CastleTvProvider:compileDebugKotlin FAILED
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CastleTvProvider/src/main/kotlin/com/cncverse/CastleTvProvider.kt:41:42 Unresolved reference 'CASTLE_SUFFIX'.
-
-> Task :CineTvProvider:compileDebugKotlin FAILED
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:32:56 Unresolved reference 'CINETV_SECRET_KEY_ENCRYPTED'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:33:43 Unresolved reference 'CINETV_DES_KEY'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:34:42 Unresolved reference 'CINETV_DES_IV'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:37:43 Unresolved reference 'CINETV_AES_KEY'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:38:42 Unresolved reference 'CINETV_AES_IV'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:41:45 Unresolved reference 'CINETV_WS_SECRET'.
 
 > Task :AnimeSuge:compileDebugKotlin
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:105:103 Missing return statement.
@@ -111,6 +100,19 @@ e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/k
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:180:41 Unresolved reference 'newEpisode'.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:181:17 Unresolved reference 'episode'.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:181:34 Unresolved reference 'name'.
+
+> Task :CineTvProvider:compileDebugKotlin FAILED
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:32:56 Unresolved reference 'CINETV_SECRET_KEY_ENCRYPTED'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:33:43 Unresolved reference 'CINETV_DES_KEY'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:34:42 Unresolved reference 'CINETV_DES_IV'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:37:43 Unresolved reference 'CINETV_AES_KEY'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:38:42 Unresolved reference 'CINETV_AES_IV'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CineTvProvider/src/main/kotlin/com/cncverse/CineTvProvider.kt:41:45 Unresolved reference 'CINETV_WS_SECRET'.
+
+> Task :CastleTvProvider:compileDebugKotlin FAILED
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/CastleTvProvider/src/main/kotlin/com/cncverse/CastleTvProvider.kt:41:42 Unresolved reference 'CASTLE_SUFFIX'.
+
+> Task :AnimeSuge:compileDebugKotlin FAILED
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:183:41 Unresolved reference 'newEpisode'.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:184:17 Unresolved reference 'episode'.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:184:34 Unresolved reference 'name'.
@@ -143,8 +145,6 @@ e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/k
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:405:21 Unresolved reference 'startActivity'.
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/AnimeSuge/src/main/kotlin/com/animesuge/provider/AnimeSuge.kt:413:1 Syntax error: Expecting a top level declaration.
 
-> Task :AnimeSuge:compileDebugKotlin FAILED
-
 > Task :BilibiliProvider:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/src/main/kotlin/com/cncverse/BilibiliProvider.kt:671:46 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/BilibiliProvider/src/main/kotlin/com/cncverse/BilibiliProvider.kt:694:39 Unnecessary non-null assertion (!!) on a non-null receiver of type 'String'.
@@ -156,7 +156,7 @@ FAILURE: Build completed with 3 failures.
 1: Task failed with an exception.
 -----------
 * What went wrong:
-Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
+Execution failed for task ':CineTvProvider:compileDebugKotlin'.
 > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
    > Compilation error. See log for more details
 
@@ -166,7 +166,7 @@ Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
 > Get more help at https://help.gradle.org.
 
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CineTvProvider:compileDebugKotlin'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
@@ -198,6 +198,37 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CastleT
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:146)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:131)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$11(DefaultBuildLifecycleController.java:323)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:304)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$9(StateTransitionController.java:215)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:215)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:314)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
+	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:182)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
 Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
@@ -309,7 +340,7 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 30 more
+	... 61 more
 Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
 	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
@@ -349,7 +380,7 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 2: Task failed with an exception.
 -----------
 * What went wrong:
-Execution failed for task ':CineTvProvider:compileDebugKotlin'.
+Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
 > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
    > Compilation error. See log for more details
 
@@ -359,7 +390,7 @@ Execution failed for task ':CineTvProvider:compileDebugKotlin'.
 > Get more help at https://help.gradle.org.
 
 * Exception is:
-org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CineTvProvider:compileDebugKotlin'.
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CastleTvProvider:compileDebugKotlin'.
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:135)
 	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:288)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:133)
@@ -391,39 +422,6 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':CineTvP
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:146)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:131)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$11(DefaultBuildLifecycleController.java:323)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:304)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$9(StateTransitionController.java:215)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:215)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:314)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:182)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
-	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
-	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
@@ -540,7 +538,7 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 66 more
+	... 33 more
 Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
 	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
@@ -574,7 +572,9 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:133)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	... 7 more
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	... 5 more
 
 ==============================================================================
 
@@ -779,5 +779,5 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 
 ==============================================================================
 
-BUILD FAILED in 51s
+BUILD FAILED in 52s
 28 actionable tasks: 28 executed
