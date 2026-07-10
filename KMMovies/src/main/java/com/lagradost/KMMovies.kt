@@ -35,6 +35,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
@@ -245,7 +246,7 @@ class KMMovies : MainAPI() {
         val recommendations = parseRecommendations(document)
         val isSeries = isSeriesPage(document, rawTitle)
 
-        fun LoadResponse.applyCommon() {
+        suspend fun LoadResponse.applyCommon() {
             this.posterUrl = poster
             this.backgroundPosterUrl = backdrop
             this.plot = plot
@@ -372,8 +373,8 @@ class KMMovies : MainAPI() {
                         .onFailure { Log.w(TAG, "Episode page failed ${safeUrl(item.url)}: ${it.message}") }
                         .getOrDefault(emptyList())
                 }
-            }.awaitAll().flatten().forEach { (season, episode, label, url) ->
-                episodeMap.getOrPut(season to episode) { mutableListOf() }.add(DlLink(label, url))
+            }.awaitAll().flatten().forEach { (season, episode, dlLink) ->
+                episodeMap.getOrPut(season to episode) { mutableListOf() }.add(dlLink)
             }
         }
 
@@ -426,8 +427,8 @@ class KMMovies : MainAPI() {
             any = true
             runCatching {
                 when {
-                    isMagicLinksPost(url) -> resolveMagicLinks(url, callback)
-                    isSkydropUrl(url) -> resolveSkydrop(url, callback)
+                    isMagicLinksPost(url) -> resolveMagicLinks(url, subtitleCallback, callback)
+                    isSkydropUrl(url) -> resolveSkydrop(url, subtitleCallback, callback)
                     isDirectVideo(url) -> emitDirect(url, "Direct", url, callback)
                     else -> loadExtractor(url, mainUrl, subtitleCallback, callback)
                 }
@@ -449,7 +450,7 @@ class KMMovies : MainAPI() {
         return host.contains("magiclinks") && Regex("""/\d+-\d+/?$""").containsMatchIn(path)
     }
 
-    private suspend fun resolveMagicLinks(url: String, callback: (ExtractorLink) -> Unit) {
+    private suspend fun resolveMagicLinks(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit) {
         val uri = runCatching { URI(url) }.getOrNull() ?: return
         val host = uri.host ?: return
         val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return
@@ -527,7 +528,7 @@ class KMMovies : MainAPI() {
                         emitDirect(srcUrl, label, srcUrl, callback)
                     }
                     else -> {
-                        loadExtractor(srcUrl, resolvedBase, callback = callback)
+                        loadExtractor(srcUrl, resolvedBase, subtitleCallback, callback)
                     }
                 }
             }.onFailure { Log.w(TAG, "MagicLinks source failed ${safeUrl(srcUrl)}: ${it.message}") }
@@ -597,7 +598,7 @@ class KMMovies : MainAPI() {
         return url.contains("skydrop", true)
     }
 
-    private suspend fun resolveSkydrop(url: String, callback: (ExtractorLink) -> Unit) {
+    private suspend fun resolveSkydrop(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit) {
         val uri = runCatching { URI(url) }.getOrNull() ?: return
         val host = uri.host ?: return
         val query = uri.query.orEmpty()
@@ -625,7 +626,7 @@ class KMMovies : MainAPI() {
                         } else if (value.contains("googleusercontent", true)) {
                             emitDirect(value, "SkyDrop", url, callback)
                         } else {
-                            loadExtractor(value, url, callback = callback)
+                            loadExtractor(value, url, subtitleCallback, callback)
                         }
                     }
                 }
