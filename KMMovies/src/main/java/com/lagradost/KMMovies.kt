@@ -28,6 +28,7 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -412,32 +413,74 @@ class KMMovies : MainAPI() {
     // loadLinks
     // ------------------------------------------------------------------
 
+    /**
+     * CloudStream may JSON-escape the data payload (turning literal \n into the
+     * two-character sequence \\n). Normalize before splitting, and always fall
+     * back to a regex URL extractor so a format change never leaves us with
+     * zero candidates.
+     */
+    private fun extractUrlsFromPayload(data: String): List<String> {
+        val normalized = data.trim()
+            .trim('"')
+            .replace("""\n""", "\n")
+            .replace("""\r""", "\r")
+            .replace("""\"""", "\"")
+            .replace("&amp;", "&")
+
+        val fromLines = normalized.lines()
+            .map { it.trim() }
+            .filter { it.startsWith("http", ignoreCase = true) }
+
+        if (fromLines.isNotEmpty()) return fromLines.distinct()
+
+        // Fallback: regex extraction for when the payload is a single escaped blob
+        return Regex("""https?://[^\s"'<>\\]+""")
+            .findAll(normalized)
+            .map { it.value.trimEnd(',', '.', ';', ')', ']', ' ', '"', '\'') }
+            .filter { it.length > 10 }
+            .distinct()
+            .toList()
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val urls = data.lines().map { it.trim() }.filter { it.startsWith("http", ignoreCase = true) }.distinct()
-        Log.d(TAG, "loadLinks: ${urls.size} URL(s)")
-        if (urls.isEmpty()) return false
+        val urls = extractUrlsFromPayload(data)
+        Log.d(TAG, "loadLinks: extracted ${urls.size} URL(s) from payload of length ${data.length}")
+        if (urls.isEmpty()) {
+            Log.w(TAG, "loadLinks: no URLs found in payload: ${data.take(200)}")
+            return false
+        }
 
-        var any = false
+        var emitted = 0
         urls.forEach { url ->
-            any = true
             runCatching {
                 when {
-                    isMagicLinksPost(url) -> resolveMagicLinks(url, subtitleCallback, callback)
-                    isSkydropUrl(url) -> resolveSkydrop(url, subtitleCallback, callback)
-                    isDirectVideo(url) -> emitDirect(url, "Direct", url, callback)
-                    else -> loadExtractor(url, mainUrl, subtitleCallback, callback)
+                    isMagicLinksPost(url) -> {
+                        emitted += resolveMagicLinks(url, subtitleCallback, callback)
+                    }
+                    isSkydropUrl(url) -> {
+                        emitted += resolveSkydrop(url, subtitleCallback, callback)
+                    }
+                    isDirectVideo(url) -> {
+                        emitDirect(url, "Direct", url, callback)
+                        emitted += 1
+                    }
+                    else -> {
+                        val ok = loadExtractor(url, mainUrl, subtitleCallback, callback)
+                        if (ok) emitted += 1
+                    }
                 }
             }.onFailure { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 Log.w(TAG, "Link failed ${safeUrl(url)}: ${error.message}")
             }
         }
-        return any
+        Log.d(TAG, "loadLinks: emitted $emitted source(s)")
+        return emitted > 0
     }
 
     // ------------------------------------------------------------------
@@ -450,10 +493,10 @@ class KMMovies : MainAPI() {
         return host.contains("magiclinks") && Regex("""/\d+-\d+/?$""").containsMatchIn(path)
     }
 
-    private suspend fun resolveMagicLinks(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit) {
-        val uri = runCatching { URI(url) }.getOrNull() ?: return
-        val host = uri.host ?: return
-        val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return
+    private suspend fun resolveMagicLinks(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Int {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return 0
+        val host = uri.host ?: return 0
+        val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return 0
 
         val hostsToTry = linkedSetOf(host, "magiclinks.lol", "w1.magiclinks.lol")
         var post: JSONObject? = null
@@ -463,21 +506,30 @@ class KMMovies : MainAPI() {
             val apiUrl = "${uri.scheme ?: "https"}://$tryHost/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}&_fields=content,meta,link"
             val jsonText = runCatching {
                 app.get(apiUrl, headers = headers + mapOf("Accept" to "application/json", "Referer" to url), timeout = 20).text
-            }.getOrNull() ?: continue
+            }.getOrNull()
             val candidate = runCatching { JSONArray(jsonText).optJSONObject(0) }.getOrNull()
             if (candidate != null) {
                 post = candidate
                 resolvedBase = candidate.optString("link").ifBlank { "https://$tryHost/$slug/" }
                 break
             }
+            // Retry with CloudflareKiller in case the API is behind a challenge
+            val jsonTextCf = runCatching {
+                app.get(apiUrl, headers = headers + mapOf("Accept" to "application/json", "Referer" to url), interceptor = CloudflareKiller(), timeout = 25).text
+            }.getOrNull()
+            val candidateCf = runCatching { JSONArray(jsonTextCf).optJSONObject(0) }.getOrNull()
+            if (candidateCf != null) {
+                post = candidateCf
+                resolvedBase = candidateCf.optString("link").ifBlank { "https://$tryHost/$slug/" }
+                break
+            }
         }
 
         if (post == null) {
             Log.w(TAG, "MagicLinks REST API empty for $url")
-            return
+            return 0
         }
 
-        val meta = post.optJSONObject("meta")
         val sources = linkedMapOf<String, String>()
 
         fun addSource(raw: String?, label: String) {
@@ -487,6 +539,8 @@ class KMMovies : MainAPI() {
             if (absolute.isNotBlank()) sources[absolute] = label
         }
 
+        // Meta fields (nested under "meta" object)
+        val meta = post.optJSONObject("meta")
         listOf(
             "watch_online_url" to "Watch Online",
             "watch_online2_url" to "Watch Online 2",
@@ -503,36 +557,59 @@ class KMMovies : MainAPI() {
             "ultra_fast_download_url" to "Fast Download"
         ).forEach { (key, label) -> addSource(meta?.optString(key), label) }
 
-        // Also parse rendered content for any extra links (Google Drive, etc.)
+        // Some WP installs expose custom fields at the top level instead of inside meta
+        listOf(
+            "watch_online_url" to "Watch Online",
+            "watch_online2_url" to "Watch Online 2",
+            "zip_zap_url" to "Zip-Zap",
+            "skydrop_url" to "SkyDrop"
+        ).forEach { (key, label) ->
+            if (meta?.optString(key).isNullOrBlank()) addSource(post.optString(key), label)
+        }
+
+        // Parse rendered content for plain-text URLs (not just <a> tags)
         val rendered = post.optJSONObject("content")?.optString("rendered").orEmpty()
         if (rendered.isNotBlank()) {
             val renderedDoc = org.jsoup.Jsoup.parse(rendered, resolvedBase)
             renderedDoc.select("a[href]").forEach { a ->
                 addSource(a.absUrl("href").ifBlank { a.attr("href") }, a.text().normalise().ifBlank { "Source" })
             }
+            Regex("""https?://[^\s"'<>\\]+""")
+                .findAll(rendered)
+                .map { it.value.trimEnd(',', '.', ';', ')', ']', ' ') }
+                .forEach { addSource(it, "Source") }
         }
 
+        Log.d(TAG, "MagicLinks resolved ${sources.size} source(s) for $url")
+        if (sources.isEmpty()) return 0
+
+        var emitted = 0
         sources.forEach { (srcUrl, label) ->
             runCatching {
                 when {
                     srcUrl.contains("online.php", true) || srcUrl.contains("/nf/index.php", true) -> {
                         resolveWatchOnline(srcUrl, label, callback)
+                        emitted += 1
                     }
                     srcUrl.contains("download99.php", true) -> {
                         resolveZipZap(srcUrl, label, callback)
+                        emitted += 1
                     }
                     isSkydropUrl(srcUrl) -> {
-                        resolveSkydrop(srcUrl, subtitleCallback, callback)
+                        emitted += resolveSkydrop(srcUrl, subtitleCallback, callback)
                     }
                     isDirectVideo(srcUrl) -> {
                         emitDirect(srcUrl, label, srcUrl, callback)
+                        emitted += 1
                     }
                     else -> {
-                        loadExtractor(srcUrl, resolvedBase, subtitleCallback, callback)
+                        val ok = loadExtractor(srcUrl, resolvedBase, subtitleCallback, callback)
+                        if (ok) emitted += 1
                     }
                 }
             }.onFailure { Log.w(TAG, "MagicLinks source failed ${safeUrl(srcUrl)}: ${it.message}") }
         }
+        return emitted
     }
 
     // ------------------------------------------------------------------
@@ -598,13 +675,13 @@ class KMMovies : MainAPI() {
         return url.contains("skydrop", true)
     }
 
-    private suspend fun resolveSkydrop(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit) {
-        val uri = runCatching { URI(url) }.getOrNull() ?: return
-        val host = uri.host ?: return
+    private suspend fun resolveSkydrop(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Int {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return 0
+        val host = uri.host ?: return 0
         val query = uri.query.orEmpty()
         val id = Regex("""(?:^|&)id=([^&]+)""").find(query)?.groupValues?.get(1)
             ?: Regex("""(?:^|&)id=([^&]+)""").find(url)?.groupValues?.get(1)
-            ?: return
+            ?: return 0
 
         val apiUrl = "${uri.scheme ?: "https"}://$host/api.php?id=$id"
         val jsonText = runCatching {
@@ -615,23 +692,28 @@ class KMMovies : MainAPI() {
             ), timeout = 20).text
         }.getOrNull()
 
-        if (!jsonText.isNullOrBlank()) {
-            runCatching {
-                val obj = JSONObject(jsonText)
-                listOf("download_url", "link", "url", "file").forEach { key ->
-                    val value = obj.optString(key).trim()
-                    if (value.startsWith("http", true)) {
-                        if (isDirectVideo(value) || value.contains("download=1", true)) {
-                            emitDirect(value, "SkyDrop", url, callback)
-                        } else if (value.contains("googleusercontent", true)) {
-                            emitDirect(value, "SkyDrop", url, callback)
-                        } else {
-                            loadExtractor(value, url, subtitleCallback, callback)
-                        }
+        if (jsonText.isNullOrBlank()) {
+            Log.w(TAG, "SkyDrop API empty response for $url")
+            return 0
+        }
+
+        var emitted = 0
+        runCatching {
+            val obj = JSONObject(jsonText)
+            listOf("download_url", "link", "url", "file").forEach { key ->
+                val value = obj.optString(key).trim()
+                if (value.startsWith("http", true)) {
+                    if (isDirectVideo(value) || value.contains("download=1", true) || value.contains("googleusercontent", true)) {
+                        emitDirect(value, "SkyDrop", url, callback)
+                        emitted += 1
+                    } else {
+                        val ok = loadExtractor(value, url, subtitleCallback, callback)
+                        if (ok) emitted += 1
                     }
                 }
             }
-        }
+        }.onFailure { Log.w(TAG, "SkyDrop JSON parse failed for $url: ${it.message}") }
+        return emitted
     }
 
     // ------------------------------------------------------------------
@@ -662,7 +744,12 @@ class KMMovies : MainAPI() {
 
     private suspend fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
         val quality = qualityFromLabel(label, url)
-        callback.invoke(newExtractorLink("KMMovies", "KMMovies • ${label.ifBlank { "Direct" }}", url) {
+        val type = if (url.substringBefore('?').contains(".m3u8", true)) {
+            ExtractorLinkType.M3U8
+        } else {
+            ExtractorLinkType.VIDEO
+        }
+        callback.invoke(newExtractorLink("KMMovies", "KMMovies • ${label.ifBlank { "Direct" }}", url, type) {
             this.quality = quality
             this.referer = referer
         })
