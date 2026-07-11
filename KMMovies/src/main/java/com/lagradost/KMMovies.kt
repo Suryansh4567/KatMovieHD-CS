@@ -28,10 +28,8 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
@@ -769,17 +767,27 @@ class KMMovies : MainAPI() {
             (url.contains("skydrop", true) && url.contains("api.php", true) && url.contains("download=1", true))
     }
 
-    private suspend fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
+    @Suppress("DEPRECATION_ERROR")
+    private fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
         val quality = qualityFromLabel(label, url)
-        val type = if (url.substringBefore('?').contains(".m3u8", true)) {
-            ExtractorLinkType.M3U8
-        } else {
-            ExtractorLinkType.VIDEO
-        }
-        callback.invoke(newExtractorLink("KMMovies", "KMMovies • ${label.ifBlank { "Direct" }}", url, type) {
-            this.quality = quality
-            this.referer = referer
-        })
+        val isM3u8 = url.substringBefore('?').contains(".m3u8", true)
+
+        // Use the compatibility constructor intentionally. The repo builds against
+        // the rolling pre-release library, while users can have an older prerelease
+        // APK whose newExtractorLink ABI differs. That failure is swallowed by the
+        // per-source runCatching and presents only as "No links found". This
+        // constructor is retained by CloudStream specifically for old extensions.
+        callback.invoke(
+            ExtractorLink(
+                source = "KMMovies",
+                name = "KMMovies • ${label.ifBlank { "Direct" }}",
+                url = url,
+                referer = referer,
+                quality = quality,
+                isM3u8 = isM3u8,
+                headers = mapOf("User-Agent" to USER_AGENT)
+            )
+        )
     }
 
     private fun qualityFromLabel(label: String, url: String): Int {
