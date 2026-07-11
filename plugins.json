@@ -25,14 +25,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
         "status": 1,
-        "version": 6,
+        "version": 7,
         "name": "KMMovies",
         "internalName": "KMMovies",
         "authors": [
             "arena"
         ],
         "description": "Bollywood, Hollywood and South Indian movies / TV series from KMMovies.",
-        "fileSize": 53893,
+        "fileSize": 54268,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -41,6 +41,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-09f6dbb499b5cb95055fc8db02fde91103126f07cbfc62f2c6b918ab1ad2ea0f"
+        "fileHash": "sha256-94f7f95f8596a64990c5783fd85b3d8e9e2b5288f2eda6f95c72a1eab7302831"
     }
 ]
