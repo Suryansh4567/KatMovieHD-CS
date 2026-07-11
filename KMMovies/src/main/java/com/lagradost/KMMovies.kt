@@ -6,19 +6,13 @@ import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
-import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SearchResponseList
-import com.lagradost.cloudstream3.SearchQuality
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.getQualityFromString
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.newEpisode
@@ -30,32 +24,22 @@ import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
+import java.net.URLDecoder
 import java.net.URLEncoder
 
 /**
- * KMMovies CloudStream provider.
- *
- * KMMovies is a WordPress site. Movie download buttons point at
- * magiclinks.lol wrapper posts; series use episode-wise landing pages on
- * episodes.magiclinks.lol that contain per-episode skydrop links.
- *
- * Strategy:
- *   • Listing / search: scrape server-rendered article.movie-card grid.
- *   • Movie load(): collect magiclinks URLs, store as newline-joined payload.
- *   • Series load(): expand season blocks, fetch episode-wise pages,
- *     extract per-episode skydrop links.
- *   • loadLinks(): resolve magiclinks via WP REST API, follow online.php
- *     and download99.php redirects, call skydrop api.php, emit direct
- *     R2 / googleusercontent URLs or delegate recognised hosts to
- *     CloudStream's stock extractor registry.
+ * KMMovies provider rebuilt around the site's current WordPress, MagicLinks and
+ * SkyDrop flows. Media is not hosted by this extension.
  */
 class KMMovies : MainAPI() {
     override var name = "KMMovies"
@@ -65,12 +49,6 @@ class KMMovies : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
-    private val headers = mapOf(
-        "User-Agent" to USER_AGENT,
-        "Accept-Language" to "en-US,en;q=0.9",
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-    )
-
     override val mainPage = mainPageOf(
         "/" to "Recently Added",
         "/category/movies/" to "Movies",
@@ -78,367 +56,289 @@ class KMMovies : MainAPI() {
         "/category/bollywood/" to "Bollywood",
         "/category/hollywood/" to "Hollywood",
         "/category/south/" to "South Indian",
-        "/category/4k/" to "4K Movies",
+        "/category/4k/" to "4K",
         "/category/dual-audio/" to "Dual Audio",
-        "/category/hindi/" to "Hindi",
-        "/category/english/" to "English",
-        "/category/tamil/" to "Tamil",
-        "/category/telugu/" to "Telugu",
-        "/category/kannada/" to "Kannada",
-        "/category/kdrama/" to "K-Drama",
-        "/category/anime/" to "Anime",
-        "/trending/" to "Trending",
-        "/genre/action/" to "Action",
-        "/genre/comedy/" to "Comedy",
-        "/genre/drama/" to "Drama",
-        "/genre/thriller/" to "Thriller"
+        "/category/anime/" to "Anime"
     )
 
-    // ------------------------------------------------------------------
-    // HTTP helpers
-    // ------------------------------------------------------------------
+    private val browserHeaders = mapOf(
+        "User-Agent" to USER_AGENT,
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language" to "en-US,en;q=0.9"
+    )
 
-    private fun isCloudflarePage(document: Document): Boolean {
-        val title = document.selectFirst("title")?.text()?.lowercase().orEmpty()
-        val html = document.html().take(30_000).lowercase()
-        return title.contains("just a moment") ||
-            title.contains("attention required") ||
-            title.contains("verify you are human") ||
-            title.contains("cloudflare") ||
-            html.contains("cf-chl") ||
-            html.contains("challenge-running") ||
-            html.contains("ray id")
-    }
+    private data class Source(val name: String, val url: String, val referer: String = "")
+    private data class EpisodeSource(val season: Int, val episode: Int, val source: Source)
 
-    private suspend fun safeGetDocument(url: String, referer: String? = null): Document {
-        val requestHeaders = if (referer.isNullOrBlank()) headers else headers + ("Referer" to referer)
+    // -----------------------------------------------------------------------
+    // HTTP and URL helpers
+    // -----------------------------------------------------------------------
+
+    private suspend fun document(url: String, referer: String? = null): Document {
+        val requestHeaders = browserHeaders + referer.orEmpty().takeIf { it.isNotBlank() }
+            ?.let { mapOf("Referer" to it) }.orEmpty()
         try {
-            val direct = app.get(url, headers = requestHeaders, timeout = 25).document
-            if (!isCloudflarePage(direct)) return direct
+            val response = app.get(url, headers = requestHeaders, timeout = 25)
+            if (!isChallenge(response.document)) return response.document
         } catch (error: Exception) {
-            if (error is kotlinx.coroutines.CancellationException) throw error
-            Log.w(TAG, "GET failed for ${safeUrl(url)}: ${error.message}")
+            if (error is CancellationException) throw error
+            Log.w(TAG, "Direct request failed for ${safeUrl(url)}: ${error.message}")
         }
-        return app.get(url, headers = requestHeaders, interceptor = CloudflareKiller(), timeout = 30).document
+        return app.get(
+            url,
+            headers = requestHeaders,
+            interceptor = CloudflareKiller(),
+            timeout = 30
+        ).document
     }
 
-    private fun absoluteUrl(document: Document, value: String): String {
+    private fun isChallenge(doc: Document): Boolean {
+        val sample = (doc.title() + " " + doc.html().take(15_000)).lowercase()
+        return sample.contains("just a moment") || sample.contains("cf-chl") ||
+            sample.contains("challenge-running") || sample.contains("verify you are human")
+    }
+
+    private fun absolute(doc: Document, raw: String): String {
+        val value = raw.trim().replace("&amp;", "&")
         if (value.isBlank()) return ""
         if (value.startsWith("//")) return "https:$value"
-        return if (value.startsWith("http", ignoreCase = true)) {
-            value.replace(" ", "%20")
+        if (value.startsWith("http", true)) return value.replace(" ", "%20")
+        return runCatching { URI(doc.location()).resolve(value).toString() }
+            .getOrElse { mainUrl.trimEnd('/') + "/" + value.trimStart('/') }
+    }
+
+    private fun providerUrl(raw: String): String {
+        val value = raw.trim()
+        if (value.startsWith("http", true)) return value
+        return mainUrl.trimEnd('/') + "/" + value.trimStart('/')
+    }
+
+    private fun paged(path: String, page: Int): String {
+        val normalized = "/" + path.trim('/')
+        return if (page <= 1) {
+            mainUrl + if (normalized == "/") "/" else "$normalized/"
+        } else if (normalized == "/") {
+            "$mainUrl/page/$page/"
         } else {
-            runCatching { URI(document.location()).resolve(value).toString() }.getOrElse { fixUrl(value) }
+            "$mainUrl$normalized/page/$page/"
         }
     }
 
-    private fun fixUrl(value: String): String {
-        val v = value.trim()
-        if (v.isBlank()) return ""
-        if (v.startsWith("//")) return "https:$v"
-        if (v.startsWith("http", ignoreCase = true)) return v
-        return mainUrl.trimEnd('/') + "/" + v.trimStart('/')
-    }
-
-    private fun pageUrl(path: String, page: Int): String {
-        val base = mainUrl.trimEnd('/')
-        val clean = when {
-            path.isBlank() -> "/"
-            path.startsWith("/") -> path
-            else -> "/$path"
-        }.replace(Regex("/{2,}"), "/")
-        if (page <= 1) return "$base/${clean.trimStart('/')}"
-        return if (clean == "/") "$base/page/$page/" else "$base/${clean.trim('/').trimEnd('/')}/page/$page/"
-    }
-
-    // ------------------------------------------------------------------
-    // Main page & search
-    // ------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // Home and search
+    // -----------------------------------------------------------------------
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = pageUrl(request.data, page)
-        val document = safeGetDocument(url)
-        val results = parseListing(document)
-        return newHomePageResponse(request.name, results, hasNext = results.isNotEmpty())
-    }
-
-    override suspend fun search(query: String, page: Int): SearchResponseList {
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = if (page <= 1) "$mainUrl/?s=$encoded" else "$mainUrl/page/$page/?s=$encoded"
-        return parseListing(safeGetDocument(url)).toNewSearchResponseList()
+        val items = parseCards(document(paged(request.data, page)))
+        return newHomePageResponse(request.name, items, hasNext = items.isNotEmpty())
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
+        if (query.isBlank()) return emptyList()
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        return parseListing(safeGetDocument("$mainUrl/?s=$encoded"))
+        return parseCards(document("$mainUrl/?s=$encoded"))
     }
 
-    private fun parseListing(document: Document): List<SearchResponse> {
-        val cards = document.select("article.movie-card")
-        if (cards.isNotEmpty()) {
-            return cards.mapNotNull { it.toSearchResponse(document) }.distinctBy { it.url }
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        if (query.isBlank()) return emptyList<SearchResponse>().toNewSearchResponseList()
+        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+        val url = if (page <= 1) "$mainUrl/?s=$encoded" else "$mainUrl/page/$page/?s=$encoded"
+        return parseCards(document(url)).toNewSearchResponseList()
+    }
+
+    private fun parseCards(doc: Document): List<SearchResponse> {
+        val cards = doc.select("article.movie-card").ifEmpty {
+            doc.select(".movie-card, article:has(.movie-title)")
         }
-        // Fallback for alternate containers
-        return document.select(".movie-title").mapNotNull { titleNode ->
-            val card = titleNode.parents().firstOrNull { it.selectFirst("a[href]") != null } ?: return@mapNotNull null
-            card.toSearchResponse(document)
+        return cards.mapNotNull { card ->
+            val anchor = card.selectFirst("a[href]") ?: return@mapNotNull null
+            val url = absolute(doc, anchor.attr("href"))
+            val rawTitle = card.selectFirst(".movie-title")?.text()?.trim()
+                ?.ifBlank { anchor.attr("aria-label").trim() }
+                ?: anchor.attr("aria-label").trim()
+            if (url.isBlank() || rawTitle.isBlank()) return@mapNotNull null
+            val typeText = card.text().lowercase()
+            val type = if (typeText.contains("series") || isSeriesTitle(rawTitle)) {
+                TvType.TvSeries
+            } else TvType.Movie
+            val poster = card.selectFirst("img")?.let {
+                absolute(doc, it.attr("data-src").ifBlank { it.attr("src") })
+            }
+            newMovieSearchResponse(cleanTitle(rawTitle), url, type) {
+                posterUrl = poster
+            }
         }.distinctBy { it.url }
     }
 
-    private fun Element.toSearchResponse(document: Document): SearchResponse? {
-        val anchor = selectFirst("a[href]") ?: return null
-        val url = absoluteUrl(document, anchor.attr("href"))
-        if (url.isBlank() || url.contains("/category/", ignoreCase = true)) return null
-
-        val rawTitle = selectFirst(".movie-title")?.text()?.trim()
-            ?.ifBlank { attr("aria-label") }
-            ?.ifBlank { anchor.attr("aria-label") }
-            ?: return null
-        if (rawTitle.isBlank()) return null
-
-        val poster = selectFirst("img.poster, img[src]")?.let { img ->
-            img.attr("data-src").ifBlank { img.attr("src") }
-        }?.let { absoluteUrl(document, it) }
-
-        val typeText = selectFirst(".meta-row span")?.text()?.lowercase().orEmpty()
-        val type = if (typeText.contains("series") || isSeriesTitle(rawTitle)) TvType.TvSeries else TvType.Movie
-        val qualityText = selectFirst(".badge-left")?.text().orEmpty()
-
-        return newMovieSearchResponse(cleanTitle(rawTitle), url, type) {
-            this.posterUrl = poster
-            this.quality = searchQuality(qualityText.ifBlank { rawTitle })
-        }
-    }
-
-    private fun searchQuality(value: String): SearchQuality? {
-        return runCatching { getQualityFromString(value) }.getOrNull()
-    }
-
-    // ------------------------------------------------------------------
-    // Detail page
-    // ------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // Detail loading
+    // -----------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse {
-        val pageUrl = fixUrl(url)
-        val document = safeGetDocument(pageUrl)
-        val rawTitle = document.selectFirst("h1.hero-title, h1.entry-title, h1")?.text()?.trim()
-            ?.ifBlank { document.selectFirst("meta[property=og:title]")?.attr("content") }
-            ?: document.title().substringBefore(" - KMMOVIES").trim()
+        val detailUrl = providerUrl(url)
+        val doc = document(detailUrl)
+        val rawTitle = doc.selectFirst("h1.hero-title, h1.entry-title, h1")?.text()?.trim()
+            ?.ifBlank { doc.selectFirst("meta[property=og:title]")?.attr("content").orEmpty() }
+            .orEmpty().ifBlank { doc.title().substringBefore(" - KMMOVIES") }
         val title = cleanTitle(rawTitle)
+        val poster = doc.selectFirst("img.hero-poster, meta[property=og:image]")?.let {
+            if (it.tagName() == "meta") it.attr("content") else absolute(doc, it.attr("src"))
+        }
+        val plot = doc.selectFirst(".hero-description")?.text()?.trim()
+            ?.ifBlank { doc.selectFirst("meta[name=description]")?.attr("content").orEmpty() }
+        val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(rawTitle)?.value?.toIntOrNull()
+        val tags = doc.select(".about-meta-box").firstOrNull {
+            it.selectFirst(".about-meta-label")?.text()?.equals("Genres", true) == true
+        }?.select("a")?.map { it.text().trim() }?.filter { it.isNotBlank() }.orEmpty()
+        val actors = doc.select(".about-cast-chip").map { it.text().trim() }.filter { it.isNotBlank() }
 
-        val poster = document.selectFirst("img.hero-poster")?.let { img ->
-            absoluteUrl(document, img.attr("src"))
-        } ?: document.selectFirst("meta[property=og:image]")?.attr("content")
-
-        val backdrop = extractBackdrop(document)
-            ?: document.selectFirst("meta[property=og:image]")?.attr("content")
-            ?: poster
-        val plot = document.selectFirst(".hero-description")?.text()?.trim()?.takeIf { it.isNotBlank() }
-            ?: document.selectFirst("meta[name=description], meta[property=og:description]")?.attr("content")
-        val year = extractYear(document, rawTitle)
-        val score = extractScore(document)
-        val genres = extractGenres(document)
-        val cast = document.select(".about-cast-chip").map { it.text().trim() }.filter { it.isNotBlank() }.distinct()
-        val trailer = document.selectFirst("a.open-trailer[data-trailer-url]")?.attr("data-trailer-url")?.takeIf { it.isNotBlank() }
-        val imdbUrl = document.selectFirst("a[href*='imdb.com/title']")?.attr("href")
-        val imdbId = imdbUrl?.let { Regex("""\b(tt\d+)\b""").find(it)?.groupValues?.get(1) }
-        val recommendations = parseRecommendations(document)
-        val isSeries = isSeriesPage(document, rawTitle)
-
-        suspend fun LoadResponse.applyCommon() {
-            this.posterUrl = poster
-            this.backgroundPosterUrl = backdrop
+        suspend fun LoadResponse.common() {
+            posterUrl = poster
+            backgroundPosterUrl = poster
             this.plot = plot
             this.year = year
-            this.tags = genres
-            this.score = score
-            this.recommendations = recommendations
-            if (cast.isNotEmpty()) addActors(cast.map { Actor(it, null) })
-            addTrailer(trailer)
-            imdbUrl?.let {
-                addImdbUrl(it)
-                imdbId?.let { id -> addImdbId(id) }
-            }
+            this.tags = tags
+            if (actors.isNotEmpty()) addActors(actors.map { Actor(it, null) })
         }
+
+        val isSeries = doc.select(".season-block").isNotEmpty() || isSeriesTitle(rawTitle) ||
+            doc.select(".about-highlight-value").any { it.text().equals("Series", true) }
 
         if (isSeries) {
-            val episodes = expandSeriesLinks(document, pageUrl)
-            if (episodes.isNotEmpty()) {
-                return newTvSeriesLoadResponse(title, pageUrl, TvType.TvSeries, episodes) {
-                    applyCommon()
-                }
-            }
-            // Fallback: single-season placeholder so the user can still open it
-            val fallbackLinks = collectDownloadLinks(document)
-            val ep = newEpisode(fallbackLinks.joinToString("\n") { it.url }) {
-                this.name = "Season 1"
-                this.season = 1
-                this.episode = 1
-            }
-            return newTvSeriesLoadResponse(title, pageUrl, TvType.TvSeries, listOf(ep)) {
-                applyCommon()
-            }
+            val episodes = loadSeriesEpisodes(doc, detailUrl)
+            return newTvSeriesLoadResponse(title, detailUrl, TvType.TvSeries, episodes) { common() }
         }
 
-        val downloads = collectDownloadLinks(document)
-        val dataPayload = downloads.joinToString("\n") { it.url }
-        return newMovieLoadResponse(title, pageUrl, TvType.Movie, dataPayload) {
-            applyCommon()
-        }
+        val sources = discoverDetailSources(doc, detailUrl)
+        // Keep the detail page in the payload as a live fallback. loadLinks can
+        // re-discover buttons if a cached MagicLinks URL has rotated.
+        val payload = encodePayload(listOf(Source("Detail", detailUrl, detailUrl)) + sources)
+        return newMovieLoadResponse(title, detailUrl, TvType.Movie, payload) { common() }
     }
 
-    private fun extractBackdrop(document: Document): String? {
-        val style = document.selectFirst("article.movie-hero")?.attr("style").orEmpty()
-        return Regex("""url\(['\"]?([^)'\"]+)""").find(style)?.groupValues?.getOrNull(1)?.let { absoluteUrl(document, it) }
-    }
-
-    private fun extractYear(document: Document, title: String): Int? {
-        val about = document.select(".about-highlight-pill").firstOrNull { pill ->
-            pill.selectFirst(".about-highlight-label")?.text()?.trim()?.equals("Release", true) == true
-        }?.selectFirst(".about-highlight-value")?.text().orEmpty()
-        return Regex("""\b(19\d{2}|20\d{2})\b""").find(about)?.groupValues?.get(1)?.toIntOrNull()
-            ?: Regex("""\b(19\d{2}|20\d{2})\b""").find(title)?.groupValues?.get(1)?.toIntOrNull()
-    }
-
-    private fun extractScore(document: Document): Score? {
-        val value = document.selectFirst(".rating-star")?.text().orEmpty()
-        val score = Regex("""(\d+(?:\.\d+)?)\s*/\s*10""").find(value)?.groupValues?.get(1)?.toDoubleOrNull()
-        return score?.takeIf { it > 0.0 }?.let { Score.from10(it) }
-    }
-
-    private fun extractGenres(document: Document): List<String> {
-        return document.select(".about-meta-box").firstOrNull { box ->
-            box.selectFirst(".about-meta-label")?.text()?.trim()?.equals("Genres", true) == true
-        }?.select(".about-meta-value a")?.map { it.text().trim() }?.filter { it.isNotBlank() }?.distinct()
-            ?: emptyList()
-    }
-
-    private fun isSeriesPage(document: Document, title: String): Boolean {
-        val type = document.select(".about-highlight-pill").firstOrNull { pill ->
-            pill.selectFirst(".about-highlight-label")?.text()?.trim()?.equals("Type", true) == true
-        }?.selectFirst(".about-highlight-value")?.text().orEmpty()
-        return type.equals("Series", true) ||
-            document.select(".season-block").isNotEmpty() ||
-            isSeriesTitle(title)
-    }
-
-    private fun parseRecommendations(document: Document): List<SearchResponse> {
-        return document.select(".related-movies article.movie-card").mapNotNull {
-            it.toSearchResponse(document)
-        }.distinctBy { it.url }.take(12)
-    }
-
-    // ------------------------------------------------------------------
-    // Link collection
-    // ------------------------------------------------------------------
-
-    private data class DlLink(val label: String, val url: String)
-
-    private fun collectDownloadLinks(document: Document): List<DlLink> {
-        return document.select(".downloads-section a.dl-btn").mapNotNull { btn ->
-            val url = absoluteUrl(document, btn.attr("href"))
-            url.takeIf { it.isNotBlank() }?.let {
-                DlLink(btn.text().normalise(), it)
-            }
+    private fun discoverDetailSources(doc: Document, referer: String): List<Source> {
+        val precise = doc.select(".downloads-section a.dl-btn, .season-block a.dl-btn")
+        val anchors = if (precise.isNotEmpty()) precise else doc.select("a[href]")
+        return anchors.mapNotNull { anchor ->
+            val url = absolute(doc, anchor.attr("href"))
+            if (!isResolvable(url)) return@mapNotNull null
+            Source(anchor.text().normalise().ifBlank { "Source" }, url, referer)
         }.distinctBy { it.url }
     }
 
-    // ------------------------------------------------------------------
-    // Series expansion
-    // ------------------------------------------------------------------
-
-    private suspend fun expandSeriesLinks(document: Document, referer: String): List<Episode> {
-        val blocks = document.select(".season-block")
-        if (blocks.isEmpty()) return emptyList()
-
-        val work = blocks.flatMap { block ->
-            val title = block.selectFirst(".season-block-title")?.text().orEmpty()
-            val season = Regex("""(?i)season\s*(\d+)""").find(title)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-            val buttons = block.select(".type-content[data-type^=episodes] a.dl-btn")
-                .ifEmpty { block.select(".type-content.active a.dl-btn") }
-            buttons.mapNotNull { btn ->
-                val href = absoluteUrl(document, btn.attr("href"))
-                if (href.isBlank()) null else SeasonWork(season, btn.text().normalise(), href, referer)
+    private suspend fun loadSeriesEpisodes(doc: Document, detailUrl: String): List<Episode> {
+        val jobs = doc.select(".season-block").flatMap { block ->
+            val seasonText = block.selectFirst(".season-block-title")?.text().orEmpty()
+            val season = Regex("""(?i)season\s*(\d+)""").find(seasonText)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
+            val buttons = block.select(".type-content[data-type^=episodes] a[href]").ifEmpty {
+                block.select(".type-content.active a[href]")
             }
-        }
-
-        if (work.isEmpty()) return emptyList()
-
-        val episodeMap = linkedMapOf<Pair<Int, Int>, MutableList<DlLink>>()
-        supervisorScope {
-            work.map { item ->
-                async {
-                    runCatching { fetchEpisodePage(item) }
-                        .onFailure { Log.w(TAG, "Episode page failed ${safeUrl(item.url)}: ${it.message}") }
-                        .getOrDefault(emptyList())
+            buttons.mapNotNull { button ->
+                val landing = absolute(doc, button.attr("href"))
+                landing.takeIf { it.isNotBlank() }?.let {
+                    Triple(season, button.text().normalise().ifBlank { "Source" }, it)
                 }
-            }.awaitAll().flatten().forEach { (season, episode, dlLink) ->
-                episodeMap.getOrPut(season to episode) { mutableListOf() }.add(dlLink)
             }
         }
 
-        return episodeMap.entries.sortedWith(compareBy({ it.key.first }, { it.key.second })).map { (key, links) ->
-            val (season, episode) = key
-            newEpisode(links.joinToString("\n") { it.url }) {
-                this.name = "Episode $episode"
-                this.season = season
-                this.episode = episode
-            }
+        if (jobs.isEmpty()) return emptyList()
+
+        val found = supervisorScope {
+            jobs.map { (season, label, landing) ->
+                async {
+                    try {
+                        parseEpisodeLanding(season, label, landing, detailUrl)
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        Log.w(TAG, "Episode landing failed ${safeUrl(landing)}: ${error.message}")
+                        emptyList()
+                    }
+                }
+            }.awaitAll().flatten()
         }
+
+        return found.groupBy { it.season to it.episode }
+            .toSortedMap(compareBy<Pair<Int, Int>>({ it.first }, { it.second }))
+            .map { (key, rows) ->
+                val sources = rows.map { it.source }.distinctBy { it.url }
+                newEpisode(encodePayload(sources)) {
+                    name = "Episode ${key.second}"
+                    season = key.first
+                    episode = key.second
+                }
+            }
     }
 
-    private data class SeasonWork(val season: Int, val label: String, val url: String, val referer: String)
-
-    private suspend fun fetchEpisodePage(work: SeasonWork): List<Triple<Int, Int, DlLink>> {
-        val doc = safeGetDocument(work.url, work.referer)
+    private suspend fun parseEpisodeLanding(
+        season: Int,
+        label: String,
+        landing: String,
+        detailUrl: String
+    ): List<EpisodeSource> {
+        val doc = document(landing, detailUrl)
         val rows = doc.select(".ep-row")
         if (rows.isNotEmpty()) {
             return rows.mapIndexedNotNull { index, row ->
-                val epName = row.selectFirst(".ep-name")?.text().orEmpty()
-                val episode = Regex("""(?i)(?:episode|ep)\s*[-#:]?\s*(\d+)""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
-                    ?: (index + 1)
-                val href = row.selectFirst("a[href]")?.let { absoluteUrl(doc, it.attr("href")) }
-                href?.takeIf { it.isNotBlank() }?.let {
-                    Triple(work.season, episode, DlLink(work.label, it))
+                val text = row.selectFirst(".ep-name")?.text().orEmpty()
+                val episode = Regex("""(?i)(?:episode|ep)\s*[-#:]?\s*(\d+)""")
+                    .find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: index + 1
+                val anchor = row.selectFirst("a[href]") ?: return@mapIndexedNotNull null
+                val url = absolute(doc, anchor.attr("href"))
+                url.takeIf { isResolvable(it) }?.let {
+                    EpisodeSource(season, episode, Source(label, it, landing))
                 }
             }
         }
-        // If no rows, treat the landing page itself as a single episode source
-        return listOf(Triple(work.season, 1, DlLink(work.label, work.url)))
+
+        return doc.select("a[href]").mapIndexedNotNull { index, anchor ->
+            val url = absolute(doc, anchor.attr("href"))
+            url.takeIf { isResolvable(it) }?.let {
+                EpisodeSource(season, index + 1, Source(label, it, landing))
+            }
+        }
     }
 
-    // ------------------------------------------------------------------
-    // loadLinks
-    // ------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // Stable versioned payload
+    // -----------------------------------------------------------------------
 
-    /**
-     * CloudStream may JSON-escape the data payload (turning literal \n into the
-     * two-character sequence \\n). Normalize before splitting, and always fall
-     * back to a regex URL extractor so a format change never leaves us with
-     * zero candidates.
-     */
-    private fun extractUrlsFromPayload(data: String): List<String> {
-        val normalized = data.trim()
-            .trim('"')
-            .replace("""\n""", "\n")
-            .replace("""\r""", "\r")
-            .replace("""\"""", "\"")
-            .replace("&amp;", "&")
-
-        val fromLines = normalized.lines()
-            .map { it.trim() }
-            .filter { it.startsWith("http", ignoreCase = true) }
-
-        if (fromLines.isNotEmpty()) return fromLines.distinct()
-
-        // Fallback: regex extraction for when the payload is a single escaped blob
-        return Regex("""https?://[^\s"'<>\\]+""")
-            .findAll(normalized)
-            .map { it.value.trimEnd(',', '.', ';', ')', ']', ' ', '"', '\'') }
-            .filter { it.length > 10 }
-            .distinct()
-            .toList()
+    private fun encodePayload(sources: List<Source>): String {
+        val array = JSONArray()
+        sources.distinctBy { it.url }.forEach { source ->
+            array.put(JSONObject().apply {
+                put("name", source.name)
+                put("url", source.url)
+                put("referer", source.referer)
+            })
+        }
+        return JSONObject().apply {
+            put("version", PAYLOAD_VERSION)
+            put("sources", array)
+        }.toString()
     }
+
+    private fun decodePayload(data: String): List<Source> {
+        runCatching {
+            val root = JSONObject(data)
+            val array = root.optJSONArray("sources") ?: JSONArray()
+            return (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val url = item.optString("url").trim()
+                url.takeIf { it.startsWith("http", true) }?.let {
+                    Source(item.optString("name").ifBlank { "Source" }, it, item.optString("referer"))
+                }
+            }.distinctBy { it.url }
+        }
+
+        return Regex("""https?://[^\s"'<>\\]+""").findAll(data.replace("\\/", "/"))
+            .map { Source("Source", it.value.trimEnd(',', '.', ';', ')', ']')) }
+            .distinctBy { it.url }.toList()
+    }
+
+    // -----------------------------------------------------------------------
+    // Playback resolution
+    // -----------------------------------------------------------------------
 
     override suspend fun loadLinks(
         data: String,
@@ -446,100 +346,276 @@ class KMMovies : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val urls = extractUrlsFromPayload(data)
-        Log.d(TAG, "loadLinks: extracted ${urls.size} URL(s) from payload of length ${data.length}")
-        if (urls.isEmpty()) {
-            Log.w(TAG, "loadLinks: no URLs found in payload: ${data.take(200)}")
-            return false
-        }
+        val initial = decodePayload(data)
+        if (initial.isEmpty()) return false
 
         var emitted = 0
-        urls.forEach { url ->
-            runCatching {
+        val actualCallback: (ExtractorLink) -> Unit = { link ->
+            emitted += 1
+            callback(link)
+        }
+
+        val queue = ArrayDeque<Source>()
+        queue.addAll(initial)
+        val visited = mutableSetOf<String>()
+
+        while (queue.isNotEmpty() && visited.size < MAX_RESOLUTION_NODES) {
+            val source = queue.removeFirst()
+            if (!visited.add(source.url)) continue
+
+            try {
                 when {
-                    isMagicLinksPost(url) -> {
-                        emitted += resolveMagicLinks(url, subtitleCallback, callback)
+                    isProviderPage(source.url) -> {
+                        val doc = document(source.url)
+                        queue.addAll(discoverDetailSources(doc, source.url))
                     }
-                    isSkydropUrl(url) -> {
-                        emitted += resolveSkydrop(url, subtitleCallback, callback)
+                    isMagicLinks(source.url) -> {
+                        queue.addAll(resolveMagicLinks(source.url))
                     }
-                    isDirectVideo(url) -> {
-                        emitDirect(url, "Direct", url, callback)
-                        emitted += 1
+                    isSkyDrop(source.url) -> {
+                        resolveSkyDrop(source, actualCallback)
                     }
-                    else -> {
-                        val ok = loadExtractor(url, mainUrl, subtitleCallback, callback)
-                        if (ok) emitted += 1
+                    source.url.contains("online.php", true) || source.url.contains("/nf/index.php", true) -> {
+                        resolveOnline(source)?.let { emit(it, actualCallback) }
                     }
+                    source.url.contains("download99.php", true) -> {
+                        resolveZipZap(source)?.let { emit(it, actualCallback) }
+                    }
+                    isDirect(source.url) -> emit(source, actualCallback)
+                    else -> loadExtractor(
+                        source.url,
+                        source.referer.ifBlank { mainUrl },
+                        subtitleCallback,
+                        actualCallback
+                    )
                 }
-            }.onFailure { error ->
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                Log.w(TAG, "Link failed ${safeUrl(url)}: ${error.message}")
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Source failed ${safeUrl(source.url)}: ${error.message}")
+            } catch (error: LinkageError) {
+                Log.e(TAG, "CloudStream ABI rejected ${safeUrl(source.url)}: ${error.message}")
             }
         }
-        Log.d(TAG, "loadLinks: emitted $emitted source(s)")
+
         return emitted > 0
     }
 
-    // ------------------------------------------------------------------
-    // MagicLinks resolution (movies)
-    // ------------------------------------------------------------------
+    private suspend fun resolveMagicLinks(url: String): List<Source> {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return emptyList()
+        val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return emptyList()
+        val hosts = linkedSetOf(uri.host.orEmpty(), "magiclinks.lol", "w1.magiclinks.lol")
+            .filter { it.isNotBlank() }
 
-    private fun isMagicLinksPost(url: String): Boolean {
-        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
-        val path = runCatching { URI(url).path.orEmpty() }.getOrDefault("")
-        return host.contains("magiclinks") && Regex("""/\d+-\d+/?$""").containsMatchIn(path)
+        for (host in hosts) {
+            val endpoint = "https://$host/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}" +
+                "&_fields=content,meta,link"
+            val text = try {
+                app.get(
+                    endpoint,
+                    headers = browserHeaders + mapOf("Accept" to "application/json", "Referer" to url),
+                    timeout = 25
+                ).text
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                continue
+            }
+            val post = runCatching { JSONArray(text).optJSONObject(0) }.getOrNull() ?: continue
+            val base = post.optString("link").ifBlank { "https://$host/$slug/" }
+            val output = linkedMapOf<String, Source>()
+
+            fun add(label: String, raw: String?) {
+                val value = raw.orEmpty().trim().replace("&amp;", "&")
+                if (value.isBlank() || value == "#" || value.startsWith("javascript:", true)) return
+                val absolute = if (value.startsWith("http", true)) value else
+                    runCatching { URI(base).resolve(value).toString() }.getOrDefault("")
+                if (absolute.isNotBlank() && !absolute.contains("/photo/", true)) {
+                    output[absolute] = Source(label, absolute, base)
+                }
+            }
+
+            val meta = post.optJSONObject("meta")
+            MAGIC_META.forEach { (key, label) ->
+                add(label, meta?.optString(key).orEmpty().ifBlank { post.optString(key) })
+            }
+            val rendered = post.optJSONObject("content")?.optString("rendered").orEmpty()
+            if (rendered.isNotBlank()) {
+                val renderedDoc = Jsoup.parse(rendered, base)
+                renderedDoc.select("a[href]").forEach {
+                    add(it.text().normalise().ifBlank { "Source" }, it.absUrl("href").ifBlank { it.attr("href") })
+                }
+                URL_REGEX.findAll(rendered.replace("\\/", "/")).forEach { add("Source", it.value) }
+            }
+            if (output.isNotEmpty()) return output.values.toList()
+        }
+        return emptyList()
     }
 
-    private suspend fun resolveMagicLinks(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Int {
-        val uri = runCatching { URI(url) }.getOrNull() ?: return 0
-        val host = uri.host ?: return 0
-        val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return 0
+    private suspend fun resolveSkyDrop(source: Source, callback: (ExtractorLink) -> Unit) {
+        val uri = runCatching { URI(source.url) }.getOrNull() ?: return
+        val token = queryParam(uri.rawQuery.orEmpty(), "id")
+            ?: queryParam(uri.rawQuery.orEmpty(), "file") ?: return
+        val origin = "${uri.scheme ?: "https"}://${uri.host}"
+        val encoded = URLEncoder.encode(token, "UTF-8")
 
-        val hostsToTry = linkedSetOf(host, "magiclinks.lol", "w1.magiclinks.lol")
-        var post: JSONObject? = null
-        var resolvedBase = url
+        // Current short Google resource tokens are directly streamable.
+        if (token.length <= 64) {
+            emit(Source(source.name, "$origin/api.php?file=$encoded&download=1", source.url), callback)
+            return
+        }
 
-        for (tryHost in hostsToTry) {
-            val apiUrl = "${uri.scheme ?: "https"}://$tryHost/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}&_fields=content,meta,link"
-            val jsonText = runCatching {
-                app.get(apiUrl, headers = headers + mapOf("Accept" to "application/json", "Referer" to url), timeout = 20).text
-            }.getOrNull()
-            val candidate = runCatching { JSONArray(jsonText).optJSONObject(0) }.getOrNull()
-            if (candidate != null) {
-                post = candidate
-                resolvedBase = candidate.optString("link").ifBlank { "https://$tryHost/$slug/" }
-                break
+        val apiHeaders = browserHeaders + mapOf(
+            "Accept" to "application/json",
+            "Referer" to source.url,
+            "X-Requested-With" to "XMLHttpRequest"
+        )
+        for (parameter in listOf("file", "id")) {
+            val text = runCatching {
+                app.get("$origin/api.php?$parameter=$encoded", headers = apiHeaders, timeout = 20).text
+            }.getOrNull() ?: continue
+            val obj = runCatching { JSONObject(text) }.getOrNull() ?: continue
+            if (!obj.optBoolean("success", false)) continue
+            val resolved = obj.optString("link").trim()
+                .ifBlank { obj.optString("download_url").trim() }
+                .ifBlank { obj.optString("url").trim() }
+            if (resolved.startsWith("http", true)) {
+                emit(Source(source.name, resolved, source.url), callback)
+                return
             }
-            // Retry with CloudflareKiller in case the API is behind a challenge
-            val jsonTextCf = runCatching {
-                app.get(apiUrl, headers = headers + mapOf("Accept" to "application/json", "Referer" to url), interceptor = CloudflareKiller(), timeout = 25).text
-            }.getOrNull()
-            val candidateCf = runCatching { JSONArray(jsonTextCf).optJSONObject(0) }.getOrNull()
-            if (candidateCf != null) {
-                post = candidateCf
-                resolvedBase = candidateCf.optString("link").ifBlank { "https://$tryHost/$slug/" }
-                break
-            }
+        }
+    }
+
+    private suspend fun resolveOnline(source: Source): Source? {
+        val final = followRedirects(source.url, source.referer)
+        val encoded = Regex("""(?i)[?&]videoUrl=([^&]+)""").find(final)
+            ?.groupValues?.getOrNull(1)
+        if (!encoded.isNullOrBlank()) {
+            val decoded = runCatching { URLDecoder.decode(encoded, "UTF-8") }.getOrDefault(encoded)
+            if (decoded.startsWith("http", true)) return Source(source.name, decoded, final)
         }
 
-        if (post == null) {
-            Log.w(TAG, "MagicLinks REST API empty for $url")
-            return 0
+        val doc = runCatching { document(final, source.url) }.getOrNull() ?: return null
+        val video = doc.selectFirst("video[src], video source[src]")?.attr("src").orEmpty()
+        return video.takeIf { it.isNotBlank() }?.let { Source(source.name, absolute(doc, it), final) }
+    }
+
+    private suspend fun resolveZipZap(source: Source): Source? {
+        var current = followRedirects(source.url, source.referer)
+        if (isDirect(current)) return Source(source.name, current, source.url)
+        val doc = runCatching { document(current, source.url) }.getOrNull() ?: return null
+        for (anchor in doc.select("a[href]")) {
+            val target = absolute(doc, anchor.attr("href"))
+            if (!target.contains("download99.php", true) && !target.contains("dl=", true)) continue
+            current = followRedirects(target, current)
+            if (isDirect(current)) return Source(source.name, current, source.url)
         }
+        return null
+    }
 
-        val sources = linkedMapOf<String, String>()
-
-        fun addSource(raw: String?, label: String) {
-            val value = raw?.trim().orEmpty()
-            if (value.isBlank() || value.startsWith("javascript:", true) || value == "#") return
-            val absolute = if (value.startsWith("http", true)) value else runCatching { URI(resolvedBase).resolve(value).toString() }.getOrDefault("")
-            if (absolute.isNotBlank()) sources[absolute] = label
+    private suspend fun followRedirects(start: String, referer: String): String {
+        var current = start
+        repeat(8) {
+            if (isDirect(current)) return current
+            val response = app.get(
+                current,
+                headers = browserHeaders + referer.takeIf { it.isNotBlank() }
+                    ?.let { mapOf("Referer" to it) }.orEmpty(),
+                allowRedirects = false,
+                timeout = 15
+            )
+            if (response.code !in 300..399) return current
+            val location = response.headers["Location"] ?: response.headers["location"] ?: return current
+            current = runCatching { URI(current).resolve(location).toString() }.getOrDefault(location)
         }
+        return current
+    }
 
-        // Meta fields (nested under "meta" object)
-        val meta = post.optJSONObject("meta")
-        listOf(
+    @Suppress("DEPRECATION_ERROR")
+    private fun emit(source: Source, callback: (ExtractorLink) -> Unit) {
+        callback(
+            ExtractorLink(
+                source = "KMMovies",
+                name = "KMMovies • ${source.name.ifBlank { "Direct" }}",
+                url = source.url,
+                referer = source.referer,
+                quality = quality(source.name + " " + source.url),
+                isM3u8 = source.url.substringBefore('?').endsWith(".m3u8", true),
+                headers = mapOf("User-Agent" to USER_AGENT)
+            )
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // Predicates and text helpers
+    // -----------------------------------------------------------------------
+
+    private fun isProviderPage(url: String): Boolean = host(url) == host(mainUrl)
+    private fun isMagicLinks(url: String): Boolean = host(url).contains("magiclinks") &&
+        !host(url).startsWith("episodes.")
+    private fun isSkyDrop(url: String): Boolean = host(url).contains("skydrop")
+
+    private fun isResolvable(url: String): Boolean {
+        return isMagicLinks(url) || isSkyDrop(url) || isDirect(url) ||
+            url.contains("online.php", true) || url.contains("download99.php", true) ||
+            url.contains("drive.google.com", true) || url.contains("gofile", true) ||
+            url.contains("pixeldrain", true) || url.contains("hubcloud", true)
+    }
+
+    private fun isDirect(url: String): Boolean {
+        val clean = url.substringBefore('?').substringBefore('#').lowercase()
+        return clean.endsWith(".mp4") || clean.endsWith(".mkv") || clean.endsWith(".webm") ||
+            clean.endsWith(".m3u8") || clean.endsWith(".mov") || clean.endsWith(".avi") ||
+            url.contains(".r2.dev/", true) || url.contains("googleusercontent.com", true) ||
+            (url.contains("skydrop", true) && url.contains("api.php", true) && url.contains("download=1", true))
+    }
+
+    private fun queryParam(query: String, key: String): String? {
+        return query.split('&').firstOrNull { it.substringBefore('=').equals(key, true) }
+            ?.substringAfter('=', "")?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrDefault(it) }
+    }
+
+    private fun host(url: String): String = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+
+    private fun quality(value: String): Int {
+        val text = value.lowercase()
+        return when {
+            "2160" in text || "4k" in text -> Qualities.P2160.value
+            "1440" in text || "2k" in text -> Qualities.P1440.value
+            "1080" in text -> Qualities.P1080.value
+            "720" in text -> Qualities.P720.value
+            "480" in text -> Qualities.P480.value
+            "360" in text -> Qualities.P360.value
+            else -> Qualities.Unknown.value
+        }
+    }
+
+    private fun cleanTitle(value: String): String = value
+        .replace(Regex("""(?i)\s*-\s*KMMOVIES.*$"""), "")
+        .replace(Regex("""\s{2,}"""), " ")
+        .trim(' ', '-', '|', ':')
+        .ifBlank { value.trim() }
+
+    private fun isSeriesTitle(value: String): Boolean =
+        Regex("""(?i)\b(?:season\s*\d+|s\d{1,2}(?:\s*[-–]\s*s?\d{1,2})?|\d+\s*episodes?)\b""")
+            .containsMatchIn(value) || value.contains("series", true)
+
+    private fun String.normalise(): String = replace(Regex("\\s+"), " ").trim()
+
+    private fun safeUrl(url: String): String {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return "<url>"
+        return uri.host.orEmpty() + uri.path.orEmpty()
+    }
+
+    private companion object {
+        private const val TAG = "KMMovies"
+        private const val PAYLOAD_VERSION = 1
+        private const val MAX_RESOLUTION_NODES = 40
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+        private val URL_REGEX = Regex("""https?://[^\s"'<>\\]+""")
+        private val MAGIC_META = listOf(
             "watch_online_url" to "Watch Online",
             "watch_online2_url" to "Watch Online 2",
             "zip_zap_url" to "Zip-Zap",
@@ -553,288 +629,6 @@ class KMMovies : MainAPI() {
             "one_click_url" to "One Click",
             "transfer_it_url" to "Transfer.it",
             "ultra_fast_download_url" to "Fast Download"
-        ).forEach { (key, label) -> addSource(meta?.optString(key), label) }
-
-        // Some WP installs expose custom fields at the top level instead of inside meta
-        listOf(
-            "watch_online_url" to "Watch Online",
-            "watch_online2_url" to "Watch Online 2",
-            "zip_zap_url" to "Zip-Zap",
-            "skydrop_url" to "SkyDrop"
-        ).forEach { (key, label) ->
-            if (meta?.optString(key).isNullOrBlank()) addSource(post.optString(key), label)
-        }
-
-        // Parse rendered content for plain-text URLs (not just <a> tags)
-        val rendered = post.optJSONObject("content")?.optString("rendered").orEmpty()
-        if (rendered.isNotBlank()) {
-            val renderedDoc = org.jsoup.Jsoup.parse(rendered, resolvedBase)
-            renderedDoc.select("a[href]").forEach { a ->
-                addSource(a.absUrl("href").ifBlank { a.attr("href") }, a.text().normalise().ifBlank { "Source" })
-            }
-            Regex("""https?://[^\s"'<>\\]+""")
-                .findAll(rendered)
-                .map { it.value.trimEnd(',', '.', ';', ')', ']', ' ') }
-                .forEach { addSource(it, "Source") }
-        }
-
-        Log.d(TAG, "MagicLinks resolved ${sources.size} source(s) for $url")
-        if (sources.isEmpty()) return 0
-
-        var emitted = 0
-        sources.forEach { (srcUrl, label) ->
-            runCatching {
-                when {
-                    srcUrl.contains("online.php", true) || srcUrl.contains("/nf/index.php", true) -> {
-                        resolveWatchOnline(srcUrl, label, callback)
-                        emitted += 1
-                    }
-                    srcUrl.contains("download99.php", true) -> {
-                        resolveZipZap(srcUrl, label, callback)
-                        emitted += 1
-                    }
-                    isSkydropUrl(srcUrl) -> {
-                        emitted += resolveSkydrop(srcUrl, subtitleCallback, callback)
-                    }
-                    isDirectVideo(srcUrl) -> {
-                        emitDirect(srcUrl, label, srcUrl, callback)
-                        emitted += 1
-                    }
-                    else -> {
-                        val ok = loadExtractor(srcUrl, resolvedBase, subtitleCallback, callback)
-                        if (ok) emitted += 1
-                    }
-                }
-            }.onFailure { Log.w(TAG, "MagicLinks source failed ${safeUrl(srcUrl)}: ${it.message}") }
-        }
-        return emitted
-    }
-
-    // ------------------------------------------------------------------
-    // Watch Online (online.php -> /nf/index.php?videoUrl=...)
-    // ------------------------------------------------------------------
-
-    private suspend fun resolveWatchOnline(url: String, label: String, callback: (ExtractorLink) -> Unit) {
-        val redirected = resolveRedirect(url) ?: url
-        extractVideoUrlParam(redirected)?.let { videoUrl ->
-            if (isDirectVideo(videoUrl)) {
-                emitDirect(videoUrl, label, redirected, callback)
-                return
-            }
-        }
-        // Fallback: scrape the nf page for video tags or embedded URLs
-        val doc = runCatching { safeGetDocument(redirected, url) }.getOrNull() ?: return
-        doc.select("video source[src], video[src]").mapNotNull { it.attr("src").ifBlank { null } }
-            .filter { isDirectVideo(it) }
-            .forEach { emitDirect(it, label, redirected, callback) }
-    }
-
-    private fun extractVideoUrlParam(url: String): String? {
-        val raw = Regex("""(?i)[?&]videoUrl=(https?%3A%2F%2F[^&]+|https?://[^&]+)""").find(url)?.groupValues?.getOrNull(1)
-            ?: return null
-        return runCatching { java.net.URLDecoder.decode(raw, "UTF-8") }.getOrDefault(raw).trim()
-    }
-
-    // ------------------------------------------------------------------
-    // Zip-Zap (download99.php -> signed R2 URL)
-    // ------------------------------------------------------------------
-
-    private suspend fun resolveZipZap(url: String, label: String, callback: (ExtractorLink) -> Unit) {
-        // First hop may attach exp/sig
-        var current = resolveRedirect(url) ?: url
-        // Second hop if dl= is present
-        if (current.contains("download99.php", true) && current.contains("dl=", true)) {
-            current = resolveRedirect(current) ?: current
-        }
-        if (isDirectVideo(current)) {
-            emitDirect(current, label, url, callback)
-            return
-        }
-        // Scrape landing page for R2 / worker buttons
-        val doc = runCatching { safeGetDocument(current, url) }.getOrNull() ?: return
-        val targets = doc.select("a[href]").mapNotNull { a ->
-            val href = absoluteUrl(doc, a.attr("href"))
-            href.takeIf { it.contains("dl=r2", true) || it.contains("dl=worker", true) || it.contains("download99.php", true) }
-        }.distinct()
-        for (target in targets) {
-            val final = resolveRedirect(target) ?: target
-            if (isDirectVideo(final)) {
-                emitDirect(final, label, url, callback)
-                return
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // SkyDrop resolution
-    // ------------------------------------------------------------------
-
-    private fun isSkydropUrl(url: String): Boolean {
-        return url.contains("skydrop", true)
-    }
-
-    private suspend fun resolveSkydrop(url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Int {
-        val uri = runCatching { URI(url) }.getOrNull() ?: return 0
-        val host = uri.host ?: return 0
-        val query = uri.query.orEmpty()
-        val id = Regex("""(?:^|&)id=([^&]+)""").find(query)?.groupValues?.get(1)
-            ?: Regex("""(?:^|&)id=([^&]+)""").find(url)?.groupValues?.get(1)
-            ?: return 0
-
-        val apiBase = "${uri.scheme ?: "https"}://$host/api.php"
-        val encodedId = URLEncoder.encode(id, "UTF-8")
-
-        // Short AF1Qip... values are Google resource tokens accepted directly by
-        // SkyDrop's file endpoint. Emit the streaming endpoint without an extra
-        // JSON round-trip; this also guarantees CloudStream receives a link when
-        // the JSON request is filtered or its response cannot be parsed on-device.
-        if (id.length <= 64) {
-            val directUrl = "$apiBase?file=$encodedId&download=1"
-            emitDirect(directUrl, "SkyDrop", url, callback)
-            return 1
-        }
-
-        val apiHeaders = headers + mapOf(
-            "Accept" to "application/json",
-            "Referer" to url,
-            "X-Requested-With" to "XMLHttpRequest"
         )
-
-        // SkyDrop currently uses api.php?file=... in download.php's browser
-        // JavaScript. Older deployments used api.php?id=..., so retain it as a
-        // fallback. Calling only id= makes short Google resource tokens return
-        // "Invalid or corrupted encrypted ID" even though file= resolves them.
-        for (parameter in listOf("file", "id")) {
-            val apiUrl = "$apiBase?$parameter=$encodedId"
-            val jsonText = runCatching {
-                app.get(apiUrl, headers = apiHeaders, timeout = 20).text
-            }.getOrNull()
-
-            if (jsonText.isNullOrBlank()) continue
-
-            val obj = runCatching { JSONObject(jsonText) }
-                .onFailure { Log.w(TAG, "SkyDrop JSON parse failed for $url: ${it.message}") }
-                .getOrNull() ?: continue
-
-            if (!obj.optBoolean("success", false)) {
-                Log.w(TAG, "SkyDrop $parameter resolver rejected ${safeUrl(url)}: ${obj.optString("message").take(120)}")
-                continue
-            }
-
-            // Prefer the resolved media URL. download_url is a useful fallback
-            // for responses which intentionally omit link.
-            val value = obj.optString("link").trim()
-                .ifBlank { obj.optString("download_url").trim() }
-                .ifBlank { obj.optString("url").trim() }
-
-            if (!value.startsWith("http", true)) continue
-
-            if (isDirectVideo(value) || value.contains("download=1", true) || value.contains("googleusercontent", true)) {
-                emitDirect(value, "SkyDrop", url, callback)
-                return 1
-            }
-
-            if (loadExtractor(value, url, subtitleCallback, callback)) return 1
-        }
-
-        Log.w(TAG, "SkyDrop could not resolve ${safeUrl(url)}")
-        return 0
-    }
-
-    // ------------------------------------------------------------------
-    // Redirect & direct helpers
-    // ------------------------------------------------------------------
-
-    private suspend fun resolveRedirect(url: String): String? {
-        var current = url
-        repeat(6) {
-            if (isDirectVideo(current)) return current
-            val resp = runCatching {
-                app.get(current, headers = headers, allowRedirects = false, timeout = 15)
-            }.getOrNull() ?: return current
-            if (resp.code !in 300..399) return current
-            val loc = resp.headers["Location"] ?: resp.headers["location"] ?: return current
-            current = runCatching { URI(current).resolve(loc).toString() }.getOrElse { fixUrl(loc) }
-        }
-        return current
-    }
-
-    private fun isDirectVideo(url: String): Boolean {
-        val path = url.substringBefore('?').substringBefore('#').lowercase()
-        return path.endsWith(".mp4") || path.endsWith(".mkv") || path.endsWith(".webm") ||
-            path.endsWith(".mov") || path.endsWith(".avi") || path.endsWith(".m3u8") ||
-            url.contains(".r2.dev/", true) || url.contains("video-downloads.googleusercontent.com", true) ||
-            (url.contains("skydrop", true) && url.contains("api.php", true) && url.contains("download=1", true))
-    }
-
-    @Suppress("DEPRECATION_ERROR")
-    private fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
-        val quality = qualityFromLabel(label, url)
-        val isM3u8 = url.substringBefore('?').contains(".m3u8", true)
-
-        // Use the compatibility constructor intentionally. The repo builds against
-        // the rolling pre-release library, while users can have an older prerelease
-        // APK whose newExtractorLink ABI differs. That failure is swallowed by the
-        // per-source runCatching and presents only as "No links found". This
-        // constructor is retained by CloudStream specifically for old extensions.
-        callback.invoke(
-            ExtractorLink(
-                source = "KMMovies",
-                name = "KMMovies • ${label.ifBlank { "Direct" }}",
-                url = url,
-                referer = referer,
-                quality = quality,
-                isM3u8 = isM3u8,
-                headers = mapOf("User-Agent" to USER_AGENT)
-            )
-        )
-    }
-
-    private fun qualityFromLabel(label: String, url: String): Int {
-        val value = "$label $url".lowercase()
-        return when {
-            value.contains("4320") || value.contains("8k") -> 4320
-            value.contains("2160") || value.contains("4k") -> Qualities.P2160.value
-            value.contains("1440") || value.contains("2k") -> Qualities.P1440.value
-            value.contains("1080") -> Qualities.P1080.value
-            value.contains("720") -> Qualities.P720.value
-            value.contains("480") -> Qualities.P480.value
-            value.contains("360") -> Qualities.P360.value
-            else -> Qualities.Unknown.value
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Text helpers
-    // ------------------------------------------------------------------
-
-    private fun String.normalise(): String = replace(Regex("\\s+"), " ").trim()
-
-    private fun cleanTitle(value: String): String {
-        return value
-            .replace(Regex("""(?i)\s*-\s*KMMOVIES.*$"""), "")
-            .replace(Regex("""(?i)\s+(?:Download|Watch Online)\s+(?:\d{3,4}p|4K|WEB[- ]?DL|BluRay).*$"""), "")
-            .replace(Regex("""\s{2,}"""), " ")
-            .trim(' ', '-', '|', ':')
-            .ifBlank { value.trim() }
-    }
-
-    private fun isSeriesTitle(value: String): Boolean {
-        return Regex("""(?i)\b(?:season\s*\d+|s\d{1,2}(?:\s*[-–]\s*s?\d{1,2})?|\d+\s*episodes?)\b""").containsMatchIn(value) ||
-            value.contains("series", ignoreCase = true)
-    }
-
-    private fun safeUrl(url: String): String {
-        val host = runCatching { URI(url).host }.getOrNull() ?: return "<url>"
-        val path = runCatching { URI(url).path }.getOrNull().orEmpty()
-        val sensitive = url.contains("sig=", true) || url.contains("token=", true) || url.contains("googleusercontent", true)
-        return if (sensitive) "$host$path?<redacted>" else "$host$path"
-    }
-
-    private companion object {
-        private const val TAG = "KMMovies"
-        private const val USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
     }
 }
