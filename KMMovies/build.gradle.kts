@@ -1,5 +1,5 @@
 // Bump this integer whenever the provider implementation changes.
-version = 5
+version = 6
 
 cloudstream {
     authors = listOf("arena")

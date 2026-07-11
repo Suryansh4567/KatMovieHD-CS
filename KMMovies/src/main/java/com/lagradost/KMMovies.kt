@@ -683,37 +683,53 @@ class KMMovies : MainAPI() {
             ?: Regex("""(?:^|&)id=([^&]+)""").find(url)?.groupValues?.get(1)
             ?: return 0
 
-        val apiUrl = "${uri.scheme ?: "https"}://$host/api.php?id=$id"
-        val jsonText = runCatching {
-            app.get(apiUrl, headers = headers + mapOf(
-                "Accept" to "application/json",
-                "Referer" to url,
-                "X-Requested-With" to "XMLHttpRequest"
-            ), timeout = 20).text
-        }.getOrNull()
+        val apiBase = "${uri.scheme ?: "https"}://$host/api.php"
+        val encodedId = URLEncoder.encode(id, "UTF-8")
+        val apiHeaders = headers + mapOf(
+            "Accept" to "application/json",
+            "Referer" to url,
+            "X-Requested-With" to "XMLHttpRequest"
+        )
 
-        if (jsonText.isNullOrBlank()) {
-            Log.w(TAG, "SkyDrop API empty response for $url")
-            return 0
+        // SkyDrop currently uses api.php?file=... in download.php's browser
+        // JavaScript. Older deployments used api.php?id=..., so retain it as a
+        // fallback. Calling only id= makes short Google resource tokens return
+        // "Invalid or corrupted encrypted ID" even though file= resolves them.
+        for (parameter in listOf("file", "id")) {
+            val apiUrl = "$apiBase?$parameter=$encodedId"
+            val jsonText = runCatching {
+                app.get(apiUrl, headers = apiHeaders, timeout = 20).text
+            }.getOrNull()
+
+            if (jsonText.isNullOrBlank()) continue
+
+            val obj = runCatching { JSONObject(jsonText) }
+                .onFailure { Log.w(TAG, "SkyDrop JSON parse failed for $url: ${it.message}") }
+                .getOrNull() ?: continue
+
+            if (!obj.optBoolean("success", false)) {
+                Log.w(TAG, "SkyDrop $parameter resolver rejected ${safeUrl(url)}: ${obj.optString("message").take(120)}")
+                continue
+            }
+
+            // Prefer the resolved media URL. download_url is a useful fallback
+            // for responses which intentionally omit link.
+            val value = obj.optString("link").trim()
+                .ifBlank { obj.optString("download_url").trim() }
+                .ifBlank { obj.optString("url").trim() }
+
+            if (!value.startsWith("http", true)) continue
+
+            if (isDirectVideo(value) || value.contains("download=1", true) || value.contains("googleusercontent", true)) {
+                emitDirect(value, "SkyDrop", url, callback)
+                return 1
+            }
+
+            if (loadExtractor(value, url, subtitleCallback, callback)) return 1
         }
 
-        var emitted = 0
-        runCatching {
-            val obj = JSONObject(jsonText)
-            listOf("download_url", "link", "url", "file").forEach { key ->
-                val value = obj.optString(key).trim()
-                if (value.startsWith("http", true)) {
-                    if (isDirectVideo(value) || value.contains("download=1", true) || value.contains("googleusercontent", true)) {
-                        emitDirect(value, "SkyDrop", url, callback)
-                        emitted += 1
-                    } else {
-                        val ok = loadExtractor(value, url, subtitleCallback, callback)
-                        if (ok) emitted += 1
-                    }
-                }
-            }
-        }.onFailure { Log.w(TAG, "SkyDrop JSON parse failed for $url: ${it.message}") }
-        return emitted
+        Log.w(TAG, "SkyDrop could not resolve ${safeUrl(url)}")
+        return 0
     }
 
     // ------------------------------------------------------------------
