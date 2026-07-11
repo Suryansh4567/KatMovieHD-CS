@@ -685,6 +685,17 @@ class KMMovies : MainAPI() {
 
         val apiBase = "${uri.scheme ?: "https"}://$host/api.php"
         val encodedId = URLEncoder.encode(id, "UTF-8")
+
+        // Short AF1Qip... values are Google resource tokens accepted directly by
+        // SkyDrop's file endpoint. Emit the streaming endpoint without an extra
+        // JSON round-trip; this also guarantees CloudStream receives a link when
+        // the JSON request is filtered or its response cannot be parsed on-device.
+        if (id.length <= 64) {
+            val directUrl = "$apiBase?file=$encodedId&download=1"
+            emitDirect(directUrl, "SkyDrop", url, callback)
+            return 1
+        }
+
         val apiHeaders = headers + mapOf(
             "Accept" to "application/json",
             "Referer" to url,
