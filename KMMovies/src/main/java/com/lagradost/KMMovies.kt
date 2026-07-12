@@ -22,6 +22,7 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -472,15 +473,16 @@ class KMMovies : MainAPI() {
                     
                     if (isDirect(finalDirectUrl)) {
                         val label = if (absoluteHref.contains("dl=r2")) "KMPhotos Fast (R2)" else "KMPhotos Direct (Worker)"
+                        val isM3u = finalDirectUrl.substringBefore('?').endsWith(".m3u8", true)
                         callback(
                             newExtractorLink(
                                 source = "KMMovies",
                                 name = "KMMovies • $label",
-                                url = finalDirectUrl
+                                url = finalDirectUrl,
+                                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                             ) {
                                 this.referer = absoluteHref
                                 this.quality = quality(label + " " + finalDirectUrl)
-                                this.isM3u8 = finalDirectUrl.substringBefore('?').endsWith(".m3u8", true)
                                 this.headers = mapOf("User-Agent" to USER_AGENT)
                             }
                         )
@@ -511,11 +513,11 @@ class KMMovies : MainAPI() {
                     newExtractorLink(
                         source = "KMMovies",
                         name = "KMMovies • SkyDrop Direct",
-                        url = directUrl
+                        url = directUrl,
+                        type = ExtractorLinkType.VIDEO
                     ) {
                         this.referer = url
                         this.quality = quality("SkyDrop Direct " + directUrl)
-                        this.isM3u8 = false
                         this.headers = mapOf("User-Agent" to USER_AGENT)
                     }
                 )
@@ -544,15 +546,16 @@ class KMMovies : MainAPI() {
                 if (resolved.startsWith("http", true)) {
                     val finalUrl = followRedirects(resolved, url)
                     if (isDirect(finalUrl)) {
+                        val isM3u = finalUrl.substringBefore('?').endsWith(".m3u8", true)
                         callback(
                             newExtractorLink(
                                 source = "KMMovies",
                                 name = "KMMovies • SkyDrop API",
-                                url = finalUrl
+                                url = finalUrl,
+                                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                             ) {
                                 this.referer = url
                                 this.quality = quality("SkyDrop API " + finalUrl)
-                                this.isM3u8 = finalUrl.substringBefore('?').endsWith(".m3u8", true)
                                 this.headers = mapOf("User-Agent" to USER_AGENT)
                             }
                         )
@@ -622,31 +625,33 @@ class KMMovies : MainAPI() {
         return current
     }
 
-    private fun emit(source: Source, callback: (ExtractorLink) -> Unit) {
+    private suspend fun emit(source: Source, callback: (ExtractorLink) -> Unit) {
+        val isM3u = source.url.substringBefore('?').endsWith(".m3u8", true)
         callback(
             newExtractorLink(
                 source = "KMMovies",
                 name = "KMMovies • ${source.name.ifBlank { "Direct" }}",
-                url = source.url
+                url = source.url,
+                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
             ) {
                 this.referer = source.referer
                 this.quality = quality(source.name + " " + source.url)
-                this.isM3u8 = source.url.substringBefore('?').endsWith(".m3u8", true)
                 this.headers = mapOf("User-Agent" to USER_AGENT)
             }
         )
     }
 
-    private fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
+    private suspend fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
+        val isM3u = url.substringBefore('?').endsWith(".m3u8", true)
         callback(
             newExtractorLink(
                 source = "KMMovies",
                 name = "KMMovies • $label",
-                url = url
+                url = url,
+                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
             ) {
                 this.referer = referer
                 this.quality = quality(label + " " + url)
-                this.isM3u8 = url.substringBefore('?').endsWith(".m3u8", true)
                 this.headers = mapOf("User-Agent" to USER_AGENT)
             }
         )
