@@ -539,29 +539,8 @@ class KMMovies : MainAPI() {
                 val obj = runCatching { JSONObject(text) }.getOrNull() ?: continue
                 if (!obj.optBoolean("success", false)) continue
                 
-                val googleCdnLink = obj.optString("link").trim()
                 val proxyLink = obj.optString("download_url").trim()
                     .ifBlank { obj.optString("url").trim() }
-                
-                if (googleCdnLink.startsWith("http", true)) {
-                    val finalGoogleUrl = followRedirects(googleCdnLink, url)
-                    if (isDirect(finalGoogleUrl)) {
-                        val isM3u = finalGoogleUrl.substringBefore('?').endsWith(".m3u8", true)
-                        callback(
-                            newExtractorLink(
-                                source = "KMMovies",
-                                name = "KMMovies • SkyDrop Google CDN",
-                                url = finalGoogleUrl,
-                                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                            ) {
-                                this.referer = ""
-                                this.quality = quality("SkyDrop Google CDN " + finalGoogleUrl)
-                                this.headers = mapOf("User-Agent" to USER_AGENT)
-                            }
-                        )
-                        foundLink = true
-                    }
-                }
 
                 if (proxyLink.startsWith("http", true)) {
                     val finalProxyUrl = followRedirects(proxyLink, url)
