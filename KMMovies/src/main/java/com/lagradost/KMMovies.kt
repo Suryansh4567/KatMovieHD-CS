@@ -375,9 +375,6 @@ class KMMovies : MainAPI() {
                     urlContainsExtractor(source.url) -> {
                         dispatchExtractor(source.url, actualCallback)
                     }
-                    source.url.contains("online.php", true) || source.url.contains("/nf/index.php", true) -> {
-                        resolveOnline(source)?.let { emit(it, actualCallback) }
-                    }
                     isDirect(source.url) -> emit(source, actualCallback)
                     else -> loadExtractor(
                         source.url,
@@ -445,6 +442,54 @@ class KMMovies : MainAPI() {
             if (output.isNotEmpty()) return output.values.toList()
         }
         return emptyList()
+    }
+
+    private suspend fun resolveBuzzheavier(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+        return try {
+            Log.d(TAG, "Resolving Buzzheavier URL: $url")
+            val uri = runCatching { URI(url) }.getOrNull() ?: return false
+            val path = uri.path.orEmpty()
+            val id = path.substringAfterLast("/").trim()
+            if (id.isBlank()) return false
+            
+            val directStreamUrl = "https://dd.buzzheavier.com/f/$id"
+            emitDirect(directStreamUrl, "Buzzheavier Direct", url, callback)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in resolveBuzzheavier: ${e.message}")
+            false
+        }
+    }
+
+    private suspend fun resolveWatchOnline(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+        return try {
+            Log.d(TAG, "Resolving WATCH ONLINE URL: $url")
+            val final = followRedirects(url, url)
+            
+            // Check for direct videoUrl in query param
+            val encoded = Regex("""(?i)[?&]videoUrl=([^&]+)""").find(final)
+                ?.groupValues?.getOrNull(1)
+            if (!encoded.isNullOrBlank()) {
+                val decoded = runCatching { URLDecoder.decode(encoded, "UTF-8") }.getOrDefault(encoded)
+                if (decoded.startsWith("http", true)) {
+                    emitDirect(decoded, "Watch Online Stream", final, callback)
+                    return true
+                }
+            }
+
+            // Scrape webpage if no query param
+            val doc = runCatching { document(final, url) }.getOrNull() ?: return false
+            val video = doc.selectFirst("video[src], video source[src]")?.attr("src").orEmpty()
+            if (video.isNotBlank()) {
+                val absVideoUrl = absolute(doc, video)
+                emitDirect(absVideoUrl, "Watch Online Stream", final, callback)
+                return true
+            }
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in resolveWatchOnline: ${e.message}")
+            false
+        }
     }
 
     private suspend fun resolveKmphotos(url: String, callback: (ExtractorLink) -> Unit): Boolean {
@@ -582,6 +627,12 @@ class KMMovies : MainAPI() {
             url.contains("skydrop", ignoreCase = true) || url.contains("download.php", ignoreCase = true) -> {
                 resolveSkydropApi(url, callback)
             }
+            url.contains("online.php", ignoreCase = true) || url.contains("/nf/index.php", ignoreCase = true) -> {
+                resolveWatchOnline(url, callback)
+            }
+            url.contains("buzzheavier", ignoreCase = true) -> {
+                resolveBuzzheavier(url, callback)
+            }
             else -> false
         }
     }
@@ -590,21 +641,10 @@ class KMMovies : MainAPI() {
         return url.contains("kmphotos", ignoreCase = true) || 
             url.contains("download99.php", ignoreCase = true) ||
             url.contains("skydrop", ignoreCase = true) ||
-            url.contains("download.php", ignoreCase = true)
-    }
-
-    private suspend fun resolveOnline(source: Source): Source? {
-        val final = followRedirects(source.url, source.referer)
-        val encoded = Regex("""(?i)[?&]videoUrl=([^&]+)""").find(final)
-            ?.groupValues?.getOrNull(1)
-        if (!encoded.isNullOrBlank()) {
-            val decoded = runCatching { URLDecoder.decode(encoded, "UTF-8") }.getOrDefault(encoded)
-            if (decoded.startsWith("http", true)) return Source(source.name, decoded, final)
-        }
-
-        val doc = runCatching { document(final, source.url) }.getOrNull() ?: return null
-        val video = doc.selectFirst("video[src], video source[src]")?.attr("src").orEmpty()
-        return video.takeIf { it.isNotBlank() }?.let { Source(source.name, absolute(doc, it), final) }
+            url.contains("download.php", ignoreCase = true) ||
+            url.contains("online.php", ignoreCase = true) ||
+            url.contains("/nf/index.php", ignoreCase = true) ||
+            url.contains("buzzheavier", ignoreCase = true)
     }
 
     private suspend fun followRedirects(start: String, referer: String): String {
