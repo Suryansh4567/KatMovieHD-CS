@@ -43,7 +43,7 @@ import java.net.URLEncoder
  */
 class KMMovies : MainAPI() {
     override var name = "KMMovies"
-    override var mainUrl = "https://kmmovies.shop"
+    override var mainUrl = "https://kmmovies.lol"
     override var lang = "hi"
     override val hasMainPage = true
     override val hasDownloadSupport = true
@@ -210,8 +210,6 @@ class KMMovies : MainAPI() {
         }
 
         val sources = discoverDetailSources(doc, detailUrl)
-        // Keep the detail page in the payload as a live fallback. loadLinks can
-        // re-discover buttons if a cached MagicLinks URL has rotated.
         val payload = encodePayload(listOf(Source("Detail", detailUrl, detailUrl)) + sources)
         return newMovieLoadResponse(title, detailUrl, TvType.Movie, payload) { common() }
     }
@@ -372,14 +370,11 @@ class KMMovies : MainAPI() {
                     isMagicLinks(source.url) -> {
                         queue.addAll(resolveMagicLinks(source.url))
                     }
-                    isSkyDrop(source.url) -> {
-                        resolveSkyDrop(source, actualCallback)
+                    urlContainsExtractor(source.url) -> {
+                        dispatchExtractor(source.url, actualCallback)
                     }
                     source.url.contains("online.php", true) || source.url.contains("/nf/index.php", true) -> {
                         resolveOnline(source)?.let { emit(it, actualCallback) }
-                    }
-                    source.url.contains("download99.php", true) -> {
-                        resolveZipZap(source)?.let { emit(it, actualCallback) }
                     }
                     isDirect(source.url) -> emit(source, actualCallback)
                     else -> loadExtractor(
@@ -450,38 +445,145 @@ class KMMovies : MainAPI() {
         return emptyList()
     }
 
-    private suspend fun resolveSkyDrop(source: Source, callback: (ExtractorLink) -> Unit) {
-        val uri = runCatching { URI(source.url) }.getOrNull() ?: return
-        val token = queryParam(uri.rawQuery.orEmpty(), "id")
-            ?: queryParam(uri.rawQuery.orEmpty(), "file") ?: return
-        val origin = "${uri.scheme ?: "https"}://${uri.host}"
-        val encoded = URLEncoder.encode(token, "UTF-8")
-
-        // Current short Google resource tokens are directly streamable.
-        if (token.length <= 64) {
-            emit(Source(source.name, "$origin/api.php?file=$encoded&download=1", source.url), callback)
-            return
-        }
-
-        val apiHeaders = browserHeaders + mapOf(
-            "Accept" to "application/json",
-            "Referer" to source.url,
-            "X-Requested-With" to "XMLHttpRequest"
-        )
-        for (parameter in listOf("file", "id")) {
-            val text = runCatching {
-                app.get("$origin/api.php?$parameter=$encoded", headers = apiHeaders, timeout = 20).text
-            }.getOrNull() ?: continue
-            val obj = runCatching { JSONObject(text) }.getOrNull() ?: continue
-            if (!obj.optBoolean("success", false)) continue
-            val resolved = obj.optString("link").trim()
-                .ifBlank { obj.optString("download_url").trim() }
-                .ifBlank { obj.optString("url").trim() }
-            if (resolved.startsWith("http", true)) {
-                emit(Source(source.name, resolved, source.url), callback)
-                return
+    private suspend fun resolveKmphotos(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+        return try {
+            Log.d(TAG, "Resolving KMPhotos URL: $url")
+            val current = followRedirects(url, url)
+            
+            // If already a direct file stream, emit directly.
+            if (isDirect(current)) {
+                emitDirect(current, "KMPhotos R2", url, callback)
+                return true
             }
+
+            val doc = runCatching { document(current, url) }.getOrNull() ?: return false
+            var foundLink = false
+
+            val anchors = doc.select("a[href]")
+            for (anchor in anchors) {
+                val href = anchor.attr("href")
+                val absoluteHref = absolute(doc, href)
+
+                // Only resolve links that belong to the download process (dl=r2 or dl=worker)
+                if (absoluteHref.contains("dl=r2") || absoluteHref.contains("dl=worker") || absoluteHref.contains("download99.php")) {
+                    Log.d(TAG, "Following redirect for download link: $absoluteHref")
+                    val finalDirectUrl = followRedirects(absoluteHref, current)
+                    
+                    if (isDirect(finalDirectUrl)) {
+                        val label = if (absoluteHref.contains("dl=r2")) "KMPhotos Fast (R2)" else "KMPhotos Direct (Worker)"
+                        callback(
+                            ExtractorLink(
+                                source = "KMMovies",
+                                name = "KMMovies • $label",
+                                url = finalDirectUrl,
+                                referer = absoluteHref,
+                                quality = quality(label + " " + finalDirectUrl),
+                                isM3u8 = finalDirectUrl.substringBefore('?').endsWith(".m3u8", true),
+                                headers = mapOf("User-Agent" to USER_AGENT)
+                            )
+                        )
+                        foundLink = true
+                    }
+                }
+            }
+            foundLink
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in resolveKmphotos: ${e.message}")
+            false
         }
+    }
+
+    private suspend fun resolveSkydropApi(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+        return try {
+            Log.d(TAG, "Resolving SkyDrop URL: $url")
+            val uri = runCatching { URI(url) }.getOrNull() ?: return false
+            val token = queryParam(uri.rawQuery.orEmpty(), "id")
+                ?: queryParam(uri.rawQuery.orEmpty(), "file") ?: return false
+            val origin = "${uri.scheme ?: "https"}://${uri.host}"
+            val encoded = URLEncoder.encode(token, "UTF-8")
+
+            // Current short Google resource tokens are directly streamable.
+            if (token.length <= 64) {
+                val directUrl = "$origin/api.php?file=$encoded&download=1"
+                callback(
+                    ExtractorLink(
+                        source = "KMMovies",
+                        name = "KMMovies • SkyDrop Direct",
+                        url = directUrl,
+                        referer = url,
+                        quality = quality("SkyDrop Direct " + directUrl),
+                        isM3u8 = false,
+                        headers = mapOf("User-Agent" to USER_AGENT)
+                    )
+                )
+                return true
+            }
+
+            val apiHeaders = browserHeaders + mapOf(
+                "Accept" to "application/json",
+                "Referer" to url,
+                "X-Requested-With" to "XMLHttpRequest"
+            )
+
+            var foundLink = false
+            for (parameter in listOf("file", "id")) {
+                val text = runCatching {
+                    app.get("$origin/api.php?$parameter=$encoded", headers = apiHeaders, timeout = 20).text
+                }.getOrNull() ?: continue
+                
+                val obj = runCatching { JSONObject(text) }.getOrNull() ?: continue
+                if (!obj.optBoolean("success", false)) continue
+                
+                val resolved = obj.optString("link").trim()
+                    .ifBlank { obj.optString("download_url").trim() }
+                    .ifBlank { obj.optString("url").trim() }
+                
+                if (resolved.startsWith("http", true)) {
+                    val finalUrl = followRedirects(resolved, url)
+                    if (isDirect(finalUrl)) {
+                        callback(
+                            ExtractorLink(
+                                source = "KMMovies",
+                                name = "KMMovies • SkyDrop API",
+                                url = finalUrl,
+                                referer = url,
+                                quality = quality("SkyDrop API " + finalUrl),
+                                isM3u8 = finalUrl.substringBefore('?').endsWith(".m3u8", true),
+                                headers = mapOf("User-Agent" to USER_AGENT)
+                            )
+                        )
+                        foundLink = true
+                        break
+                    }
+                }
+            }
+            foundLink
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in resolveSkydropApi: ${e.message}")
+            false
+        }
+    }
+
+    private suspend fun dispatchExtractor(
+        url: String, 
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        return when {
+            url.contains("kmphotos", ignoreCase = true) || url.contains("download99.php", ignoreCase = true) -> {
+                resolveKmphotos(url, callback)
+            }
+            url.contains("skydrop", ignoreCase = true) || url.contains("download.php", ignoreCase = true) -> {
+                resolveSkydropApi(url, callback)
+            }
+            else -> false
+        }
+    }
+
+    private fun urlContainsExtractor(url: String): Boolean {
+        return url.contains("kmphotos", ignoreCase = true) || 
+            url.contains("download99.php", ignoreCase = true) ||
+            url.contains("skydrop", ignoreCase = true) ||
+            url.contains("download.php", ignoreCase = true)
     }
 
     private suspend fun resolveOnline(source: Source): Source? {
@@ -496,19 +598,6 @@ class KMMovies : MainAPI() {
         val doc = runCatching { document(final, source.url) }.getOrNull() ?: return null
         val video = doc.selectFirst("video[src], video source[src]")?.attr("src").orEmpty()
         return video.takeIf { it.isNotBlank() }?.let { Source(source.name, absolute(doc, it), final) }
-    }
-
-    private suspend fun resolveZipZap(source: Source): Source? {
-        var current = followRedirects(source.url, source.referer)
-        if (isDirect(current)) return Source(source.name, current, source.url)
-        val doc = runCatching { document(current, source.url) }.getOrNull() ?: return null
-        for (anchor in doc.select("a[href]")) {
-            val target = absolute(doc, anchor.attr("href"))
-            if (!target.contains("download99.php", true) && !target.contains("dl=", true)) continue
-            current = followRedirects(target, current)
-            if (isDirect(current)) return Source(source.name, current, source.url)
-        }
-        return null
     }
 
     private suspend fun followRedirects(start: String, referer: String): String {
@@ -544,17 +633,30 @@ class KMMovies : MainAPI() {
         )
     }
 
+    private fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
+        callback(
+            ExtractorLink(
+                source = "KMMovies",
+                name = "KMMovies • $label",
+                url = url,
+                referer = referer,
+                quality = quality(label + " " + url),
+                isM3u8 = url.substringBefore('?').endsWith(".m3u8", true),
+                headers = mapOf("User-Agent" to USER_AGENT)
+            )
+        )
+    }
+
     // -----------------------------------------------------------------------
     // Predicates and text helpers
     // -----------------------------------------------------------------------
 
-    private fun isProviderPage(url: String): Boolean = host(url) == host(mainUrl)
+    private fun isProviderPage(url: String): Boolean = host(url) == host(mainUrl) || host(url) == "kmmovies.shop"
     private fun isMagicLinks(url: String): Boolean = host(url).contains("magiclinks") &&
         !host(url).startsWith("episodes.")
-    private fun isSkyDrop(url: String): Boolean = host(url).contains("skydrop")
 
     private fun isResolvable(url: String): Boolean {
-        return isMagicLinks(url) || isSkyDrop(url) || isDirect(url) ||
+        return isMagicLinks(url) || urlContainsExtractor(url) || isDirect(url) ||
             url.contains("online.php", true) || url.contains("download99.php", true) ||
             url.contains("drive.google.com", true) || url.contains("gofile", true) ||
             url.contains("pixeldrain", true) || url.contains("hubcloud", true)
@@ -565,6 +667,7 @@ class KMMovies : MainAPI() {
         return clean.endsWith(".mp4") || clean.endsWith(".mkv") || clean.endsWith(".webm") ||
             clean.endsWith(".m3u8") || clean.endsWith(".mov") || clean.endsWith(".avi") ||
             url.contains(".r2.dev/", true) || url.contains("googleusercontent.com", true) ||
+            url.contains("workers.dev", true) ||
             (url.contains("skydrop", true) && url.contains("api.php", true) && url.contains("download=1", true))
     }
 
