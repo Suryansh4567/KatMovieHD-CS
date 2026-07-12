@@ -539,30 +539,51 @@ class KMMovies : MainAPI() {
                 val obj = runCatching { JSONObject(text) }.getOrNull() ?: continue
                 if (!obj.optBoolean("success", false)) continue
                 
-                val resolved = obj.optString("link").trim()
-                    .ifBlank { obj.optString("download_url").trim() }
+                val googleCdnLink = obj.optString("link").trim()
+                val proxyLink = obj.optString("download_url").trim()
                     .ifBlank { obj.optString("url").trim() }
                 
-                if (resolved.startsWith("http", true)) {
-                    val finalUrl = followRedirects(resolved, url)
-                    if (isDirect(finalUrl)) {
-                        val isM3u = finalUrl.substringBefore('?').endsWith(".m3u8", true)
+                if (googleCdnLink.startsWith("http", true)) {
+                    val finalGoogleUrl = followRedirects(googleCdnLink, url)
+                    if (isDirect(finalGoogleUrl)) {
+                        val isM3u = finalGoogleUrl.substringBefore('?').endsWith(".m3u8", true)
                         callback(
                             newExtractorLink(
                                 source = "KMMovies",
-                                name = "KMMovies • SkyDrop API",
-                                url = finalUrl,
+                                name = "KMMovies • SkyDrop Google CDN",
+                                url = finalGoogleUrl,
                                 type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                             ) {
-                                this.referer = url
-                                this.quality = quality("SkyDrop API " + finalUrl)
+                                this.referer = ""
+                                this.quality = quality("SkyDrop Google CDN " + finalGoogleUrl)
                                 this.headers = mapOf("User-Agent" to USER_AGENT)
                             }
                         )
                         foundLink = true
-                        break
                     }
                 }
+
+                if (proxyLink.startsWith("http", true)) {
+                    val finalProxyUrl = followRedirects(proxyLink, url)
+                    if (isDirect(finalProxyUrl)) {
+                        val isM3u = finalProxyUrl.substringBefore('?').endsWith(".m3u8", true)
+                        callback(
+                            newExtractorLink(
+                                source = "KMMovies",
+                                name = "KMMovies • SkyDrop Proxy",
+                                url = finalProxyUrl,
+                                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                            ) {
+                                this.referer = url
+                                this.quality = quality("SkyDrop Proxy " + finalProxyUrl)
+                                this.headers = mapOf("User-Agent" to USER_AGENT)
+                            }
+                        )
+                        foundLink = true
+                    }
+                }
+                
+                if (foundLink) break
             }
             foundLink
         } catch (e: Exception) {
