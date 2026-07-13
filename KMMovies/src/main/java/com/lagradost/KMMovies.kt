@@ -22,7 +22,6 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -81,17 +80,19 @@ class KMMovies : MainAPI() {
             ?.let { mapOf("Referer" to it) }.orEmpty()
         try {
             val response = app.get(url, headers = requestHeaders, timeout = 25)
-            if (!isChallenge(response.document)) return response.document
+            val parsedDoc = Jsoup.parse(response.text, response.url)
+            if (!isChallenge(parsedDoc)) return parsedDoc
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             Log.w(TAG, "Direct request failed for ${safeUrl(url)}: ${error.message}")
         }
-        return app.get(
+        val response = app.get(
             url,
             headers = requestHeaders,
             interceptor = CloudflareKiller(),
             timeout = 30
-        ).document
+        )
+        return Jsoup.parse(response.text, response.url)
     }
 
     private fun isChallenge(doc: Document): Boolean {
@@ -105,8 +106,9 @@ class KMMovies : MainAPI() {
         if (value.isBlank()) return ""
         if (value.startsWith("//")) return "https:$value"
         if (value.startsWith("http", true)) return value.replace(" ", "%20")
-        return runCatching { URI(doc.location()).resolve(value).toString() }
-            .getOrElse { mainUrl.trimEnd('/') + "/" + value.trimStart('/') }
+        val base = doc.baseUri().takeIf { it.isNotBlank() } ?: doc.location().takeIf { it.isNotBlank() } ?: mainUrl
+        return runCatching { URI(base).resolve(value).toString() }
+            .getOrElse { base.trimEnd('/') + "/" + value.trimStart('/') }
     }
 
     private fun providerUrl(raw: String): String {
@@ -222,7 +224,10 @@ class KMMovies : MainAPI() {
         return anchors.mapNotNull { anchor ->
             val url = absolute(doc, anchor.attr("href"))
             if (!isResolvable(url)) return@mapNotNull null
-            Source(anchor.text().normalise().ifBlank { "Source" }, url, referer)
+            val qualitySpan = anchor.selectFirst(".dl-quality")?.text()?.trim()
+            val resSpan = anchor.selectFirst(".dl-res")?.text()?.trim()
+            val labelName = qualitySpan ?: resSpan ?: anchor.text().normalise().ifBlank { "Source" }
+            Source(labelName, url, referer)
         }.distinctBy { it.url }
     }
 
@@ -326,7 +331,7 @@ class KMMovies : MainAPI() {
                 val item = array.optJSONObject(index) ?: return@mapNotNull null
                 val url = item.optString("url").trim()
                 url.takeIf { it.startsWith("http", true) }?.let {
-                    Source(item.optString("name").ifBlank { "Source" }, it, item.optString("referer"))
+                    Source(item.optString("name").ifBlank { "Source" }, url, item.optString("referer"))
                 }
             }.distinctBy { it.url }
         }
@@ -370,10 +375,10 @@ class KMMovies : MainAPI() {
                         queue.addAll(discoverDetailSources(doc, source.url))
                     }
                     isMagicLinks(source.url) -> {
-                        queue.addAll(resolveMagicLinks(source.url))
+                        queue.addAll(resolveMagicLinks(source))
                     }
                     urlContainsExtractor(source.url) -> {
-                        dispatchExtractor(source.url, actualCallback)
+                        dispatchExtractor(source, actualCallback)
                     }
                     isDirect(source.url) -> emit(source, actualCallback)
                     else -> loadExtractor(
@@ -394,7 +399,8 @@ class KMMovies : MainAPI() {
         return emitted > 0
     }
 
-    private suspend fun resolveMagicLinks(url: String): List<Source> {
+    private suspend fun resolveMagicLinks(source: Source): List<Source> {
+        val url = source.url
         val uri = runCatching { URI(url) }.getOrNull() ?: return emptyList()
         val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return emptyList()
         val hosts = linkedSetOf(uri.host.orEmpty(), "magiclinks.lol", "w1.magiclinks.lol")
@@ -423,7 +429,10 @@ class KMMovies : MainAPI() {
                 val absolute = if (value.startsWith("http", true)) value else
                     runCatching { URI(base).resolve(value).toString() }.getOrDefault("")
                 if (absolute.isNotBlank() && !absolute.contains("/photo/", true)) {
-                    output[absolute] = Source(label, absolute, base)
+                    val cleanLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                        source.name + " • " + label
+                    } else label
+                    output[absolute] = Source(cleanLabel, absolute, base)
                 }
             }
 
@@ -435,16 +444,37 @@ class KMMovies : MainAPI() {
             if (rendered.isNotBlank()) {
                 val renderedDoc = Jsoup.parse(rendered, base)
                 renderedDoc.select("a[href]").forEach {
-                    add(it.text().normalise().ifBlank { "Source" }, it.absUrl("href").ifBlank { it.attr("href") })
+                    val urlText = it.text().normalise().ifBlank { "Source" }
+                    val label = when {
+                        it.attr("href").contains("online.php") -> "Watch Online"
+                        it.attr("href").contains("download99.php") -> "Zip-Zap"
+                        it.attr("href").contains("skydrop") -> "SkyDrop"
+                        it.attr("href").contains("pixeldrain") -> "PixelDrain"
+                        it.attr("href").contains("gofile") -> "GoFile"
+                        else -> urlText
+                    }
+                    add(label, it.absUrl("href").ifBlank { it.attr("href") })
                 }
-                URL_REGEX.findAll(rendered.replace("\\/", "/")).forEach { add("Source", it.value) }
+                URL_REGEX.findAll(rendered.replace("\\/", "/")).forEach { 
+                    val linkStr = it.value
+                    val label = when {
+                        linkStr.contains("online.php") -> "Watch Online"
+                        linkStr.contains("download99.php") -> "Zip-Zap"
+                        linkStr.contains("skydrop") -> "SkyDrop"
+                        linkStr.contains("pixeldrain") -> "PixelDrain"
+                        linkStr.contains("gofile") -> "GoFile"
+                        else -> "Source"
+                    }
+                    add(label, linkStr) 
+                }
             }
             if (output.isNotEmpty()) return output.values.toList()
         }
         return emptyList()
     }
 
-    private suspend fun resolveBuzzheavier(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+    private suspend fun resolveBuzzheavier(source: Source, callback: (ExtractorLink) -> Unit): Boolean {
+        val url = source.url
         return try {
             Log.d(TAG, "Resolving Buzzheavier URL: $url")
             val uri = runCatching { URI(url) }.getOrNull() ?: return false
@@ -453,7 +483,10 @@ class KMMovies : MainAPI() {
             if (id.isBlank()) return false
             
             val directStreamUrl = "https://dd.buzzheavier.com/f/$id"
-            emitDirect(directStreamUrl, "Buzzheavier Direct", url, callback)
+            val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                "${source.name} • Buzzheavier Direct"
+            } else "Buzzheavier Direct"
+            emitDirect(directStreamUrl, combinedLabel, url, callback)
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error in resolveBuzzheavier: ${e.message}")
@@ -461,10 +494,11 @@ class KMMovies : MainAPI() {
         }
     }
 
-    private suspend fun resolveWatchOnline(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+    private suspend fun resolveWatchOnline(source: Source, callback: (ExtractorLink) -> Unit): Boolean {
+        val url = source.url
         return try {
             Log.d(TAG, "Resolving WATCH ONLINE URL: $url")
-            val final = followRedirects(url, url)
+            val final = followRedirects(url, "")
             
             // Check for direct videoUrl in query param
             val encoded = Regex("""(?i)[?&]videoUrl=([^&]+)""").find(final)
@@ -472,7 +506,10 @@ class KMMovies : MainAPI() {
             if (!encoded.isNullOrBlank()) {
                 val decoded = runCatching { URLDecoder.decode(encoded, "UTF-8") }.getOrDefault(encoded)
                 if (decoded.startsWith("http", true)) {
-                    emitDirect(decoded, "Watch Online Stream", final, callback)
+                    val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                        "${source.name} • Watch Online"
+                    } else "Watch Online Stream"
+                    emitDirect(decoded, combinedLabel, final, callback)
                     return true
                 }
             }
@@ -482,7 +519,10 @@ class KMMovies : MainAPI() {
             val video = doc.selectFirst("video[src], video source[src]")?.attr("src").orEmpty()
             if (video.isNotBlank()) {
                 val absVideoUrl = absolute(doc, video)
-                emitDirect(absVideoUrl, "Watch Online Stream", final, callback)
+                val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                    "${source.name} • Watch Online"
+                } else "Watch Online Stream"
+                emitDirect(absVideoUrl, combinedLabel, final, callback)
                 return true
             }
             false
@@ -492,42 +532,49 @@ class KMMovies : MainAPI() {
         }
     }
 
-    private suspend fun resolveKmphotos(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+    private suspend fun resolveKmphotos(source: Source, callback: (ExtractorLink) -> Unit): Boolean {
+        val url = source.url
+        Log.d(TAG, "resolveKmphotos() called with url: $url")
         return try {
             Log.d(TAG, "Resolving KMPhotos URL: $url")
-            val current = followRedirects(url, url)
             
             // If already a direct file stream, emit directly.
-            if (isDirect(current)) {
-                emitDirect(current, "KMPhotos R2", url, callback)
+            if (isDirect(url)) {
+                emitDirect(url, "KMPhotos R2 (${source.name})", url, callback)
                 return true
             }
 
-            val doc = runCatching { document(current, url) }.getOrNull() ?: return false
+            // Fetch the landing page directly (no pre-redirect resolution needed!)
+            val doc = runCatching { document(url, null) }.getOrNull() ?: return false
             var foundLink = false
 
             val anchors = doc.select("a[href]")
             for (anchor in anchors) {
                 val href = anchor.attr("href")
-                val absoluteHref = absolute(doc, href)
+                val absoluteHref = anchor.absUrl("href").ifBlank { absolute(doc, href) }
 
                 // Only resolve links that belong to the download process (dl=r2 or dl=worker)
-                if (absoluteHref.contains("dl=r2") || absoluteHref.contains("dl=worker") || absoluteHref.contains("download99.php")) {
+                if (absoluteHref.contains("dl=r2") || absoluteHref.contains("dl=worker")) {
                     Log.d(TAG, "Following redirect for download link: $absoluteHref")
-                    val finalDirectUrl = followRedirects(absoluteHref, current)
+                    val finalDirectUrl = followRedirects(absoluteHref, "")
+                    
+                    Log.d(TAG, "R2/Worker candidate href: $absoluteHref")
+                    Log.d(TAG, "R2/Worker final redirect resolved to: $finalDirectUrl")
+                    Log.d(TAG, "isDirect() result for this URL: ${isDirect(finalDirectUrl)}")
                     
                     if (isDirect(finalDirectUrl)) {
                         val label = if (absoluteHref.contains("dl=r2")) "KMPhotos Fast (R2)" else "KMPhotos Direct (Worker)"
-                        val isM3u = finalDirectUrl.substringBefore('?').endsWith(".m3u8", true)
+                        val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                            "${source.name} • $label"
+                        } else label
                         callback(
                             newExtractorLink(
                                 source = "KMMovies",
-                                name = "KMMovies • $label",
-                                url = finalDirectUrl,
-                                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                                name = "KMMovies • $combinedLabel",
+                                url = finalDirectUrl
                             ) {
                                 this.referer = absoluteHref
-                                this.quality = quality(label + " " + finalDirectUrl)
+                                this.quality = this@KMMovies.quality(combinedLabel + " " + finalDirectUrl)
                                 this.headers = mapOf("User-Agent" to USER_AGENT)
                             }
                         )
@@ -542,7 +589,8 @@ class KMMovies : MainAPI() {
         }
     }
 
-    private suspend fun resolveSkydropApi(url: String, callback: (ExtractorLink) -> Unit): Boolean {
+    private suspend fun resolveSkydropApi(source: Source, callback: (ExtractorLink) -> Unit): Boolean {
+        val url = source.url
         return try {
             Log.d(TAG, "Resolving SkyDrop URL: $url")
             val uri = runCatching { URI(url) }.getOrNull() ?: return false
@@ -557,12 +605,11 @@ class KMMovies : MainAPI() {
                 callback(
                     newExtractorLink(
                         source = "KMMovies",
-                        name = "KMMovies • SkyDrop Direct",
-                        url = directUrl,
-                        type = ExtractorLinkType.VIDEO
+                        name = "KMMovies • SkyDrop Direct (${source.name})",
+                        url = directUrl
                     ) {
                         this.referer = url
-                        this.quality = quality("SkyDrop Direct " + directUrl)
+                        this.quality = this@KMMovies.quality(source.name + " " + directUrl)
                         this.headers = mapOf("User-Agent" to USER_AGENT)
                     }
                 )
@@ -588,18 +635,19 @@ class KMMovies : MainAPI() {
                     .ifBlank { obj.optString("url").trim() }
 
                 if (proxyLink.startsWith("http", true)) {
-                    val finalProxyUrl = followRedirects(proxyLink, url)
+                    val finalProxyUrl = followRedirects(proxyLink, "")
                     if (isDirect(finalProxyUrl)) {
-                        val isM3u = finalProxyUrl.substringBefore('?').endsWith(".m3u8", true)
+                        val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                            "${source.name} • SkyDrop Proxy"
+                        } else "SkyDrop Proxy"
                         callback(
                             newExtractorLink(
                                 source = "KMMovies",
-                                name = "KMMovies • SkyDrop Proxy",
-                                url = finalProxyUrl,
-                                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                                name = "KMMovies • $combinedLabel",
+                                url = finalProxyUrl
                             ) {
                                 this.referer = url
-                                this.quality = quality("SkyDrop Proxy " + finalProxyUrl)
+                                this.quality = this@KMMovies.quality(combinedLabel + " " + finalProxyUrl)
                                 this.headers = mapOf("User-Agent" to USER_AGENT)
                             }
                         )
@@ -617,23 +665,30 @@ class KMMovies : MainAPI() {
     }
 
     private suspend fun dispatchExtractor(
-        url: String, 
+        source: Source, 
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        return when {
-            url.contains("kmphotos", ignoreCase = true) || url.contains("download99.php", ignoreCase = true) -> {
-                resolveKmphotos(url, callback)
+        val url = source.url
+        Log.d(TAG, "dispatchExtractor() called with url: $url")
+        return try {
+            when {
+                url.contains("online.php", ignoreCase = true) || url.contains("/nf/index.php", ignoreCase = true) -> {
+                    resolveWatchOnline(source, callback)
+                }
+                url.contains("kmphotos", ignoreCase = true) || url.contains("download99.php", ignoreCase = true) -> {
+                    resolveKmphotos(source, callback)
+                }
+                url.contains("skydrop", ignoreCase = true) || url.contains("download.php", ignoreCase = true) -> {
+                    resolveSkydropApi(source, callback)
+                }
+                url.contains("buzzheavier", ignoreCase = true) -> {
+                    resolveBuzzheavier(source, callback)
+                }
+                else -> false
             }
-            url.contains("skydrop", ignoreCase = true) || url.contains("download.php", ignoreCase = true) -> {
-                resolveSkydropApi(url, callback)
-            }
-            url.contains("online.php", ignoreCase = true) || url.contains("/nf/index.php", ignoreCase = true) -> {
-                resolveWatchOnline(url, callback)
-            }
-            url.contains("buzzheavier", ignoreCase = true) -> {
-                resolveBuzzheavier(url, callback)
-            }
-            else -> false
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error resolving extractor link $url: ${e.message}")
+            false
         }
     }
 
@@ -666,32 +721,28 @@ class KMMovies : MainAPI() {
     }
 
     private suspend fun emit(source: Source, callback: (ExtractorLink) -> Unit) {
-        val isM3u = source.url.substringBefore('?').endsWith(".m3u8", true)
         callback(
             newExtractorLink(
                 source = "KMMovies",
                 name = "KMMovies • ${source.name.ifBlank { "Direct" }}",
-                url = source.url,
-                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                url = source.url
             ) {
                 this.referer = source.referer
-                this.quality = quality(source.name + " " + source.url)
+                this.quality = this@KMMovies.quality(source.name + " " + source.url)
                 this.headers = mapOf("User-Agent" to USER_AGENT)
             }
         )
     }
 
     private suspend fun emitDirect(url: String, label: String, referer: String, callback: (ExtractorLink) -> Unit) {
-        val isM3u = url.substringBefore('?').endsWith(".m3u8", true)
         callback(
             newExtractorLink(
                 source = "KMMovies",
                 name = "KMMovies • $label",
-                url = url,
-                type = if (isM3u) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                url = url
             ) {
                 this.referer = referer
-                this.quality = quality(label + " " + url)
+                this.quality = this@KMMovies.quality(label + " " + url)
                 this.headers = mapOf("User-Agent" to USER_AGENT)
             }
         )
@@ -716,8 +767,8 @@ class KMMovies : MainAPI() {
         val clean = url.substringBefore('?').substringBefore('#').lowercase()
         return clean.endsWith(".mp4") || clean.endsWith(".mkv") || clean.endsWith(".webm") ||
             clean.endsWith(".m3u8") || clean.endsWith(".mov") || clean.endsWith(".avi") ||
-            url.contains(".r2.dev/", true) || url.contains("googleusercontent.com", true) ||
-            url.contains("workers.dev", true) ||
+            url.contains("r2.dev", true) || url.contains("r2.cloudflarestorage.com", true) ||
+            url.contains("googleusercontent.com", true) || url.contains("workers.dev", true) ||
             (url.contains("skydrop", true) && url.contains("api.php", true) && url.contains("download=1", true))
     }
 
