@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.lagradost
 
 import com.lagradost.api.Log
@@ -22,6 +23,7 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toNewSearchResponseList
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -226,7 +228,13 @@ class KMMovies : MainAPI() {
             if (!isResolvable(url)) return@mapNotNull null
             val qualitySpan = anchor.selectFirst(".dl-quality")?.text()?.trim()
             val resSpan = anchor.selectFirst(".dl-res")?.text()?.trim()
-            val labelName = qualitySpan ?: resSpan ?: anchor.text().normalise().ifBlank { "Source" }
+            val labelName = if (!resSpan.isNullOrBlank() && !qualitySpan.isNullOrBlank()) {
+                val cleanRes = resSpan.trim()
+                val cleanQual = qualitySpan.trim()
+                if (cleanQual.contains(cleanRes, ignoreCase = true)) cleanQual else "$cleanRes $cleanQual"
+            } else {
+                qualitySpan ?: resSpan ?: anchor.text().normalise().ifBlank { "Source" }
+            }
             Source(labelName, url, referer)
         }.distinctBy { it.url }
     }
@@ -368,6 +376,33 @@ class KMMovies : MainAPI() {
             val source = queue.removeFirst()
             if (!visited.add(source.url)) continue
 
+            val sourceCallback: (ExtractorLink) -> Unit = { link ->
+                emitted += 1
+                val cleanLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                    if (source.name.contains(" •")) {
+                        source.name.substringBefore(" •").trim()
+                    } else source.name
+                } else ""
+                
+                val renamedLink = if (cleanLabel.isNotBlank()) {
+                    val finalName = if (!link.name.contains(cleanLabel)) {
+                        "$cleanLabel • ${link.name}"
+                    } else link.name
+                    ExtractorLink(
+                        source = link.source,
+                        name = finalName,
+                        url = link.url,
+                        referer = link.referer,
+                        quality = link.quality,
+                        type = if (link.isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
+                        headers = link.headers,
+                        extractorData = link.extractorData
+                    )
+                } else link
+                
+                callback(renamedLink)
+            }
+
             try {
                 when {
                     isProviderPage(source.url) -> {
@@ -378,14 +413,14 @@ class KMMovies : MainAPI() {
                         queue.addAll(resolveMagicLinks(source))
                     }
                     urlContainsExtractor(source.url) -> {
-                        dispatchExtractor(source, actualCallback)
+                        dispatchExtractor(source, sourceCallback)
                     }
-                    isDirect(source.url) -> emit(source, actualCallback)
+                    isDirect(source.url) -> emit(source, sourceCallback)
                     else -> loadExtractor(
                         source.url,
                         source.referer.ifBlank { mainUrl },
                         subtitleCallback,
-                        actualCallback
+                        sourceCallback
                     )
                 }
             } catch (error: Exception) {
