@@ -32,7 +32,7 @@
             "arena"
         ],
         "description": "Bollywood, Hollywood and South Indian movies / TV series from KMMovies.",
-        "fileSize": 51047,
+        "fileSize": 51515,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -41,6 +41,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-6c38ff41f0c85ca6f2d0a036d85b344ed4fc0937127d00ea914ec4409a1d069c"
+        "fileHash": "sha256-a6ff9211d64d77e503c400ec31e8818542b4888e6c71b76a3d3ff500a87a6eed"
     }
 ]
