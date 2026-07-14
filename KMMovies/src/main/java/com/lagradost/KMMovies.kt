@@ -551,6 +551,7 @@ class KMMovies : MainAPI() {
         
         fun add(label: String, absolute: String, base: String) {
             if (absolute.isBlank() || absolute == "#" || absolute.startsWith("javascript:", true)) return
+            if (!isResolvable(absolute)) return
             if (!absolute.contains("/photo/", true)) {
                 val cleanLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
                     source.name + " • " + label
@@ -1032,7 +1033,7 @@ class KMMovies : MainAPI() {
     private companion object {
         private const val TAG = "KMMovies"
         private const val PAYLOAD_VERSION = 1
-        private const val MAX_RESOLUTION_NODES = 40
+        private const val MAX_RESOLUTION_NODES = 100
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
