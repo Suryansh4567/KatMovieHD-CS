@@ -400,6 +400,9 @@ class KMMovies : MainAPI() {
                 
                 // Extract all button anchors inside the episode row
                 val anchors = row.select("a[href]")
+                Log.d(TAG, "KMMovies DEBUG - parseEpisodeLanding() found ${anchors.size} anchors inside ep-row for episode $episode")
+                println("KMMovies DEBUG - parseEpisodeLanding() found ${anchors.size} anchors inside ep-row for episode $episode")
+                
                 anchors.forEach { anchor ->
                     val url = absolute(doc, anchor.attr("href"))
                     if (isResolvable(url)) {
