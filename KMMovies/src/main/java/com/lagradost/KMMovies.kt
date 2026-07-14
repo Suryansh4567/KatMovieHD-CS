@@ -436,6 +436,13 @@ class KMMovies : MainAPI() {
         if (initial.isEmpty()) return false
 
         var emitted = 0
+        
+        // Category emission counters
+        var evEmitted = 0
+        var wdEmitted = 0
+        var brEmitted = 0
+        var opEmitted = 0
+
         val actualCallback: (ExtractorLink) -> Unit = { link ->
             emitted += 1
             callback(link)
@@ -505,8 +512,39 @@ class KMMovies : MainAPI() {
                     extractorData = link.extractorData
                 )
                 
-                Log.d(TAG, "KMMovies DEBUG - Emitting ExtractorLink: '${renamedLink.name}' url='${renamedLink.url}'")
-                println("KMMovies DEBUG - Emitting ExtractorLink: '${renamedLink.name}' url='${renamedLink.url}'")
+                // Determine Category
+                val categoryText = when {
+                    baseLabel.contains("EV") -> "EV"
+                    baseLabel.contains("WD") -> "WD"
+                    baseLabel.contains("BR") -> "BR"
+                    baseLabel.contains("OP") -> "OP"
+                    else -> "Unknown"
+                }
+                
+                when (categoryText) {
+                    "EV" -> evEmitted++
+                    "WD" -> wdEmitted++
+                    "BR" -> brEmitted++
+                    "OP" -> opEmitted++
+                }
+
+                // LOG THE EMISSION DETAILS AS EXPLICITLY REQUESTED!
+                val logMsg = """
+                    KMMovies DEBUG - --- EXTRACTOR LINK EMISSION ---
+                    Category: $categoryText
+                    Label: $baseLabel
+                    Name: ${renamedLink.name}
+                    URL: ${renamedLink.url}
+                    Quality: ${renamedLink.quality}
+                    Source: ${renamedLink.source}
+                    isM3u8: ${renamedLink.isM3u8}
+                    Referer: ${renamedLink.referer}
+                    Headers: ${renamedLink.headers}
+                    ------------------------------------------------
+                """.trimIndent()
+                
+                Log.d(TAG, logMsg)
+                println(logMsg)
                 
                 callback(renamedLink)
             }
@@ -538,6 +576,20 @@ class KMMovies : MainAPI() {
                 Log.e(TAG, "CloudStream ABI rejected ${safeUrl(source.url)}: ${error.message}")
             }
         }
+
+        // LOG THE FINAL EMITTED TOTALS AS EXPLICITLY REQUESTED!
+        val finalTotalsMsg = """
+            KMMovies DEBUG - === FINAL EMITTED TOTALS ===
+            EV emitted = $evEmitted
+            WD emitted = $wdEmitted
+            BR emitted = $brEmitted
+            OP emitted = $opEmitted
+            Total emitted = $emitted
+            ===========================================
+        """.trimIndent()
+        
+        Log.d(TAG, finalTotalsMsg)
+        println(finalTotalsMsg)
 
         return emitted > 0
     }
@@ -844,22 +896,55 @@ class KMMovies : MainAPI() {
 
             var foundLink = false
             for (parameter in listOf("file", "id")) {
-                val text = runCatching {
-                    app.get("$origin/api.php?$parameter=$encoded", headers = apiHeaders, timeout = 20).text
-                }.getOrNull() ?: continue
+                val apiCallUrl = "$origin/api.php?$parameter=$encoded"
+                Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() calling API: $apiCallUrl")
+                println("KMMovies DEBUG - resolveSkydropApi() calling API: $apiCallUrl")
                 
-                val obj = runCatching { JSONObject(text) }.getOrNull() ?: continue
-                if (!obj.optBoolean("success", false)) continue
+                val textResult = runCatching {
+                    app.get(apiCallUrl, headers = apiHeaders, timeout = 20).text
+                }
+                if (textResult.isFailure) {
+                    val err = textResult.exceptionOrNull()
+                    Log.e(TAG, "KMMovies DEBUG - resolveSkydropApi() API request failed: ${err?.message}")
+                    println("KMMovies DEBUG - resolveSkydropApi() API request failed: ${err?.message}")
+                    continue
+                }
+                val text = textResult.getOrThrow()
+                Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() API response text: $text")
+                println("KMMovies DEBUG - resolveSkydropApi() API response text: $text")
+                
+                val obj = runCatching { JSONObject(text) }.getOrNull()
+                if (obj == null) {
+                    Log.e(TAG, "KMMovies DEBUG - resolveSkydropApi() failed to parse JSON response")
+                    println("KMMovies DEBUG - resolveSkydropApi() failed to parse JSON response")
+                    continue
+                }
+                
+                if (!obj.optBoolean("success", false)) {
+                    Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() success is false: ${obj.optString("message")}")
+                    println("KMMovies DEBUG - resolveSkydropApi() success is false: ${obj.optString("message")}")
+                    continue
+                }
                 
                 val proxyLink = obj.optString("download_url").trim()
                     .ifBlank { obj.optString("url").trim() }
 
+                Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() parsed proxyLink: $proxyLink")
+                println("KMMovies DEBUG - resolveSkydropApi() parsed proxyLink: $proxyLink")
+
                 if (proxyLink.startsWith("http", true)) {
                     val finalProxyUrl = followRedirects(proxyLink, "")
+                    Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() followRedirects resolved to: $finalProxyUrl")
+                    println("KMMovies DEBUG - resolveSkydropApi() followRedirects resolved to: $finalProxyUrl")
+                    
                     if (isDirect(finalProxyUrl)) {
                         val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
                             "${source.name} • SkyDrop Proxy"
                         } else "SkyDrop Proxy"
+                        
+                        Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() emitting direct link to callback...")
+                        println("KMMovies DEBUG - resolveSkydropApi() emitting direct link to callback...")
+                        
                         callback(
                             newExtractorLink(
                                 source = "KMMovies",
@@ -872,6 +957,9 @@ class KMMovies : MainAPI() {
                             }
                         )
                         foundLink = true
+                    } else {
+                        Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() finalProxyUrl is not direct: $finalProxyUrl")
+                        println("KMMovies DEBUG - resolveSkydropApi() finalProxyUrl is not direct: $finalProxyUrl")
                     }
                 }
                 
