@@ -328,9 +328,17 @@ class KMMovies : MainAPI() {
             val seasonText = block.selectFirst(".season-block-title")?.text().orEmpty()
             val season = Regex("""(?i)season\s*(\d+)""").find(seasonText)
                 ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
-            val buttons = block.select(".type-content[data-type^=episodes] a[href]").ifEmpty {
-                block.select(".type-content.active a[href]")
+            
+            // Extract any buttons pointing to episode landing pages (on episodes.magiclinks.lol or containing /series/)
+            val buttons = block.select("a[href]").filter { anchor ->
+                val href = anchor.attr("href")
+                href.contains("episodes.magiclinks.lol", ignoreCase = true) || href.contains("/series/", ignoreCase = true)
+            }.ifEmpty {
+                block.select(".type-content[data-type^=episodes] a[href]").ifEmpty {
+                    block.select(".type-content.active a[href]")
+                }
             }
+            
             buttons.mapNotNull { button ->
                 val landing = absolute(doc, button.attr("href"))
                 landing.takeIf { it.isNotBlank() }?.let {
@@ -379,7 +387,8 @@ class KMMovies : MainAPI() {
         val doc = document(landing, detailUrl)
         val rows = doc.select(".ep-row")
         if (rows.isNotEmpty()) {
-            return rows.mapIndexedNotNull { index, row ->
+            val list = mutableListOf<EpisodeSource>()
+            rows.forEachIndexed { index, row ->
                 val epText = row.selectFirst(".ep-name")?.text().orEmpty()
                 val episode = Regex("""(?i)(?:episode|ep)\s*[-#:]?\s*(\d+)""")
                     .find(epText)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: (index + 1)
@@ -389,12 +398,22 @@ class KMMovies : MainAPI() {
                 
                 val episodeTitle = cleanTitle.takeIf { it.isNotBlank() }
                 
-                val anchor = row.selectFirst("a[href]") ?: return@mapIndexedNotNull null
-                val url = absolute(doc, anchor.attr("href"))
-                url.takeIf { isResolvable(it) }?.let {
-                    EpisodeSource(season, episode, Source(label, it, landing), episodeTitle)
+                // Extract all button anchors inside the episode row
+                val anchors = row.select("a[href]")
+                anchors.forEach { anchor ->
+                    val url = absolute(doc, anchor.attr("href"))
+                    if (isResolvable(url)) {
+                        val btnText = anchor.text().normalise().ifBlank { "Source" }
+                        val finalLabel = if (btnText.isNotBlank() && !btnText.equals("Download", true)) {
+                            "$label • $btnText"
+                        } else {
+                            label
+                        }
+                        list.add(EpisodeSource(season, episode, Source(finalLabel, url, landing), episodeTitle))
+                    }
                 }
             }
+            return list
         }
 
         return doc.select("a[href]").mapIndexedNotNull { index, anchor ->
