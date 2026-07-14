@@ -240,23 +240,35 @@ class KMMovies : MainAPI() {
         val categories = doc.select(".download-category")
         val sources = mutableListOf<Source>()
         
+        Log.d(TAG, "KMMovies DEBUG - discoverDetailSources() - found ${categories.size} category containers on the page")
+        println("KMMovies DEBUG - discoverDetailSources() - found ${categories.size} category containers")
+        
         if (categories.isNotEmpty()) {
             for (cat in categories) {
                 val catTitle = cat.selectFirst(".category-title")?.text()?.trim()?.ifBlank { "" }.orEmpty()
                 val compacted = compactCategory(catTitle)
                 val buttons = cat.select("a.dl-btn")
-                for (anchor in buttons) {
+                
+                Log.d(TAG, "KMMovies DEBUG - Category: '$catTitle' detected ($compacted), buttons found: ${buttons.size}")
+                println("KMMovies DEBUG - Category: '$catTitle' detected ($compacted), buttons found: ${buttons.size}")
+                
+                buttons.forEachIndexed { idx, anchor ->
                     val url = absolute(doc, anchor.attr("href"))
-                    if (!isResolvable(url)) continue
-                    val qualitySpan = anchor.selectFirst(".dl-quality")?.text()?.trim()
-                    val resSpan = anchor.selectFirst(".dl-res")?.text()?.trim()
+                    val resolvable = isResolvable(url)
+                    val resSpan = anchor.selectFirst(".dl-res")?.text()?.trim().orEmpty()
                     
-                    val labelName = if (!resSpan.isNullOrBlank() && !qualitySpan.isNullOrBlank()) {
+                    Log.d(TAG, "KMMovies DEBUG -   Button ${idx + 1}: res='$resSpan', href='$url', isResolvable=$resolvable")
+                    println("KMMovies DEBUG -   Button ${idx + 1}: res='$resSpan', href='$url', isResolvable=$resolvable")
+                    
+                    if (!resolvable) return@forEachIndexed
+                    
+                    val qualitySpan = anchor.selectFirst(".dl-quality")?.text()?.trim()
+                    val labelName = if (!resSpan.isBlank() && !qualitySpan.isNullOrBlank()) {
                         val cleanRes = resSpan.trim()
                         val cleanQual = qualitySpan.trim()
                         if (cleanQual.contains(cleanRes, ignoreCase = true)) cleanQual else "$cleanRes $cleanQual"
                     } else {
-                        qualitySpan ?: resSpan ?: anchor.text().normalise().ifBlank { "Source" }
+                        qualitySpan ?: resSpan.takeIf { it.isNotBlank() } ?: anchor.text().normalise().ifBlank { "Source" }
                     }
                     
                     val finalLabel = if (compacted.isNotBlank()) {
@@ -493,6 +505,9 @@ class KMMovies : MainAPI() {
                     extractorData = link.extractorData
                 )
                 
+                Log.d(TAG, "KMMovies DEBUG - Emitting ExtractorLink: '${renamedLink.name}' url='${renamedLink.url}'")
+                println("KMMovies DEBUG - Emitting ExtractorLink: '${renamedLink.name}' url='${renamedLink.url}'")
+                
                 callback(renamedLink)
             }
 
@@ -531,6 +546,9 @@ class KMMovies : MainAPI() {
         val url = source.url
         val output = linkedMapOf<String, Source>()
         
+        Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() is called for '${source.name}' url: '$url'")
+        println("KMMovies DEBUG - resolveMagicLinks() is called for '${source.name}' url: '$url'")
+        
         fun add(label: String, absolute: String, base: String) {
             if (absolute.isBlank() || absolute == "#" || absolute.startsWith("javascript:", true)) return
             if (!absolute.contains("/photo/", true)) {
@@ -545,6 +563,8 @@ class KMMovies : MainAPI() {
         try {
             val doc = document(url)
             val buttons = doc.select(".download-buttons a[href], a.download-button, .download-shell a[href]")
+            Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() HTML parsing: found ${buttons.size} buttons")
+            println("KMMovies DEBUG - resolveMagicLinks() HTML parsing: found ${buttons.size} buttons")
             if (buttons.isNotEmpty()) {
                 buttons.forEach { anchor ->
                     val text = anchor.text().normalise().ifBlank { "Source" }
@@ -568,6 +588,8 @@ class KMMovies : MainAPI() {
         }
 
         if (output.isNotEmpty()) {
+            Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() HTML parsing returned ${output.size} sources")
+            println("KMMovies DEBUG - resolveMagicLinks() HTML parsing returned ${output.size} sources")
             return output.values.toList()
         }
 
@@ -577,63 +599,97 @@ class KMMovies : MainAPI() {
         val hosts = linkedSetOf(uri.host.orEmpty(), "magiclinks.lol", "w1.magiclinks.lol")
             .filter { it.isNotBlank() }
 
+        Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() REST API Fallback for slug: '$slug'")
+        println("KMMovies DEBUG - resolveMagicLinks() REST API Fallback for slug: '$slug'")
+
         for (host in hosts) {
             val endpoint = "https://$host/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}" +
                 "&_fields=content,meta,link"
-            val text = try {
+            Log.d(TAG, "KMMovies DEBUG -   Querying WP-JSON endpoint: '$endpoint'")
+            println("KMMovies DEBUG -   Querying WP-JSON endpoint: '$endpoint'")
+            
+            val response = try {
                 app.get(
                     endpoint,
                     headers = browserHeaders + mapOf("Accept" to "application/json", "Referer" to url),
-                    interceptor = CloudflareKiller(),
-                    timeout = 25
-                ).text
-            } catch (error: Exception) {
-                if (error is CancellationException) throw error
-                continue
+                    timeout = 15
+                )
+            } catch (e: Exception) {
+                Log.d(TAG, "KMMovies DEBUG -     Query to '$host' failed without CloudflareKiller: ${e.message}")
+                println("KMMovies DEBUG -     Query to '$host' failed without CloudflareKiller: ${e.message}")
+                try {
+                    app.get(
+                        endpoint,
+                        headers = browserHeaders + mapOf("Accept" to "application/json", "Referer" to url),
+                        interceptor = CloudflareKiller(),
+                        timeout = 20
+                    )
+                } catch (err: Exception) {
+                    if (err is CancellationException) throw err
+                    Log.d(TAG, "KMMovies DEBUG -     Query to '$host' failed with CloudflareKiller: ${err.message}")
+                    println("KMMovies DEBUG -     Query to '$host' failed with CloudflareKiller: ${err.message}")
+                    null
+                }
             }
-            val post = runCatching { JSONArray(text).optJSONObject(0) }.getOrNull() ?: continue
-            val base = post.optString("link").ifBlank { "https://$host/$slug/" }
+            val text = response?.text ?: continue
+            val post = runCatching { JSONArray(text).optJSONObject(0) }.getOrNull()
+            
+            if (post != null) {
+                Log.d(TAG, "KMMovies DEBUG -     Success! Host '$host' returned post ID: ${post.optInt("id")}")
+                println("KMMovies DEBUG -     Success! Host '$host' returned post ID: ${post.optInt("id")}")
+                val base = post.optString("link").ifBlank { "https://$host/$slug/" }
 
-            val meta = post.optJSONObject("meta")
-            MAGIC_META.forEach { (key, label) ->
-                val rawVal = meta?.optString(key).orEmpty().ifBlank { post.optString(key) }
-                if (rawVal.isNotBlank()) {
-                    val absolute = if (rawVal.startsWith("http", true)) rawVal else
-                        runCatching { URI(base).resolve(rawVal).toString() }.getOrDefault("")
-                    add(label, absolute, base)
-                }
-            }
-            val rendered = post.optJSONObject("content")?.optString("rendered").orEmpty()
-            if (rendered.isNotBlank()) {
-                val renderedDoc = Jsoup.parse(rendered, base)
-                renderedDoc.select("a[href]").forEach {
-                    val urlText = it.text().normalise().ifBlank { "Source" }
-                    val label = when {
-                        it.attr("href").contains("online.php") -> "Watch Online"
-                        it.attr("href").contains("download99.php") -> "Zip-Zap"
-                        it.attr("href").contains("skydrop") -> "SkyDrop"
-                        it.attr("href").contains("pixeldrain") -> "PixelDrain"
-                        it.attr("href").contains("gofile") -> "GoFile"
-                        else -> urlText
+                val meta = post.optJSONObject("meta")
+                MAGIC_META.forEach { (key, label) ->
+                    val rawVal = meta?.optString(key).orEmpty().ifBlank { post.optString(key) }
+                    if (rawVal.isNotBlank()) {
+                        val absolute = if (rawVal.startsWith("http", true)) rawVal else
+                            runCatching { URI(base).resolve(rawVal).toString() }.getOrDefault("")
+                        add(label, absolute, base)
                     }
-                    add(label, it.absUrl("href").ifBlank { it.attr("href") }, base)
                 }
-                URL_REGEX.findAll(rendered.replace("\\/", "/")).forEach { 
-                    val linkStr = it.value
-                    val label = when {
-                        linkStr.contains("online.php") -> "Watch Online"
-                        linkStr.contains("download99.php") -> "Zip-Zap"
-                        linkStr.contains("skydrop") -> "SkyDrop"
-                        linkStr.contains("pixeldrain") -> "PixelDrain"
-                        linkStr.contains("gofile") -> "GoFile"
-                        else -> "Source"
+                val rendered = post.optJSONObject("content")?.optString("rendered").orEmpty()
+                if (rendered.isNotBlank()) {
+                    val renderedDoc = Jsoup.parse(rendered, base)
+                    renderedDoc.select("a[href]").forEach {
+                        val urlText = it.text().normalise().ifBlank { "Source" }
+                        val label = when {
+                            it.attr("href").contains("online.php") -> "Watch Online"
+                            it.attr("href").contains("download99.php") -> "Zip-Zap"
+                            it.attr("href").contains("skydrop") -> "SkyDrop"
+                            it.attr("href").contains("pixeldrain") -> "PixelDrain"
+                            it.attr("href").contains("gofile") -> "GoFile"
+                            else -> urlText
+                        }
+                        add(label, it.absUrl("href").ifBlank { it.attr("href") }, base)
                     }
-                    add(label, linkStr, base) 
+                    URL_REGEX.findAll(rendered.replace("\\/", "/")).forEach { 
+                        val linkStr = it.value
+                        val label = when {
+                            linkStr.contains("online.php") -> "Watch Online"
+                            linkStr.contains("download99.php") -> "Zip-Zap"
+                            linkStr.contains("skydrop") -> "SkyDrop"
+                            linkStr.contains("pixeldrain") -> "PixelDrain"
+                            linkStr.contains("gofile") -> "GoFile"
+                            else -> "Source"
+                        }
+                        add(label, linkStr, base) 
+                    }
                 }
+                if (output.isNotEmpty()) {
+                    Log.d(TAG, "KMMovies DEBUG -     Found ${output.size} sources from host '$host'")
+                    println("KMMovies DEBUG -     Found ${output.size} sources from host '$host'")
+                    return output.values.toList()
+                }
+            } else {
+                Log.d(TAG, "KMMovies DEBUG -     Host '$host' returned empty or invalid response")
+                println("KMMovies DEBUG -     Host '$host' returned empty or invalid response")
             }
-            if (output.isNotEmpty()) return output.values.toList()
         }
-        return emptyList()
+        
+        Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() returned ${output.size} total sources")
+        println("KMMovies DEBUG - resolveMagicLinks() returned ${output.size} total sources")
+        return output.values.toList()
     }
 
     private suspend fun resolveBuzzheavier(source: Source, callback: (ExtractorLink) -> Unit): Boolean {
