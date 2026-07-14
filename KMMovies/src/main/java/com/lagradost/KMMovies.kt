@@ -227,7 +227,7 @@ class KMMovies : MainAPI() {
             doc.select(".about-highlight-value").any { it.text().equals("Series", true) }
 
         if (isSeries) {
-            val episodes = loadSeriesEpisodes(doc, detailUrl)
+            val episodes = loadSeriesEpisodes(doc, detailUrl, poster)
             return newTvSeriesLoadResponse(title, detailUrl, TvType.TvSeries, episodes) { common() }
         }
 
@@ -291,7 +291,7 @@ class KMMovies : MainAPI() {
         }.distinctBy { it.url }
     }
 
-    private suspend fun loadSeriesEpisodes(doc: Document, detailUrl: String): List<Episode> {
+    private suspend fun loadSeriesEpisodes(doc: Document, detailUrl: String, seriesPoster: String?): List<Episode> {
         val jobs = doc.select(".season-block").flatMap { block ->
             val seasonText = block.selectFirst(".season-block-title")?.text().orEmpty()
             val season = Regex("""(?i)season\s*(\d+)""").find(seasonText)
@@ -329,20 +329,11 @@ class KMMovies : MainAPI() {
                 val sources = rows.map { it.source }.distinctBy { it.url }
                 val epTitle = rows.firstNotNullOfOrNull { it.episodeTitle }?.trim()
                 
-                val sStr = key.first.toString().padStart(2, '0')
-                val eStr = key.second.toString().padStart(2, '0')
-                val code = "S${sStr}E${eStr}"
-                
-                val displayName = if (!epTitle.isNullOrBlank()) {
-                    "$code • $epTitle"
-                } else {
-                    code
-                }
-                
                 newEpisode(encodePayload(sources)) {
-                    name = displayName
+                    name = epTitle ?: "Episode ${key.second}"
                     season = key.first
                     episode = key.second
+                    posterUrl = seriesPoster
                 }
             }
     }
