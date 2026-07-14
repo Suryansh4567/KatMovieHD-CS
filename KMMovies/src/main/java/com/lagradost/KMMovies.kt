@@ -808,13 +808,23 @@ class KMMovies : MainAPI() {
 
             // Scrape webpage if no query param
             val doc = runCatching { document(final, url) }.getOrNull() ?: return false
-            val video = doc.selectFirst("video[src], video source[src]")?.attr("src").orEmpty()
-            if (video.isNotBlank()) {
-                val absVideoUrl = absolute(doc, video)
+            
+            // Try extracting from JWPlayer JavaScript configuration first!
+            val jwFile = Regex("""(?i)file\s*:\s*["'](https?://[^"']+)["']""").find(doc.html())
+                ?.groupValues?.getOrNull(1)
+            
+            val streamUrl = if (!jwFile.isNullOrBlank()) {
+                absolute(doc, jwFile)
+            } else {
+                doc.selectFirst("video[src], video source[src]")?.attr("src")?.takeIf { it.isNotBlank() }
+                    ?.let { absolute(doc, it) }
+            }
+
+            if (!streamUrl.isNullOrBlank()) {
                 val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
                     "${source.name} • Watch Online"
                 } else "Watch Online Stream"
-                emitDirect(absVideoUrl, combinedLabel, final, callback)
+                emitDirect(streamUrl, combinedLabel, final, callback)
                 return true
             }
             false
