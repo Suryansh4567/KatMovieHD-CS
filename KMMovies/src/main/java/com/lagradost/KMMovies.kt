@@ -71,7 +71,23 @@ class KMMovies : MainAPI() {
     )
 
     private data class Source(val name: String, val url: String, val referer: String = "")
-    private data class EpisodeSource(val season: Int, val episode: Int, val source: Source)
+    private data class EpisodeSource(
+        val season: Int,
+        val episode: Int,
+        val source: Source,
+        val episodeTitle: String? = null
+    )
+
+    private fun compactCategory(category: String): String {
+        val clean = category.trim()
+        return when {
+            clean.contains("Encoded", ignoreCase = true) -> "EV"
+            clean.contains("WebDL", ignoreCase = true) || clean.contains("Web-DL", ignoreCase = true) || clean.contains("Web", ignoreCase = true) -> "WD"
+            clean.contains("Remux", ignoreCase = true) || clean.contains("BluRay", ignoreCase = true) -> "BR"
+            clean.contains("Original", ignoreCase = true) || clean.contains("Print", ignoreCase = true) -> "OP"
+            else -> clean
+        }
+    }
 
     // -----------------------------------------------------------------------
     // HTTP and URL helpers
@@ -227,6 +243,7 @@ class KMMovies : MainAPI() {
         if (categories.isNotEmpty()) {
             for (cat in categories) {
                 val catTitle = cat.selectFirst(".category-title")?.text()?.trim()?.ifBlank { "" }.orEmpty()
+                val compacted = compactCategory(catTitle)
                 val buttons = cat.select("a.dl-btn")
                 for (anchor in buttons) {
                     val url = absolute(doc, anchor.attr("href"))
@@ -242,8 +259,8 @@ class KMMovies : MainAPI() {
                         qualitySpan ?: resSpan ?: anchor.text().normalise().ifBlank { "Source" }
                     }
                     
-                    val finalLabel = if (catTitle.isNotBlank()) {
-                        "$catTitle • $labelName"
+                    val finalLabel = if (compacted.isNotBlank()) {
+                        "$compacted • $labelName"
                     } else {
                         labelName
                     }
@@ -310,8 +327,20 @@ class KMMovies : MainAPI() {
             .toSortedMap(compareBy<Pair<Int, Int>>({ it.first }, { it.second }))
             .map { (key, rows) ->
                 val sources = rows.map { it.source }.distinctBy { it.url }
+                val epTitle = rows.firstNotNullOfOrNull { it.episodeTitle }?.trim()
+                
+                val sStr = key.first.toString().padStart(2, '0')
+                val eStr = key.second.toString().padStart(2, '0')
+                val code = "S${sStr}E${eStr}"
+                
+                val displayName = if (!epTitle.isNullOrBlank()) {
+                    "$code • $epTitle"
+                } else {
+                    code
+                }
+                
                 newEpisode(encodePayload(sources)) {
-                    name = "Episode ${key.second}"
+                    name = displayName
                     season = key.first
                     episode = key.second
                 }
@@ -328,13 +357,19 @@ class KMMovies : MainAPI() {
         val rows = doc.select(".ep-row")
         if (rows.isNotEmpty()) {
             return rows.mapIndexedNotNull { index, row ->
-                val text = row.selectFirst(".ep-name")?.text().orEmpty()
+                val epText = row.selectFirst(".ep-name")?.text().orEmpty()
                 val episode = Regex("""(?i)(?:episode|ep)\s*[-#:]?\s*(\d+)""")
-                    .find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: index + 1
+                    .find(epText)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: (index + 1)
+                
+                val cleanTitle = epText.replace(Regex("""(?i)(?:episode|ep)\s*[-#:]?\s*\d+"""), "")
+                    .trim(' ', '-', ':', '|', '•')
+                
+                val episodeTitle = cleanTitle.takeIf { it.isNotBlank() }
+                
                 val anchor = row.selectFirst("a[href]") ?: return@mapIndexedNotNull null
                 val url = absolute(doc, anchor.attr("href"))
                 url.takeIf { isResolvable(it) }?.let {
-                    EpisodeSource(season, episode, Source(label, it, landing))
+                    EpisodeSource(season, episode, Source(label, it, landing), episodeTitle)
                 }
             }
         }
@@ -342,7 +377,7 @@ class KMMovies : MainAPI() {
         return doc.select("a[href]").mapIndexedNotNull { index, anchor ->
             val url = absolute(doc, anchor.attr("href"))
             url.takeIf { isResolvable(it) }?.let {
-                EpisodeSource(season, index + 1, Source(label, it, landing))
+                EpisodeSource(season, index + 1, Source(label, it, landing), null)
             }
         }
     }
@@ -413,26 +448,55 @@ class KMMovies : MainAPI() {
 
             val sourceCallback: (ExtractorLink) -> Unit = { link ->
                 emitted += 1
-                val cleanLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
-                    if (source.name.contains(" •")) {
-                        source.name.substringBefore(" •").trim()
-                    } else source.name
-                } else ""
                 
-                var finalName = link.name
-                if (cleanLabel.isNotBlank() && !finalName.contains(cleanLabel)) {
-                    finalName = "$cleanLabel • $finalName"
+                val baseLabel = source.name.trim(' ', '•')
+                val linkName = link.name.trim(' ', '•')
+                
+                val finalParts = mutableListOf<String>()
+                
+                // Add parts from baseLabel
+                val baseParts = baseLabel.split(" • ").map { it.trim() }.filter { it.isNotBlank() }
+                finalParts.addAll(baseParts)
+                
+                // Merge parts from linkName to prevent any duplicates
+                val linkParts = linkName.split(" • ").map { it.trim() }.filter { it.isNotBlank() }
+                for (part in linkParts) {
+                    if (part.equals("KMMovies", ignoreCase = true)) continue
+                    var replaced = false
+                    for (idx in finalParts.indices) {
+                        val existing = finalParts[idx]
+                        if (existing.contains(part, ignoreCase = true)) {
+                            // Existing is longer/same and contains part (e.g. existing="SkyDrop Proxy", part="SkyDrop")
+                            replaced = true
+                            break
+                        } else if (part.contains(existing, ignoreCase = true)) {
+                            // Part is longer and contains existing (e.g. existing="SkyDrop", part="SkyDrop Proxy")
+                            finalParts[idx] = part
+                            replaced = true
+                            break
+                        }
+                    }
+                    if (!replaced) {
+                        finalParts.add(part)
+                    }
                 }
                 
-                val cleanText = finalName.replace("KMMovies •", "").replace("KMMovies  •", "").trim(' ', '•')
+                val cleanText = finalParts.joinToString(" • ") { it }
                 val formattedName = "KMMovies • $cleanText"
+                
+                // Quality Inheritance
+                val finalQuality = if (link.quality == Qualities.Unknown.value) {
+                    this@KMMovies.quality(source.name)
+                } else {
+                    link.quality
+                }
                 
                 val renamedLink = ExtractorLink(
                     source = link.source,
                     name = formattedName,
                     url = link.url,
                     referer = link.referer,
-                    quality = link.quality,
+                    quality = finalQuality,
                     type = if (link.isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
                     headers = link.headers,
                     extractorData = link.extractorData
@@ -529,6 +593,7 @@ class KMMovies : MainAPI() {
                 app.get(
                     endpoint,
                     headers = browserHeaders + mapOf("Accept" to "application/json", "Referer" to url),
+                    interceptor = CloudflareKiller(),
                     timeout = 25
                 ).text
             } catch (error: Exception) {
