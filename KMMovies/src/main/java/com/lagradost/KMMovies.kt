@@ -186,7 +186,18 @@ class KMMovies : MainAPI() {
             val poster = card.selectFirst("img")?.let {
                 absolute(doc, it.attr("data-src").ifBlank { it.attr("src") })
             }
-            newMovieSearchResponse(cleanTitle(rawTitle), url, type) {
+            
+            // Extract audio badges dynamically
+            val audioText = card.selectFirst(".badge-audio")?.text()?.trim().orEmpty()
+            val cleanName = cleanTitle(rawTitle)
+            val displayName = if (audioText.isNotBlank()) {
+                val cleanAudio = audioText.replace(Regex("""[^\w\s,\-]"""), "").trim(' ', '•', ',', '-')
+                if (cleanAudio.isNotBlank()) {
+                    "$cleanName [$cleanAudio]"
+                } else cleanName
+            } else cleanName
+
+            newMovieSearchResponse(displayName, url, type) {
                 posterUrl = poster
             }
         }.distinctBy { it.url }
@@ -209,9 +220,18 @@ class KMMovies : MainAPI() {
         val plot = doc.selectFirst(".hero-description")?.text()?.trim()
             ?.ifBlank { doc.selectFirst("meta[name=description]")?.attr("content").orEmpty() }
         val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(rawTitle)?.value?.toIntOrNull()
-        val tags = doc.select(".about-meta-box").firstOrNull {
+        
+        // Parse Genres and Audio languages dynamically
+        val genres = doc.select(".about-meta-box").firstOrNull {
             it.selectFirst(".about-meta-label")?.text()?.equals("Genres", true) == true
         }?.select("a")?.map { it.text().trim() }?.filter { it.isNotBlank() }.orEmpty()
+
+        val audioLanguages = doc.select(".about-meta-box").firstOrNull {
+            it.selectFirst(".about-meta-label")?.text()?.equals("Audio", true) == true
+        }?.select(".about-meta-value")?.text()?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }.orEmpty()
+
+        val tags = (genres + audioLanguages).distinct()
+        
         val actors = doc.select(".about-cast-chip").map { it.text().trim() }.filter { it.isNotBlank() }
 
         suspend fun LoadResponse.common() {
