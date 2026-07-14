@@ -221,6 +221,41 @@ class KMMovies : MainAPI() {
     }
 
     private fun discoverDetailSources(doc: Document, referer: String): List<Source> {
+        val categories = doc.select(".download-category")
+        val sources = mutableListOf<Source>()
+        
+        if (categories.isNotEmpty()) {
+            for (cat in categories) {
+                val catTitle = cat.selectFirst(".category-title")?.text()?.trim()?.ifBlank { "" }.orEmpty()
+                val buttons = cat.select("a.dl-btn")
+                for (anchor in buttons) {
+                    val url = absolute(doc, anchor.attr("href"))
+                    if (!isResolvable(url)) continue
+                    val qualitySpan = anchor.selectFirst(".dl-quality")?.text()?.trim()
+                    val resSpan = anchor.selectFirst(".dl-res")?.text()?.trim()
+                    
+                    val labelName = if (!resSpan.isNullOrBlank() && !qualitySpan.isNullOrBlank()) {
+                        val cleanRes = resSpan.trim()
+                        val cleanQual = qualitySpan.trim()
+                        if (cleanQual.contains(cleanRes, ignoreCase = true)) cleanQual else "$cleanRes $cleanQual"
+                    } else {
+                        qualitySpan ?: resSpan ?: anchor.text().normalise().ifBlank { "Source" }
+                    }
+                    
+                    val finalLabel = if (catTitle.isNotBlank()) {
+                        "$catTitle • $labelName"
+                    } else {
+                        labelName
+                    }
+                    sources.add(Source(finalLabel, url, referer))
+                }
+            }
+        }
+        
+        if (sources.isNotEmpty()) {
+            return sources.distinctBy { it.url }
+        }
+        
         val precise = doc.select(".downloads-section a.dl-btn, .season-block a.dl-btn")
         val anchors = if (precise.isNotEmpty()) precise else doc.select("a[href]")
         return anchors.mapNotNull { anchor ->
@@ -384,21 +419,24 @@ class KMMovies : MainAPI() {
                     } else source.name
                 } else ""
                 
-                val renamedLink = if (cleanLabel.isNotBlank()) {
-                    val finalName = if (!link.name.contains(cleanLabel)) {
-                        "$cleanLabel • ${link.name}"
-                    } else link.name
-                    ExtractorLink(
-                        source = link.source,
-                        name = finalName,
-                        url = link.url,
-                        referer = link.referer,
-                        quality = link.quality,
-                        type = if (link.isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
-                        headers = link.headers,
-                        extractorData = link.extractorData
-                    )
-                } else link
+                var finalName = link.name
+                if (cleanLabel.isNotBlank() && !finalName.contains(cleanLabel)) {
+                    finalName = "$cleanLabel • $finalName"
+                }
+                
+                val cleanText = finalName.replace("KMMovies •", "").replace("KMMovies  •", "").trim(' ', '•')
+                val formattedName = "KMMovies • $cleanText"
+                
+                val renamedLink = ExtractorLink(
+                    source = link.source,
+                    name = formattedName,
+                    url = link.url,
+                    referer = link.referer,
+                    quality = link.quality,
+                    type = if (link.isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
+                    headers = link.headers,
+                    extractorData = link.extractorData
+                )
                 
                 callback(renamedLink)
             }
@@ -436,6 +474,49 @@ class KMMovies : MainAPI() {
 
     private suspend fun resolveMagicLinks(source: Source): List<Source> {
         val url = source.url
+        val output = linkedMapOf<String, Source>()
+        
+        fun add(label: String, absolute: String, base: String) {
+            if (absolute.isBlank() || absolute == "#" || absolute.startsWith("javascript:", true)) return
+            if (!absolute.contains("/photo/", true)) {
+                val cleanLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
+                    source.name + " • " + label
+                } else label
+                output[absolute] = Source(cleanLabel, absolute, base)
+            }
+        }
+
+        // HTML-First direct parsing
+        try {
+            val doc = document(url)
+            val buttons = doc.select(".download-buttons a[href], a.download-button, .download-shell a[href]")
+            if (buttons.isNotEmpty()) {
+                buttons.forEach { anchor ->
+                    val text = anchor.text().normalise().ifBlank { "Source" }
+                    val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+                    val absoluteHref = if (href.startsWith("http", true)) href else
+                        runCatching { URI(url).resolve(href).toString() }.getOrDefault("")
+                    
+                    val label = when {
+                        absoluteHref.contains("online.php") -> "Watch Online"
+                        absoluteHref.contains("download99.php") -> "Zip-Zap"
+                        absoluteHref.contains("skydrop") -> "SkyDrop"
+                        absoluteHref.contains("pixeldrain") -> "PixelDrain"
+                        absoluteHref.contains("gofile") -> "GoFile"
+                        else -> text
+                    }
+                    add(label, absoluteHref, url)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "HTML scraping failed for magiclinks ${safeUrl(url)}: ${e.message}")
+        }
+
+        if (output.isNotEmpty()) {
+            return output.values.toList()
+        }
+
+        // Fallback: WP-JSON API
         val uri = runCatching { URI(url) }.getOrNull() ?: return emptyList()
         val slug = uri.path.trim('/').substringAfterLast('/').takeIf { it.isNotBlank() } ?: return emptyList()
         val hosts = linkedSetOf(uri.host.orEmpty(), "magiclinks.lol", "w1.magiclinks.lol")
@@ -456,24 +537,15 @@ class KMMovies : MainAPI() {
             }
             val post = runCatching { JSONArray(text).optJSONObject(0) }.getOrNull() ?: continue
             val base = post.optString("link").ifBlank { "https://$host/$slug/" }
-            val output = linkedMapOf<String, Source>()
-
-            fun add(label: String, raw: String?) {
-                val value = raw.orEmpty().trim().replace("&amp;", "&")
-                if (value.isBlank() || value == "#" || value.startsWith("javascript:", true)) return
-                val absolute = if (value.startsWith("http", true)) value else
-                    runCatching { URI(base).resolve(value).toString() }.getOrDefault("")
-                if (absolute.isNotBlank() && !absolute.contains("/photo/", true)) {
-                    val cleanLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
-                        source.name + " • " + label
-                    } else label
-                    output[absolute] = Source(cleanLabel, absolute, base)
-                }
-            }
 
             val meta = post.optJSONObject("meta")
             MAGIC_META.forEach { (key, label) ->
-                add(label, meta?.optString(key).orEmpty().ifBlank { post.optString(key) })
+                val rawVal = meta?.optString(key).orEmpty().ifBlank { post.optString(key) }
+                if (rawVal.isNotBlank()) {
+                    val absolute = if (rawVal.startsWith("http", true)) rawVal else
+                        runCatching { URI(base).resolve(rawVal).toString() }.getOrDefault("")
+                    add(label, absolute, base)
+                }
             }
             val rendered = post.optJSONObject("content")?.optString("rendered").orEmpty()
             if (rendered.isNotBlank()) {
@@ -488,7 +560,7 @@ class KMMovies : MainAPI() {
                         it.attr("href").contains("gofile") -> "GoFile"
                         else -> urlText
                     }
-                    add(label, it.absUrl("href").ifBlank { it.attr("href") })
+                    add(label, it.absUrl("href").ifBlank { it.attr("href") }, base)
                 }
                 URL_REGEX.findAll(rendered.replace("\\/", "/")).forEach { 
                     val linkStr = it.value
@@ -500,7 +572,7 @@ class KMMovies : MainAPI() {
                         linkStr.contains("gofile") -> "GoFile"
                         else -> "Source"
                     }
-                    add(label, linkStr) 
+                    add(label, linkStr, base) 
                 }
             }
             if (output.isNotEmpty()) return output.values.toList()
