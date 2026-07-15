@@ -324,13 +324,16 @@ class KMMovies : MainAPI() {
     }
 
     private suspend fun loadSeriesEpisodes(doc: Document, detailUrl: String, seriesPoster: String?): List<Episode> {
-        val jobs = doc.select(".season-block").flatMap { block ->
+        val seasonBlocks = doc.select(".season-block")
+        val allEpisodes = mutableListOf<Episode>()
+
+        for (block in seasonBlocks) {
             val seasonText = block.selectFirst(".season-block-title")?.text().orEmpty()
             val season = Regex("""(?i)season\s*(\d+)""").find(seasonText)
                 ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
             
-            // Extract any buttons pointing to episode landing pages (on episodes.magiclinks.lol or containing /series/)
-            val buttons = block.select("a[href]").filter { anchor ->
+            // 1. Parse Episode Wise quality buttons
+            val episodeWiseButtons = block.select("a[href]").filter { anchor ->
                 val href = anchor.attr("href")
                 href.contains("episodes.magiclinks.lol", ignoreCase = true) || href.contains("/series/", ignoreCase = true)
             }.ifEmpty {
@@ -339,43 +342,92 @@ class KMMovies : MainAPI() {
                 }
             }
             
-            buttons.mapNotNull { button ->
+            val episodeWiseJobs = episodeWiseButtons.mapNotNull { button ->
                 val landing = absolute(doc, button.attr("href"))
                 landing.takeIf { it.isNotBlank() }?.let {
                     Triple(season, button.text().normalise().ifBlank { "Source" }, it)
                 }
             }
-        }
 
-        if (jobs.isEmpty()) return emptyList()
-
-        val found = supervisorScope {
-            jobs.map { (season, label, landing) ->
-                async {
-                    try {
-                        parseEpisodeLanding(season, label, landing, detailUrl)
-                    } catch (error: Exception) {
-                        if (error is CancellationException) throw error
-                        Log.w(TAG, "Episode landing failed ${safeUrl(landing)}: ${error.message}")
-                        emptyList()
+            // 2. Fetch/Parse Episode Wise landing pages
+            val episodeWiseSources = supervisorScope {
+                episodeWiseJobs.map { (season, label, landing) ->
+                    async {
+                        try {
+                            parseEpisodeLanding(season, label, landing, detailUrl)
+                        } catch (error: Exception) {
+                            if (error is CancellationException) throw error
+                            Log.w(TAG, "Episode landing failed ${safeUrl(landing)}: ${error.message}")
+                            emptyList()
+                        }
                     }
+                }.awaitAll().flatten()
+            }
+
+            // 3. Parse and Resolve COMBINED tab buttons ONCE per season!
+            val combinedButtons = block.select(".type-content[data-type^=combined] a[href]")
+            Log.d(TAG, "KMMovies DEBUG - loadSeriesEpisodes() Season $season - found ${combinedButtons.size} Combined buttons")
+            println("KMMovies DEBUG - loadSeriesEpisodes() Season $season - found ${combinedButtons.size} Combined buttons")
+
+            val combinedSources = mutableListOf<Source>()
+            if (combinedButtons.isNotEmpty()) {
+                // For each combined button (e.g. 480p, 720p...)
+                val resolvedCombined = supervisorScope {
+                    combinedButtons.map { button ->
+                        val label = button.text().normalise().ifBlank { "Source" }
+                        val href = absolute(doc, button.attr("href"))
+                        async {
+                            try {
+                                if (href.isNotBlank()) {
+                                    val sourceObj = Source(label, href, detailUrl)
+                                    // Call resolveMagicLinks directly!
+                                    resolveMagicLinks(sourceObj)
+                                } else {
+                                    emptyList()
+                                }
+                            } catch (error: Exception) {
+                                if (error is CancellationException) throw error
+                                Log.w(TAG, "Combined resolution failed: ${error.message}")
+                                emptyList()
+                            }
+                        }
+                    }.awaitAll().flatten()
                 }
-            }.awaitAll().flatten()
+
+                // Format Combined sources with "⚠️ FULL SEASON • " prefix
+                resolvedCombined.forEach { source ->
+                    val cleanName = source.name.replace("KMMovies •", "").trim(' ', '•')
+                    val finalName = "⚠️ FULL SEASON • $cleanName"
+                    combinedSources.add(Source(finalName, source.url, source.referer))
+                }
+                
+                Log.d(TAG, "KMMovies DEBUG - loadSeriesEpisodes() Season $season - successfully resolved ${combinedSources.size} Combined stream sources")
+                println("KMMovies DEBUG - loadSeriesEpisodes() Season $season - successfully resolved ${combinedSources.size} Combined stream sources")
+            }
+
+            // 4. Group Episode Wise sources by episode, and attach the Combined sources to each!
+            val groupedEpisodes = episodeWiseSources.groupBy { it.episode }
+            
+            groupedEpisodes.forEach { (episodeNum, rows) ->
+                val epTitle = rows.firstNotNullOfOrNull { it.episodeTitle }?.trim()
+                val episodeSpecificSources = rows.map { it.source }.distinctBy { it.url }
+                
+                // Combine them: Episode Specific + Full Season
+                val totalSourcesForEpisode = episodeSpecificSources + combinedSources
+                
+                allEpisodes.add(
+                    newEpisode(encodePayload(totalSourcesForEpisode)) {
+                        name = epTitle ?: "Episode $episodeNum"
+                        this.season = season
+                        this.episode = episodeNum
+                        posterUrl = seriesPoster
+                    }
+                )
+            }
         }
 
-        return found.groupBy { it.season to it.episode }
-            .toSortedMap(compareBy<Pair<Int, Int>>({ it.first }, { it.second }))
-            .map { (key, rows) ->
-                val sources = rows.map { it.source }.distinctBy { it.url }
-                val epTitle = rows.firstNotNullOfOrNull { it.episodeTitle }?.trim()
-                
-                newEpisode(encodePayload(sources)) {
-                    name = epTitle ?: "Episode ${key.second}"
-                    season = key.first
-                    episode = key.second
-                    posterUrl = seriesPoster
-                }
-            }
+        // Sort episodes by season and episode number
+        return allEpisodes.sortedWith(compareBy<Episode>({ it.season }, { it.episode }))
     }
 
     private suspend fun parseEpisodeLanding(
