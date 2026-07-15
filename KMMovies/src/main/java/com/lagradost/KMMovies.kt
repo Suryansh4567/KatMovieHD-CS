@@ -260,8 +260,7 @@ class KMMovies : MainAPI() {
         val categories = doc.select(".download-category")
         val sources = mutableListOf<Source>()
         
-        Log.d(TAG, "KMMovies DEBUG - discoverDetailSources() - found ${categories.size} category containers on the page")
-        println("KMMovies DEBUG - discoverDetailSources() - found ${categories.size} category containers")
+        debugLog("KMMovies DEBUG - discoverDetailSources() - found ${categories.size} category containers on the page")
         
         if (categories.isNotEmpty()) {
             for (cat in categories) {
@@ -269,16 +268,14 @@ class KMMovies : MainAPI() {
                 val compacted = compactCategory(catTitle)
                 val buttons = cat.select("a.dl-btn")
                 
-                Log.d(TAG, "KMMovies DEBUG - Category: '$catTitle' detected ($compacted), buttons found: ${buttons.size}")
-                println("KMMovies DEBUG - Category: '$catTitle' detected ($compacted), buttons found: ${buttons.size}")
+                debugLog("KMMovies DEBUG - Category: '$catTitle' detected ($compacted), buttons found: ${buttons.size}")
                 
                 buttons.forEachIndexed { idx, anchor ->
                     val url = absolute(doc, anchor.attr("href"))
                     val resolvable = isResolvable(url)
                     val resSpan = anchor.selectFirst(".dl-res")?.text()?.trim().orEmpty()
                     
-                    Log.d(TAG, "KMMovies DEBUG -   Button ${idx + 1}: res='$resSpan', href='$url', isResolvable=$resolvable")
-                    println("KMMovies DEBUG -   Button ${idx + 1}: res='$resSpan', href='$url', isResolvable=$resolvable")
+                    debugLog("KMMovies DEBUG -   Button ${idx + 1}: res='$resSpan', href='$url', isResolvable=$resolvable")
                     
                     if (!resolvable) return@forEachIndexed
                     
@@ -366,8 +363,7 @@ class KMMovies : MainAPI() {
 
             // 3. Parse and Resolve COMBINED tab buttons ONCE per season!
             val combinedButtons = block.select(".type-content[data-type^=combined] a[href]")
-            Log.d(TAG, "KMMovies DEBUG - loadSeriesEpisodes() Season $season - found ${combinedButtons.size} Combined buttons")
-            println("KMMovies DEBUG - loadSeriesEpisodes() Season $season - found ${combinedButtons.size} Combined buttons")
+            debugLog("KMMovies DEBUG - loadSeriesEpisodes() Season $season - found ${combinedButtons.size} Combined buttons")
 
             val combinedSources = mutableListOf<Source>()
             if (combinedButtons.isNotEmpty()) {
@@ -401,8 +397,7 @@ class KMMovies : MainAPI() {
                     combinedSources.add(Source(finalName, source.url, source.referer))
                 }
                 
-                Log.d(TAG, "KMMovies DEBUG - loadSeriesEpisodes() Season $season - successfully resolved ${combinedSources.size} Combined stream sources")
-                println("KMMovies DEBUG - loadSeriesEpisodes() Season $season - successfully resolved ${combinedSources.size} Combined stream sources")
+                debugLog("KMMovies DEBUG - loadSeriesEpisodes() Season $season - successfully resolved ${combinedSources.size} Combined stream sources")
             }
 
             // 4. Group Episode Wise sources by episode, and attach the Combined sources to each!
@@ -452,8 +447,7 @@ class KMMovies : MainAPI() {
                 
                 // Extract all button anchors inside the episode row
                 val anchors = row.select("a[href]")
-                Log.d(TAG, "KMMovies DEBUG - parseEpisodeLanding() found ${anchors.size} anchors inside ep-row for episode $episode")
-                println("KMMovies DEBUG - parseEpisodeLanding() found ${anchors.size} anchors inside ep-row for episode $episode")
+                debugLog("KMMovies DEBUG - parseEpisodeLanding() found ${anchors.size} anchors inside ep-row for episode $episode")
                 
                 anchors.forEach { anchor ->
                     val url = absolute(doc, anchor.attr("href"))
@@ -692,8 +686,7 @@ class KMMovies : MainAPI() {
         val url = source.url
         val output = linkedMapOf<String, Source>()
         
-        Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() is called for '${source.name}' url: '$url'")
-        println("KMMovies DEBUG - resolveMagicLinks() is called for '${source.name}' url: '$url'")
+        debugLog("KMMovies DEBUG - resolveMagicLinks() is called for '${source.name}' url: '$url'")
         
         fun add(label: String, absolute: String, base: String) {
             if (absolute.isBlank() || absolute == "#" || absolute.startsWith("javascript:", true)) return
@@ -710,8 +703,7 @@ class KMMovies : MainAPI() {
         try {
             val doc = document(url)
             val buttons = doc.select(".download-buttons a[href], a.download-button, .download-shell a[href]")
-            Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() HTML parsing: found ${buttons.size} buttons")
-            println("KMMovies DEBUG - resolveMagicLinks() HTML parsing: found ${buttons.size} buttons")
+            debugLog("KMMovies DEBUG - resolveMagicLinks() HTML parsing: found ${buttons.size} buttons")
             if (buttons.isNotEmpty()) {
                 buttons.forEach { anchor ->
                     val text = anchor.text().normalise().ifBlank { "Source" }
@@ -735,8 +727,7 @@ class KMMovies : MainAPI() {
         }
 
         if (output.isNotEmpty()) {
-            Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() HTML parsing returned ${output.size} sources")
-            println("KMMovies DEBUG - resolveMagicLinks() HTML parsing returned ${output.size} sources")
+            debugLog("KMMovies DEBUG - resolveMagicLinks() HTML parsing returned ${output.size} sources")
             return output.values.toList()
         }
 
@@ -746,14 +737,12 @@ class KMMovies : MainAPI() {
         val hosts = linkedSetOf(uri.host.orEmpty(), "magiclinks.lol", "w1.magiclinks.lol")
             .filter { it.isNotBlank() }
 
-        Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() REST API Fallback for slug: '$slug'")
-        println("KMMovies DEBUG - resolveMagicLinks() REST API Fallback for slug: '$slug'")
+        debugLog("KMMovies DEBUG - resolveMagicLinks() REST API Fallback for slug: '$slug'")
 
         for (host in hosts) {
             val endpoint = "https://$host/wp-json/wp/v2/posts?slug=${URLEncoder.encode(slug, "UTF-8")}" +
                 "&_fields=content,meta,link"
-            Log.d(TAG, "KMMovies DEBUG -   Querying WP-JSON endpoint: '$endpoint'")
-            println("KMMovies DEBUG -   Querying WP-JSON endpoint: '$endpoint'")
+            debugLog("KMMovies DEBUG -   Querying WP-JSON endpoint: '$endpoint'")
             
             val response = try {
                 app.get(
@@ -762,8 +751,7 @@ class KMMovies : MainAPI() {
                     timeout = 15
                 )
             } catch (e: Exception) {
-                Log.d(TAG, "KMMovies DEBUG -     Query to '$host' failed without CloudflareKiller: ${e.message}")
-                println("KMMovies DEBUG -     Query to '$host' failed without CloudflareKiller: ${e.message}")
+                debugLog("KMMovies DEBUG -     Query to '$host' failed without CloudflareKiller: ${e.message}")
                 try {
                     app.get(
                         endpoint,
@@ -773,8 +761,7 @@ class KMMovies : MainAPI() {
                     )
                 } catch (err: Exception) {
                     if (err is CancellationException) throw err
-                    Log.d(TAG, "KMMovies DEBUG -     Query to '$host' failed with CloudflareKiller: ${err.message}")
-                    println("KMMovies DEBUG -     Query to '$host' failed with CloudflareKiller: ${err.message}")
+                    debugLog("KMMovies DEBUG -     Query to '$host' failed with CloudflareKiller: ${err.message}")
                     null
                 }
             }
@@ -782,8 +769,7 @@ class KMMovies : MainAPI() {
             val post = runCatching { JSONArray(text).optJSONObject(0) }.getOrNull()
             
             if (post != null) {
-                Log.d(TAG, "KMMovies DEBUG -     Success! Host '$host' returned post ID: ${post.optInt("id")}")
-                println("KMMovies DEBUG -     Success! Host '$host' returned post ID: ${post.optInt("id")}")
+                debugLog("KMMovies DEBUG -     Success! Host '$host' returned post ID: ${post.optInt("id")}")
                 val base = post.optString("link").ifBlank { "https://$host/$slug/" }
 
                 val meta = post.optJSONObject("meta")
@@ -824,18 +810,15 @@ class KMMovies : MainAPI() {
                     }
                 }
                 if (output.isNotEmpty()) {
-                    Log.d(TAG, "KMMovies DEBUG -     Found ${output.size} sources from host '$host'")
-                    println("KMMovies DEBUG -     Found ${output.size} sources from host '$host'")
+                    debugLog("KMMovies DEBUG -     Found ${output.size} sources from host '$host'")
                     return output.values.toList()
                 }
             } else {
-                Log.d(TAG, "KMMovies DEBUG -     Host '$host' returned empty or invalid response")
-                println("KMMovies DEBUG -     Host '$host' returned empty or invalid response")
+                debugLog("KMMovies DEBUG -     Host '$host' returned empty or invalid response")
             }
         }
         
-        Log.d(TAG, "KMMovies DEBUG - resolveMagicLinks() returned ${output.size} total sources")
-        println("KMMovies DEBUG - resolveMagicLinks() returned ${output.size} total sources")
+        debugLog("KMMovies DEBUG - resolveMagicLinks() returned ${output.size} total sources")
         return output.values.toList()
     }
 
@@ -1001,53 +984,45 @@ class KMMovies : MainAPI() {
             var foundLink = false
             for (parameter in listOf("file", "id")) {
                 val apiCallUrl = "$origin/api.php?$parameter=$encoded"
-                Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() calling API: $apiCallUrl")
-                println("KMMovies DEBUG - resolveSkydropApi() calling API: $apiCallUrl")
+                debugLog("KMMovies DEBUG - resolveSkydropApi() calling API: $apiCallUrl")
                 
                 val textResult = runCatching {
                     app.get(apiCallUrl, headers = apiHeaders, timeout = 20).text
                 }
                 if (textResult.isFailure) {
                     val err = textResult.exceptionOrNull()
-                    Log.e(TAG, "KMMovies DEBUG - resolveSkydropApi() API request failed: ${err?.message}")
-                    println("KMMovies DEBUG - resolveSkydropApi() API request failed: ${err?.message}")
+                    Log.e(TAG, "resolveSkydropApi() API request failed: ${err?.message}")
                     continue
                 }
                 val text = textResult.getOrThrow()
-                Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() API response text: $text")
-                println("KMMovies DEBUG - resolveSkydropApi() API response text: $text")
+                debugLog("KMMovies DEBUG - resolveSkydropApi() API response text: $text")
                 
                 val obj = runCatching { JSONObject(text) }.getOrNull()
                 if (obj == null) {
-                    Log.e(TAG, "KMMovies DEBUG - resolveSkydropApi() failed to parse JSON response")
-                    println("KMMovies DEBUG - resolveSkydropApi() failed to parse JSON response")
+                    Log.e(TAG, "resolveSkydropApi() failed to parse JSON response")
                     continue
                 }
                 
                 if (!obj.optBoolean("success", false)) {
-                    Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() success is false: ${obj.optString("message")}")
-                    println("KMMovies DEBUG - resolveSkydropApi() success is false: ${obj.optString("message")}")
+                    debugLog("KMMovies DEBUG - resolveSkydropApi() success is false: ${obj.optString("message")}")
                     continue
                 }
                 
                 val proxyLink = obj.optString("download_url").trim()
                     .ifBlank { obj.optString("url").trim() }
 
-                Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() parsed proxyLink: $proxyLink")
-                println("KMMovies DEBUG - resolveSkydropApi() parsed proxyLink: $proxyLink")
+                debugLog("KMMovies DEBUG - resolveSkydropApi() parsed proxyLink: $proxyLink")
 
                 if (proxyLink.startsWith("http", true)) {
                     val finalProxyUrl = followRedirects(proxyLink, "")
-                    Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() followRedirects resolved to: $finalProxyUrl")
-                    println("KMMovies DEBUG - resolveSkydropApi() followRedirects resolved to: $finalProxyUrl")
+                    debugLog("KMMovies DEBUG - resolveSkydropApi() followRedirects resolved to: $finalProxyUrl")
                     
                     if (isDirect(finalProxyUrl)) {
                         val combinedLabel = if (source.name.isNotBlank() && !source.name.equals("Source", true)) {
                             "${source.name} • SkyDrop Proxy"
                         } else "SkyDrop Proxy"
                         
-                        Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() emitting direct link to callback...")
-                        println("KMMovies DEBUG - resolveSkydropApi() emitting direct link to callback...")
+                        debugLog("KMMovies DEBUG - resolveSkydropApi() emitting direct link to callback...")
                         
                         callback(
                             newExtractorLink(
@@ -1062,8 +1037,7 @@ class KMMovies : MainAPI() {
                         )
                         foundLink = true
                     } else {
-                        Log.d(TAG, "KMMovies DEBUG - resolveSkydropApi() finalProxyUrl is not direct: $finalProxyUrl")
-                        println("KMMovies DEBUG - resolveSkydropApi() finalProxyUrl is not direct: $finalProxyUrl")
+                        debugLog("KMMovies DEBUG - resolveSkydropApi() finalProxyUrl is not direct: $finalProxyUrl")
                     }
                 }
                 
@@ -1222,10 +1196,18 @@ class KMMovies : MainAPI() {
         return uri.host.orEmpty() + uri.path.orEmpty()
     }
 
+    private fun debugLog(message: String) {
+        if (DEBUG) {
+            Log.d(TAG, message)
+            println(message)
+        }
+    }
+
     private companion object {
         private const val TAG = "KMMovies"
         private const val PAYLOAD_VERSION = 1
         private const val MAX_RESOLUTION_NODES = 100
+        private const val DEBUG = false
         private const val USER_AGENT =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
