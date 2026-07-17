@@ -42,5 +42,26 @@
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
         "fileHash": "sha256-946d7bfbc02d5fe2befc5a99aeaf655f762608ded2ea3f4d67b5e712791215a1"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OneFlex.cs3",
+        "status": 1,
+        "version": 1,
+        "name": "OneFlex",
+        "internalName": "OneFlex",
+        "authors": [
+            "arena"
+        ],
+        "description": "Stream movies, TV shows, live TV & sports from 1Flex.",
+        "fileSize": 29978,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "en",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?domain=1flex.org&sz=64",
+        "apiVersion": 1,
+        "fileHash": "sha256-c2835b763a88a5b1001f28c8b5d019cc95eb4f4bb61cf0daa3bccdbcfa7e93da"
     }
 ]
