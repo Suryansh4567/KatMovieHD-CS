@@ -1,5 +1,26 @@
 [
     {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CineHD.cs3",
+        "status": 1,
+        "version": 1,
+        "name": "CineHD",
+        "internalName": "CineHD",
+        "authors": [
+            "arena"
+        ],
+        "description": "Stream movies, TV shows & anime from CineHD.",
+        "fileSize": 43408,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "en",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?domain=cinehd.app&sz=64",
+        "apiVersion": 1,
+        "fileHash": "sha256-a605d29868c54b566e0cfd329af10957b18ede85f5f76dc555adf23ef87032cd"
+    },
+    {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
         "version": 42,
