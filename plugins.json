@@ -53,7 +53,7 @@
             "arena"
         ],
         "description": "Stream movies, TV shows, live TV & sports from 1Flex.",
-        "fileSize": 31699,
+        "fileSize": 41593,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -62,6 +62,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=1flex.org&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-5651efa3781154c27d38638cb7cd3ec42693af47c356b7a94e2f33deb1881baa"
+        "fileHash": "sha256-954c3bd48402d9227f8e2155650024c52fd305cb9805068b7265f3f1ee9d6e17"
     }
 ]
