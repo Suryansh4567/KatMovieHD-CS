@@ -1,26 +1,5 @@
 [
     {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/CineHD.cs3",
-        "status": 1,
-        "version": 1,
-        "name": "CineHD",
-        "internalName": "CineHD",
-        "authors": [
-            "arena"
-        ],
-        "description": "Stream movies, TV shows & anime from CineHD.",
-        "fileSize": 47046,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "en",
-        "tvTypes": [
-            "Movie",
-            "TvSeries"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=cinehd.app&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-5acfe02806d9338a78c52d745e618c985d46e2cbf85154807073c5ad68c47f95"
-    },
-    {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
         "version": 42,
@@ -63,26 +42,5 @@
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
         "fileHash": "sha256-5537281a9265c5985ac055bde8b5bffa9cd177dc800a43c8d19ed6339f43279b"
-    },
-    {
-        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OneFlex.cs3",
-        "status": 1,
-        "version": 1,
-        "name": "OneFlex",
-        "internalName": "OneFlex",
-        "authors": [
-            "arena"
-        ],
-        "description": "Stream movies, TV shows, live TV & sports from 1Flex.",
-        "fileSize": 30027,
-        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
-        "language": "en",
-        "tvTypes": [
-            "Movie",
-            "TvSeries"
-        ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=1flex.org&sz=64",
-        "apiVersion": 1,
-        "fileHash": "sha256-d48c6ae239d2b65ae489e8de2337849f8c804cf6232cb2891625aa2e02dad6fc"
     }
 ]
