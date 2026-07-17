@@ -39,8 +39,8 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KMMovies:parseDebugLocalResources
 > Task :OneFlex:packageDebugResources
 > Task :OneFlex:processDebugNavigationResources
-> Task :KatMovieHD:generateDebugRFile
 > Task :KMMovies:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
 > Task :OneFlex:parseDebugLocalResources
 > Task :OneFlex:generateDebugRFile
 > Task :OneFlex:compileDebugKotlin
