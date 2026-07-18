@@ -31,20 +31,46 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KMMovies:generateDebugResources
 > Task :KMMovies:packageDebugResources
 > Task :KMMovies:processDebugNavigationResources
-> Task :KMMovies:parseDebugLocalResources
+> Task :TheNextPlanet:preBuild UP-TO-DATE
+> Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :KatMovieHD:parseDebugLocalResources
+> Task :TheNextPlanet:generateDebugBuildConfig
+> Task :KMMovies:parseDebugLocalResources
+> Task :TheNextPlanet:generateDebugResources
 > Task :KMMovies:generateDebugRFile
 > Task :KatMovieHD:generateDebugRFile
+> Task :TheNextPlanet:packageDebugResources
+> Task :TheNextPlanet:processDebugNavigationResources
+> Task :TheNextPlanet:parseDebugLocalResources
+> Task :TheNextPlanet:generateDebugRFile
+> Task :TheNextPlanet:compileDebugKotlin
+
+> Task :TheNextPlanet:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/intermediates/classes.dex
+
+> Task :TheNextPlanet:generateManifest
+
+> Task :TheNextPlanet:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/TheNextPlanet.cs3
+
+> Task :TheNextPlanet:writeCacheEntry
 
 > Task :KMMovies:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:186:55 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:217:87 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
-> Task :KatMovieHD:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
-
 > Task :KMMovies:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/intermediates/classes.dex
+
+> Task :KMMovies:generateManifest
+
+> Task :KMMovies:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/KMMovies.cs3
+
+> Task :KMMovies:writeCacheEntry
+
+> Task :KatMovieHD:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
 > Task :KatMovieHD:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
@@ -55,16 +81,10 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/bui
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
 
 > Task :KatMovieHD:writeCacheEntry
-> Task :KMMovies:generateManifest
-
-> Task :KMMovies:make
-Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/KMMovies.cs3
-
-> Task :KMMovies:writeCacheEntry
 
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 36s
-23 actionable tasks: 23 executed
+BUILD SUCCESSFUL in 47s
+34 actionable tasks: 34 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
