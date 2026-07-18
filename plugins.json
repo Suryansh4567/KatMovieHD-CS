@@ -42,5 +42,26 @@
         "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
         "apiVersion": 1,
         "fileHash": "sha256-5537281a9265c5985ac055bde8b5bffa9cd177dc800a43c8d19ed6339f43279b"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/TheNextPlanet.cs3",
+        "status": 1,
+        "version": 1,
+        "name": "TheNextPlanet",
+        "internalName": "TheNextPlanet",
+        "authors": [
+            "arena"
+        ],
+        "description": "Stream movies, TV shows & anime from TheNextPlanet.",
+        "fileSize": 16420,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "en",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64",
+        "apiVersion": 1,
+        "fileHash": "sha256-091db4ef759c90c92f4aac2ca6c7be8a9b11e6d88832f787f4f352b603963785"
     }
 ]
