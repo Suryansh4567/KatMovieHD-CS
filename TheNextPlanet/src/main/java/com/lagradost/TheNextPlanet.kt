@@ -1,9 +1,6 @@
 package com.lagradost
 
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -26,7 +23,6 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
-import kotlinx.coroutines.launch
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -38,6 +34,9 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import java.net.URLDecoder
 import java.net.URLEncoder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class TheNextPlanet : MainAPI() {
     override var name = "TheNextPlanet"
@@ -56,6 +55,74 @@ class TheNextPlanet : MainAPI() {
 
     companion object {
         const val TAG = "TheNextPlanet"
+
+        // Central Filename Parser to extract resolution, source, language, codec, and size cleanly
+        fun parseFilename(filename: String): String {
+            val cleanName = filename.replace("_", ".").replace(" ", ".")
+            Log.d(TAG, "Parsing filename: raw='$filename', cleaned='$cleanName'")
+
+            val resolution = when {
+                "2160p" in cleanName || "2160" in cleanName || "4k" in cleanName.lowercase() -> "2160p"
+                "1080p" in cleanName || "1080" in cleanName -> "1080p"
+                "720p" in cleanName || "720" in cleanName -> "720p"
+                "480p" in cleanName || "480" in cleanName -> "480p"
+                else -> ""
+            }
+
+            val source = when {
+                "web-dl" in cleanName.lowercase() || "webdl" in cleanName.lowercase() -> "WEB-DL"
+                "webrip" in cleanName.lowercase() || "web-rip" in cleanName.lowercase() -> "WEBRip"
+                "bluray" in cleanName.lowercase() || "blu-ray" in cleanName.lowercase() -> "BluRay"
+                "hdrip" in cleanName.lowercase() || "hd-rip" in cleanName.lowercase() -> "HDRip"
+                "dvdrip" in cleanName.lowercase() -> "DVDRip"
+                "remux" in cleanName.lowercase() -> "REMUX"
+                "cam" in cleanName.lowercase() || "tc" in cleanName.lowercase() -> "CAM"
+                else -> ""
+            }
+
+            val codec = when {
+                "x265" in cleanName.lowercase() || "hevc" in cleanName.lowercase() -> "x265"
+                "x264" in cleanName.lowercase() || "h264" in cleanName.lowercase() -> "x264"
+                "10bit" in cleanName.lowercase() -> "10Bit"
+                else -> ""
+            }
+
+            val language = when {
+                "dual" in cleanName.lowercase() -> "Dual Audio"
+                "multi" in cleanName.lowercase() -> "Multi Audio"
+                "hindi" in cleanName.lowercase() -> "Hindi"
+                "english" in cleanName.lowercase() || "eng" in cleanName.lowercase() -> "English"
+                "tamil" in cleanName.lowercase() -> "Tamil"
+                "telugu" in cleanName.lowercase() -> "Telugu"
+                "malayalam" in cleanName.lowercase() -> "Malayalam"
+                else -> ""
+            }
+
+            val sizeMatch = Regex("""\b(\d+(?:\.\d+)?\s*(?:GB|MB))\b""", RegexOption.IGNORE_CASE).find(cleanName)
+            val size = sizeMatch?.groupValues?.get(1)?.uppercase() ?: ""
+
+            val parts = listOf(resolution, source, language, codec, size).filter { it.isNotBlank() }
+            val parsedLabel = parts.joinToString(" • ")
+            Log.d(TAG, "Generated label from filename: '$parsedLabel'")
+            return parsedLabel
+        }
+
+        fun generateLabel(sourceName: String, fileName: String, fileSize: String?): String {
+            val parsedMeta = parseFilename(fileName)
+            val cleanSize = fileSize?.takeIf { it.isNotBlank() } ?: ""
+
+            return buildString {
+                append(sourceName)
+                if (parsedMeta.isNotBlank()) {
+                    append(" • ")
+                    append(parsedMeta)
+                }
+                if (cleanSize.isNotBlank() && !parsedMeta.contains(cleanSize, ignoreCase = true)) {
+                    append(" • ")
+                    append(cleanSize)
+                }
+            }
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -275,15 +342,11 @@ class TheNextPlanet : MainAPI() {
                 val isGdflix = decodedUrl.contains("gdflix", ignoreCase = true)
                 val isMediafire = decodedUrl.contains("mediafire", ignoreCase = true)
 
-                // Label and style links to prioritize playable streams clearly
-                val sourceName = when {
-                    isGdflix -> "GdFlix Stream (Playable)"
-                    isMediafire -> "Mediafire Stream (Playable)"
-                    decodedUrl.contains("photolinx", ignoreCase = true) || decodedUrl.contains("photon", ignoreCase = true) -> "Photon Stream (Playable)"
-                    else -> "TheNextPlanet Stream"
-                }
+                // Decode and enrich labels with our Filename Parser
+                val cleanFilename = decodedUrl.split("/").lastOrNull()?.substringBefore("?") ?: label
+                val descriptiveName = generateLabel("MediaFire", cleanFilename, null)
 
-                Log.d(TAG, "Extracting link: label='$label', url=$decodedUrl, sourceName=$sourceName")
+                Log.d(TAG, "Extracting link: label='$label', url=$decodedUrl")
 
                 if (isGdflix) {
                     // Resolve natively via GDFlix Extractor class
@@ -295,7 +358,21 @@ class TheNextPlanet : MainAPI() {
                 } else if (isMediafire) {
                     // Resolve natively via loadExtractor
                     runCatching {
-                        loadExtractor(decodedUrl, referer = unlockUrl, subtitleCallback, callback)
+                        loadExtractor(decodedUrl, referer = unlockUrl, subtitleCallback) { link ->
+                            CoroutineScope(Dispatchers.IO).launch {
+                                callback(
+                                    newExtractorLink(
+                                        source = descriptiveName,
+                                        name = descriptiveName,
+                                        url = link.url,
+                                        type = ExtractorLinkType.VIDEO
+                                    ) {
+                                        this.referer = unlockUrl
+                                        this.quality = link.quality
+                                    }
+                                )
+                            }
+                        }
                         foundAny = true
                     }
                 } else {
@@ -309,10 +386,17 @@ class TheNextPlanet : MainAPI() {
                         else -> Qualities.Unknown.value
                     }
 
+                    val rawSourceName = when {
+                        decodedUrl.contains("photolinx", ignoreCase = true) || decodedUrl.contains("photon", ignoreCase = true) -> "Photon"
+                        decodedUrl.contains("fastilinks", ignoreCase = true) -> "Fastilinks"
+                        else -> "TheNextPlanet"
+                    }
+                    val finalSourceName = generateLabel(rawSourceName, cleanFilename, null)
+
                     callback(
                         newExtractorLink(
-                            source = sourceName,
-                            name = if (label.isNotBlank()) "$sourceName ($label)" else sourceName,
+                            source = finalSourceName,
+                            name = finalSourceName,
                             url = decodedUrl,
                             type = linkType
                         ) {
@@ -383,6 +467,28 @@ class GDFlix : ExtractorApi() {
         }
     }
 
+    // Helper to check content-type and generate enriched descriptive labels before emitting link
+    private suspend fun emitLink(
+        sourceName: String, 
+        rawFilename: String, 
+        finalStreamUrl: String, 
+        fileSize: String, 
+        fileName: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        if (isPlayableStream(finalStreamUrl)) {
+            val finalLabel = TheNextPlanet.generateLabel(sourceName, rawFilename, fileSize)
+            Log.d("GDFlix", "Generated label: '$finalLabel' for URL: $finalStreamUrl")
+            callback.invoke(
+                newExtractorLink(finalLabel, finalLabel, finalStreamUrl) {
+                    this.quality = getIndexQuality(fileName)
+                }
+            )
+        } else {
+            Log.w("GDFlix", "Discarded non-playable stream: $finalStreamUrl (returned text/html or failed check)")
+        }
+    }
+
     override suspend fun getUrl(
         url: String,
         referer: String?,
@@ -411,19 +517,6 @@ class GDFlix : ExtractorApi() {
         val anchorElements = document.select("div.text-center a")
         Log.d("GDFlix", "Found ${anchorElements.size} raw anchor elements inside landing page.")
 
-        // Helper to check content-type before emitting link
-        val emitLink: suspend (String, String, String) -> Unit = { sourceName, labelName, finalStreamUrl ->
-            if (isPlayableStream(finalStreamUrl)) {
-                callback.invoke(
-                    newExtractorLink(sourceName, labelName, finalStreamUrl) {
-                        this.quality = getIndexQuality(fileName)
-                    }
-                )
-            } else {
-                Log.w("GDFlix", "Discarded non-playable stream link: $finalStreamUrl (returned text/html or failed check)")
-            }
-        }
-
         // Sort anchor elements according to priority list:
         // 1. PixelDrain, 2. CLOUD DOWNLOAD [R2], 3. GoFile, 4. Instant DL, 5. DIRECT DL
         val sortedAnchors = anchorElements.sortedWith(compareByDescending { anchor ->
@@ -445,21 +538,27 @@ class GDFlix : ExtractorApi() {
 
             when {
                 text.contains("PixelDrain", ignoreCase = true) || text.contains("Pixel", ignoreCase = true) -> {
-                    Log.d("GDFlix", "Invoking Pixeldrain extractor for link: $href")
+                    Log.d("GDFlix", "Found PixelDrain button: text='$text', href='$href'")
                     runCatching {
-                        loadExtractor(href, referer = "", subtitleCallback) { link ->
+                        // Bypassing Pixeldrain redirects to get actual file URL
+                        val finalPixelUrl = app.get(href, allowRedirects = false).headers["location"] ?: href
+                        Log.d("GDFlix", "Resolved PixelDrain URL: $finalPixelUrl")
+
+                        loadExtractor(finalPixelUrl, referer = "", subtitleCallback) { link ->
                             CoroutineScope(Dispatchers.IO).launch {
-                                emitLink("GDFlix [Pixeldrain]", "GDFlix [Pixeldrain] [$fileSize]", link.url)
+                                emitLink("PixelDrain", fileName, link.url, fileSize, fileName, callback)
                             }
                         }
+                    }.getOrElse {
+                        Log.e("GDFlix", "PixelDrain skipped because of error: ${it.message}", it)
                     }
                 }
 
                 text.contains("CLOUD DOWNLOAD [R2]", ignoreCase = true) -> {
                     try {
                         val decodedLink = URLDecoder.decode(href.substringAfter("url="), "UTF-8")
-                        Log.d("GDFlix", "Emitting R2 Cloud stream: $decodedLink")
-                        emitLink("GDFlix [R2 Cloud]", "GDFlix [R2 Cloud] [$fileSize]", decodedLink)
+                        Log.d("GDFlix", "Found R2 Cloud download: $decodedLink")
+                        emitLink("GDFlix [R2 Cloud]", fileName, decodedLink, fileSize, fileName, callback)
                     } catch (e: Exception) {
                         Log.e("GDFlix", "R2 Cloud extraction exception: ${e.message}", e)
                     }
@@ -475,7 +574,7 @@ class GDFlix : ExtractorApi() {
                                     Log.d("GDFlix", "Invoking Gofile extractor for link: $link")
                                     loadExtractor(link, referer = "", subtitleCallback) { extLink ->
                                         CoroutineScope(Dispatchers.IO).launch {
-                                            emitLink("GDFlix [GoFile]", "GDFlix [GoFile] [$fileSize]", extLink.url)
+                                            emitLink("GoFile", fileName, extLink.url, fileSize, fileName, callback)
                                         }
                                     }
                                 }
@@ -491,7 +590,7 @@ class GDFlix : ExtractorApi() {
                             .headers["location"]?.substringAfter("url=").orEmpty()
 
                         Log.d("GDFlix", "Emitting Instant DL link: $link")
-                        emitLink("GDFlix [Instant Download]", "GDFlix [Instant Download] [$fileSize]", link)
+                        emitLink("GDFlix [Instant Download]", fileName, link, fileSize, fileName, callback)
                     } catch (e: Exception) {
                         Log.e("GDFlix", "Instant DL extraction exception: ${e.message}", e)
                     }
@@ -499,7 +598,7 @@ class GDFlix : ExtractorApi() {
 
                 text.contains("DIRECT DL", ignoreCase = true) -> {
                     Log.d("GDFlix", "Emitting Direct DL link: $href")
-                    emitLink("GDFlix [Direct]", "GDFlix [Direct] [$fileSize]", href)
+                    emitLink("GDFlix [Direct]", fileName, href, fileSize, fileName, callback)
                 }
 
                 text.contains("DRIVEBOT", ignoreCase = true) -> {
@@ -540,7 +639,7 @@ class GDFlix : ExtractorApi() {
                                 }
 
                                 Log.d("GDFlix", "Emitting DriveBot link: $downloadLink")
-                                emitLink("GDFlix [DriveBot]", "GDFlix [DriveBot] [$fileSize]", downloadLink)
+                                emitLink("GDFlix [DriveBot]", fileName, downloadLink, fileSize, fileName, callback)
                             }
                         }
                     } catch (e: Exception) {
@@ -563,7 +662,7 @@ class GDFlix : ExtractorApi() {
 
                 if (sourceurl.isNotEmpty()) {
                     Log.d("GDFlix", "Emitting Cloudflare Backup link ($type) fallback: $sourceurl")
-                    emitLink("GDFlix [CF]", "GDFlix [CF] [$fileSize]", sourceurl)
+                    emitLink("GDFlix [CF]", fileName, sourceurl, fileSize, fileName, callback)
                 }
             }
         } catch (e: Exception) {
