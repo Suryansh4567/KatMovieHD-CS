@@ -1,5 +1,9 @@
 package com.lagradost
 
+import android.util.Log
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -8,6 +12,7 @@ import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.addDate
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
@@ -38,19 +43,36 @@ class TheNextPlanet : MainAPI() {
         "https://www.thenextplanet-official.space/Webseries/?page=1" to "Web & TV Series"
     )
 
+    private val mapper = jacksonObjectMapper()
+
+    companion object {
+        private const val TAG = "TheNextPlanet"
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class PlanetLoadData(
+        val url: String,
+        val type: String,
+        val season: Int? = null,
+        val episode: Int? = null
+    )
+
     private fun cleanTitle(title: String): String {
-        return title.replace(Regex("""(?i)\b(download|hindi|dubbed|dual|audio|web-dl|webdl|bluray|cam-rip|camrip|hevc|hd-tc|hdtc|full|movie)\b"""), "")
+        return title.replace(Regex("""(?i)\b(download|hindi|dubbed|dual|audio|web-dl|webdl|bluray|cam-rip|camrip|hevc|hd-tc|hdtc|full|movie|season|episode|episodes|webseries|web-series|series)\b"""), "")
             .replace(Regex("""\s+"""), " ")
             .trim()
     }
 
     private fun parseCards(doc: Document): List<SearchResponse> {
-        val articles = doc.select("article")
+        // Select ONLY cards from the main movies table, filtering out header/footer/sidebar listings
+        val articles = doc.select("table#movies_table article")
+        Log.d(TAG, "parseCards found ${articles.size} article tags inside table#movies_table")
+
         return articles.mapNotNull { art ->
             val anchor = art.selectFirst("a[href]") ?: return@mapNotNull null
             val href = anchor.attr("href")
 
-            // Block explicit/adult paths
+            // Block explicit/adult paths from home and search results
             if (href.contains("adult", ignoreCase = true) || href.contains("hitclit", ignoreCase = true)) {
                 return@mapNotNull null
             }
@@ -67,10 +89,16 @@ class TheNextPlanet : MainAPI() {
 
             val isSeries = rawTitle.contains("Season", ignoreCase = true) || 
                            rawTitle.contains("S0", ignoreCase = true) || 
-                           rawTitle.contains("S1", ignoreCase = true)
-            val type = if (isSeries) TvType.TvSeries else TvType.Movie
+                           rawTitle.contains("S1", ignoreCase = true) ||
+                           rawTitle.contains("Episodes", ignoreCase = true)
 
-            newMovieSearchResponse(cleanName, url, type) {
+            val type = if (isSeries) TvType.TvSeries else TvType.Movie
+            val loadData = PlanetLoadData(url, if (isSeries) "tv" else "movie")
+            val serialized = mapper.writeValueAsString(loadData)
+
+            Log.d(TAG, "Card parsed: title=$cleanName, type=$type, serialized=$serialized")
+
+            newMovieSearchResponse(cleanName, serialized, type) {
                 this.posterUrl = posterUrl
             }
         }
@@ -87,6 +115,7 @@ class TheNextPlanet : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val url = request.data.replace("page=1", "page=$page")
+        Log.d(TAG, "getMainPage request: url=$url")
         val headers = mapOf("Referer" to "$mainUrl/")
         val response = app.get(url, headers = headers).text
         val doc = Jsoup.parse(response)
@@ -96,15 +125,22 @@ class TheNextPlanet : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val url = "$mainUrl/searchmovie?name=${URLEncoder.encode(query, "UTF-8")}"
+        Log.d(TAG, "search initiated: query=$query, url=$url")
         val headers = mapOf("Referer" to "$mainUrl/")
         val response = app.get(url, headers = headers).text
         val doc = Jsoup.parse(response)
-        return parseCards(doc)
+        val results = parseCards(doc)
+        Log.d(TAG, "search finished, found ${results.size} filtered results.")
+        return results
     }
 
     override suspend fun load(url: String): LoadResponse {
+        Log.d(TAG, "load initiated: rawPayload=$url")
+        val loadData = mapper.readValue<PlanetLoadData>(url)
+        val pageUrl = loadData.url
+
         val headers = mapOf("Referer" to "$mainUrl/")
-        val response = app.get(url, headers = headers).text
+        val response = app.get(pageUrl, headers = headers).text
         val doc = Jsoup.parse(response)
 
         val rawTitle = doc.selectFirst("meta[property=og:title]")?.attr("content")
@@ -118,19 +154,37 @@ class TheNextPlanet : MainAPI() {
 
         val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(rawTitle)?.value?.toIntOrNull()
 
-        val isSeries = rawTitle.contains("Season", ignoreCase = true) || 
-                       rawTitle.contains("S0", ignoreCase = true) || 
-                       rawTitle.contains("S1", ignoreCase = true)
+        // Correct TV Series Detection based on actual details page headings & title context
+        val pageTitle = doc.title()
+        val pageHeading = doc.selectFirst("h1")?.text() ?: ""
+        val isSeries = pageTitle.contains("Season", ignoreCase = true) || 
+                       pageTitle.contains("Episodes", ignoreCase = true) ||
+                       pageTitle.contains("Web Series", ignoreCase = true) ||
+                       pageHeading.contains("Season", ignoreCase = true) ||
+                       pageHeading.contains("Episodes", ignoreCase = true) ||
+                       pageHeading.contains("Web Series", ignoreCase = true)
+
+        Log.d(TAG, "load parsing complete: title=$title, isSeries=$isSeries, year=$year")
 
         if (isSeries) {
-            val episodesList = listOf(
-                newEpisode(url) {
-                    this.name = "Full Season"
-                    this.episode = 1
+            // Find episode counts inside the page context (such as: "1 to 08 episode(s)")
+            val epsMatch = Regex("""(?i)Episode\s*\d+\s*to\s*(\d+)""").find(doc.html())
+                ?: Regex("""(?i)(\d+)\s*episodes""").find(doc.html())
+            val numEps = epsMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1
+            Log.d(TAG, "TV Series detected, found $numEps episodes.")
+
+            val episodesList = (1..numEps).map { epNum ->
+                val epData = PlanetLoadData(pageUrl, "tv", season = 1, episode = epNum)
+                val epSerialized = mapper.writeValueAsString(epData)
+
+                newEpisode(epSerialized) {
+                    this.name = "Episode $epNum"
+                    this.episode = epNum
                     this.season = 1
                     this.posterUrl = poster
                 }
-            )
+            }
+
             return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodesList) {
                 this.posterUrl = poster
                 this.year = year
@@ -151,14 +205,19 @@ class TheNextPlanet : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        val loadData = mapper.readValue<PlanetLoadData>(data)
+        val pageUrl = loadData.url
         val headers = mapOf("Referer" to "$mainUrl/")
+
+        Log.d(TAG, "loadLinks initiated: url=$pageUrl, type=${loadData.type}, season=${loadData.season}, episode=${loadData.episode}")
 
         try {
             // Step 1: Load detail page to find the /galaxy/ link
-            val response = app.get(data, headers = headers).text
+            val response = app.get(pageUrl, headers = headers).text
             val doc = Jsoup.parse(response)
             val galaxyHref = doc.selectFirst("a[href*=/galaxy/]")?.attr("href") ?: return false
             val galaxyUrl = absoluteUrl(galaxyHref)
+            Log.d(TAG, "Galaxy page link extracted: $galaxyUrl")
 
             // Step 2: Fetch /galaxy/ page to find the /unlock-links/ link
             val galaxyResponse = app.get(galaxyUrl, headers = headers).text
@@ -174,15 +233,24 @@ class TheNextPlanet : MainAPI() {
             } else {
                 absoluteUrl(shortenerHref)
             }
+            Log.d(TAG, "Unlock page link extracted: $unlockUrl")
 
             // Step 3: Fetch the /unlock-links/ page
             val unlockResponse = app.get(unlockUrl, headers = headers).text
             val unlockDoc = Jsoup.parse(unlockResponse)
 
-            // Step 4: Extract and resolve direct hoster links
+            // Step 4: Extract and resolve direct hoster links (with quality/type and Stream Priorities)
             var foundAny = false
             val linkElements = unlockDoc.select("a[href*=/depisode/]")
-            for (el in linkElements) {
+            Log.d(TAG, "Found ${linkElements.size} raw link elements on unlock page.")
+
+            // Prioritize Playable stream mirrors (GDFlix and Mediafire) over other download buttons!
+            val sortedElements = linkElements.sortedByDescending { el ->
+                val href = el.attr("href")
+                href.contains("gdflix", ignoreCase = true) || href.contains("mediafire", ignoreCase = true)
+            }
+
+            for (el in sortedElements) {
                 val href = el.attr("href")
                 if (!href.contains("url=")) continue
                 
@@ -190,17 +258,32 @@ class TheNextPlanet : MainAPI() {
                 val decodedUrl = URLDecoder.decode(finalUrl, "UTF-8")
                 val label = el.text().trim()
 
-                // Filter out non-streamable links (like screenshots, etc.)
+                // Filter out non-streamable file paths
                 if (decodedUrl.contains(".jpg", ignoreCase = true) || decodedUrl.contains(".png", ignoreCase = true)) {
                     continue
                 }
 
-                if (decodedUrl.contains("gdflix", ignoreCase = true) || decodedUrl.contains("mediafire", ignoreCase = true)) {
-                    // Load the direct extractor if supported (like GDFlix, Mediafire)
-                    loadExtractor(decodedUrl, referer = unlockUrl, subtitleCallback, callback)
-                    foundAny = true
+                val isGdflix = decodedUrl.contains("gdflix", ignoreCase = true)
+                val isMediafire = decodedUrl.contains("mediafire", ignoreCase = true)
+
+                // Label and style links to prioritize playable streams clearly
+                val sourceName = when {
+                    isGdflix -> "GdFlix Stream (Playable)"
+                    isMediafire -> "Mediafire Stream (Playable)"
+                    decodedUrl.contains("photolinx", ignoreCase = true) || decodedUrl.contains("photon", ignoreCase = true) -> "Photon Stream (Playable)"
+                    else -> "TheNextPlanet Stream"
+                }
+
+                Log.d(TAG, "Extracting link: label='$label', url=$decodedUrl, sourceName=$sourceName")
+
+                if (isGdflix || isMediafire) {
+                    // Resolve natively via loadExtractor
+                    runCatching {
+                        loadExtractor(decodedUrl, referer = unlockUrl, subtitleCallback, callback)
+                        foundAny = true
+                    }
                 } else {
-                    // Emit direct link
+                    // Expose directly
                     val isM3u8 = decodedUrl.contains(".m3u8", ignoreCase = true)
                     val linkType = if (isM3u8) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                     val quality = when {
@@ -212,8 +295,8 @@ class TheNextPlanet : MainAPI() {
 
                     callback(
                         newExtractorLink(
-                            source = "TheNextPlanet",
-                            name = if (label.isNotBlank()) "TheNextPlanet ($label)" else "TheNextPlanet Link",
+                            source = sourceName,
+                            name = if (label.isNotBlank()) "$sourceName ($label)" else sourceName,
                             url = decodedUrl,
                             type = linkType
                         ) {
@@ -225,8 +308,10 @@ class TheNextPlanet : MainAPI() {
                 }
             }
 
+            Log.d(TAG, "loadLinks resolution finished. Emit success=$foundAny")
             return foundAny
         } catch (e: Exception) {
+            Log.e(TAG, "loadLinks execution exception: ${e.message}", e)
             return false
         }
     }
