@@ -200,10 +200,10 @@ class TheNextPlanet : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val url = "$mainUrl/searchmovie?name=${URLEncoder.encode(query, "UTF-8")}"
-        Log.d(TAG, "search initiated: query=$query, url=$url")
+        val url = "$mainUrl/searchmovie"
+        Log.d(TAG, "search initiated via POST: query=$query, url=$url")
         val headers = mapOf("Referer" to "$mainUrl/")
-        val response = app.get(url, headers = headers).text
+        val response = app.post(url, data = mapOf("name" to query), headers = headers).text
         val doc = Jsoup.parse(response)
         val results = parseCards(doc)
         Log.d(TAG, "search finished, found ${results.size} filtered results.")
@@ -287,11 +287,59 @@ class TheNextPlanet : MainAPI() {
 
         Log.d(TAG, "loadLinks initiated: url=$pageUrl, type=${loadData.type}, season=${loadData.season}, episode=${loadData.episode}")
 
+        var foundAny = false
         try {
             // Step 1: Load detail page to find the /galaxy/ link
             val response = app.get(pageUrl, headers = headers).text
             val doc = Jsoup.parse(response)
-            val galaxyHref = doc.selectFirst("a[href*=/galaxy/]")?.attr("href") ?: return false
+
+            // Additional research: Extract 'Watch Online' backup links via /get-doods
+            try {
+                val mName = Regex("""var movieName\s*=\s*['"](.*?)['"]""").find(response)?.groupValues?.get(1)
+                val mId = Regex("""var movieId\s*=\s*['"](.*?)['"]""").find(response)?.groupValues?.get(1)
+                Log.d(TAG, "Watch Online extraction details: mName=$mName, mId=$mId")
+                if (!mName.isNullOrBlank() && !mId.isNullOrBlank()) {
+                    val doodData = mapOf("mname" to mName, "mid" to mId)
+                    val doodResponse = app.post(
+                        "$mainUrl/get-doods",
+                        json = doodData,
+                        headers = mapOf("Referer" to pageUrl, "Content-Type" to "application/json")
+                    )
+                    Log.d(TAG, "get-doods response status: ${doodResponse.code}")
+                    if (doodResponse.code == 200) {
+                        val doodJson = doodResponse.text
+                        Log.d(TAG, "get-doods response body: $doodJson")
+                        val dt = mapper.readTree(doodJson)
+                        if (dt.has("data")) {
+                            val dataNode = dt.get("data")
+                            val qualities = listOf("LQ", "HQ", "FHD", "HEVC")
+                            for (q in qualities) {
+                                if (dataNode.has(q)) {
+                                    val linksStr = dataNode.get(q).asText()
+                                    if (linksStr.isNotBlank()) {
+                                        val links = linksStr.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                                        for (link in links) {
+                                            Log.d(TAG, "Watch Online embed link found: quality=$q, url=$link")
+                                            try {
+                                                loadExtractor(link, referer = pageUrl, subtitleCallback) { extLink ->
+                                                    callback(extLink)
+                                                    foundAny = true
+                                                }
+                                            } catch (t: Throwable) {
+                                                Log.e(TAG, "extractor failed: watch-online link failed for: $link", t)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.e(TAG, "extractor failed: get-doods watch online processing failed", t)
+            }
+
+            val galaxyHref = doc.selectFirst("a[href*=/galaxy/]")?.attr("href") ?: return foundAny
             val galaxyUrl = absoluteUrl(galaxyHref)
             Log.d(TAG, "Galaxy page link extracted: $galaxyUrl")
 
@@ -300,7 +348,7 @@ class TheNextPlanet : MainAPI() {
             val galaxyDoc = Jsoup.parse(galaxyResponse)
             val shortenerHref = galaxyDoc.selectFirst("a[href*=solution-hub.com]")?.attr("href") 
                 ?: galaxyDoc.selectFirst("a[href*=/unlock-links/]")?.attr("href") 
-                ?: return false
+                ?: return foundAny
 
             // Extract the direct unlock-links URL from the shortener link if present
             val unlockUrl = if (shortenerHref.contains("link=")) {
@@ -316,7 +364,6 @@ class TheNextPlanet : MainAPI() {
             val unlockDoc = Jsoup.parse(unlockResponse)
 
             // Step 4: Extract and resolve direct hoster links (with quality/type and Stream Priorities)
-            var foundAny = false
             val linkElements = unlockDoc.select("a[href*=/depisode/]")
             Log.d(TAG, "Found ${linkElements.size} raw link elements on unlock page.")
 
@@ -350,14 +397,16 @@ class TheNextPlanet : MainAPI() {
 
                 if (isGdflix) {
                     // Resolve natively via GDFlix Extractor class
-                    runCatching {
+                    try {
                         Log.d(TAG, "Invoking GDFlix extractor natively for URL: $decodedUrl")
                         GDFlix().getUrl(decodedUrl, referer = unlockUrl, subtitleCallback, callback)
                         foundAny = true
+                    } catch (e: Throwable) {
+                        Log.e(TAG, "extractor failed: GDFlix failed for URL: $decodedUrl", e)
                     }
                 } else if (isMediafire) {
                     // Resolve natively via loadExtractor
-                    runCatching {
+                    try {
                         loadExtractor(decodedUrl, referer = unlockUrl, subtitleCallback) { link ->
                             CoroutineScope(Dispatchers.IO).launch {
                                 callback(
@@ -374,6 +423,8 @@ class TheNextPlanet : MainAPI() {
                             }
                         }
                         foundAny = true
+                    } catch (e: Throwable) {
+                        Log.e(TAG, "extractor failed: Mediafire failed for URL: $decodedUrl", e)
                     }
                 } else {
                     // Expose directly
@@ -412,7 +463,7 @@ class TheNextPlanet : MainAPI() {
             return foundAny
         } catch (e: Exception) {
             Log.e(TAG, "loadLinks execution exception: ${e.message}", e)
-            return false
+            return foundAny
         }
     }
 }
@@ -539,9 +590,17 @@ class GDFlix : ExtractorApi() {
             when {
                 text.contains("PixelDrain", ignoreCase = true) || text.contains("Pixel", ignoreCase = true) -> {
                     Log.d("GDFlix", "Found PixelDrain button: text='$text', href='$href'")
-                    runCatching {
+                    try {
                         // Bypassing Pixeldrain redirects to get actual file URL
-                        val finalPixelUrl = app.get(href, allowRedirects = false).headers["location"] ?: href
+                        val finalRedirectUrl = app.get(href).url
+                        // Normalize any pixeldrain.dev or pixeldra.in aliases to pixeldrain.com
+                        var finalPixelUrl = finalRedirectUrl
+                        if (finalPixelUrl.contains("pixeldrain.dev", ignoreCase = true)) {
+                            finalPixelUrl = finalPixelUrl.replace("pixeldrain.dev", "pixeldrain.com", ignoreCase = true)
+                        }
+                        if (finalPixelUrl.contains("pixeldra.in", ignoreCase = true)) {
+                            finalPixelUrl = finalPixelUrl.replace("pixeldra.in", "pixeldrain.com", ignoreCase = true)
+                        }
                         Log.d("GDFlix", "Resolved PixelDrain URL: $finalPixelUrl")
 
                         loadExtractor(finalPixelUrl, referer = "", subtitleCallback) { link ->
@@ -549,8 +608,8 @@ class GDFlix : ExtractorApi() {
                                 emitLink("PixelDrain", fileName, link.url, fileSize, fileName, callback)
                             }
                         }
-                    }.getOrElse {
-                        Log.e("GDFlix", "PixelDrain skipped because of error: ${it.message}", it)
+                    } catch (e: Throwable) {
+                        Log.e("GDFlix", "extractor failed: PixelDrain skipped because of error: ${e.message}", e)
                     }
                 }
 
@@ -560,7 +619,7 @@ class GDFlix : ExtractorApi() {
                         Log.d("GDFlix", "Found R2 Cloud download: $decodedLink")
                         emitLink("GDFlix [R2 Cloud]", fileName, decodedLink, fileSize, fileName, callback)
                     } catch (e: Exception) {
-                        Log.e("GDFlix", "R2 Cloud extraction exception: ${e.message}", e)
+                        Log.e("GDFlix", "extractor failed: R2 Cloud extraction exception: ${e.message}", e)
                     }
                 }
 
@@ -580,7 +639,7 @@ class GDFlix : ExtractorApi() {
                                 }
                             }
                     } catch (e: Exception) {
-                        Log.e("GDFlix", "Gofile redirect exception: ${e.message}", e)
+                        Log.e("GDFlix", "extractor failed: Gofile redirect exception: ${e.message}", e)
                     }
                 }
 
@@ -592,7 +651,7 @@ class GDFlix : ExtractorApi() {
                         Log.d("GDFlix", "Emitting Instant DL link: $link")
                         emitLink("GDFlix [Instant Download]", fileName, link, fileSize, fileName, callback)
                     } catch (e: Exception) {
-                        Log.e("GDFlix", "Instant DL extraction exception: ${e.message}", e)
+                        Log.e("GDFlix", "extractor failed: Instant DL extraction exception: ${e.message}", e)
                     }
                 }
 
@@ -643,7 +702,7 @@ class GDFlix : ExtractorApi() {
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e("GDFlix", "DriveBot extraction exception: ${e.message}", e)
+                        Log.e("GDFlix", "extractor failed: DriveBot extraction exception: ${e.message}", e)
                     }
                 }
 
@@ -666,7 +725,7 @@ class GDFlix : ExtractorApi() {
                 }
             }
         } catch (e: Exception) {
-            Log.e("GDFlix", "CF backup extraction exception: ${e.message}", e)
+            Log.e("GDFlix", "extractor failed: CF backup extraction exception: ${e.message}", e)
         }
     }
 }
