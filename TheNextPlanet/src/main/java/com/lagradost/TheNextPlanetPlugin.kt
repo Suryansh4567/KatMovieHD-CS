@@ -7,5 +7,6 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class TheNextPlanetPlugin : BasePlugin() {
     override fun load() {
         registerMainAPI(TheNextPlanet())
+        registerExtractorAPI(GDFlix())
     }
 }
