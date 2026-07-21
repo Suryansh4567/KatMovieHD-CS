@@ -118,10 +118,76 @@ class TheNextPlanet : MainAPI() {
         val episode: Int? = null
     )
 
+    /**
+     * Clean a raw title from the site into a presentable CS3 title.
+     * Strips trailing metadata (audio/quality/print descriptors, language lists,
+     * "free download" suffixes) but preserves the year and the core title.
+     *
+     * Examples:
+     *  "Kantara 2022 DUAL [KANNADA + HINDI] audio Free Download"
+     *     -> "Kantara (2022)"
+     *  "Lock Upp 2026 HINDI audio Free Download"
+     *     -> "Lock Upp (2026)"
+     *  "Kantara: A Legened - Chapter 1 2025 Dual [Kannada + Hindi] Audio ..."
+     *     -> "Kantara: A Legened - Chapter 1 (2025)"
+     *  "Alpha (2026) Hindi Audio Download Upto 2.5gb HD-TC"
+     *     -> "Alpha (2026)"        // year already in parens is kept
+     */
     private fun cleanTitle(title: String): String {
-        return title.replace(Regex("""(?i)\b(download|hindi|dubbed|dual|audio|web-dl|webdl|bluray|cam-rip|camrip|hevc|hd-tc|hdtc|full|movie|season|episode|episodes|webseries|web-series|series)\b"""), "")
+        // 1) collapse the separators the site uses so tokenisation is consistent
+        var s = title
+            .replace('\u00A0', ' ')
             .replace(Regex("""\s+"""), " ")
             .trim()
+
+        // 2) strip the constant trailing "Free Download" / "Watch Online ..." suffix
+        s = s.replace(Regex("""(?i)\s+(Free\s+Download|Watch\s+Online.*?)$"""), "").trim()
+
+        // 3) strip bracketed language blocks such as
+        //    "[Kannada + Hindi]", "[English + Hindi]", "(Hindi + English)"
+        //    and "DUAL(HINDI + ENGLISH)" / "Dual [Kannada + Hindi]" / "Multi (...)" descriptors
+        s = s.replace(
+            Regex("""(?i)\b(Dual|Multi|Hindi|Dubbed|Audio|Web[-\s]?DL|WEBDL|BluRay|Blu-Ray|HEVC|HD[-\s]?TC|HD[-\s]?TS|CAM|HDRip|WEBRip|REMUX)\b\s*(\[[^\]]*\]|\([^)]*\))?"""),
+            ""
+        )
+        // 3a) collapse the double-spaces left over by the strip above
+        s = s.replace(Regex("""\s+"""), " ").trim()
+
+        // 4) strip trailing bare "Audio" / "Full Movie" / "Download" / "Movie" tokens
+        s = s.replace(Regex("""(?i)\b(audio|full\s+movie|download|movie)\b"""), "").trim()
+
+        // 5) collapse multiple spaces and stray trailing punctuation/whitespace
+        s = s.replace(Regex("""\s+"""), " ")
+            .replace(Regex("""[\s\-:.,|]+$"""), "")
+            // drop trailing pipe-bounded size/quality fragments like "| Upto 3gb |"
+            .replace(Regex("""(?i)\s*\|\s*(Upto|Up\s+to)[^|]*$"""), "")
+            .trim()
+
+        // 6) normalise the year into "(YYYY)" form attached to the title
+        //    - if a "(YYYY)" is already present, keep it
+        //    - if a bare YYYY is present, wrap it as "(YYYY)"
+        val parenYear = Regex("""\(\s*(19\d{2}|20\d{2})\s*\)""").find(s)
+        if (parenYear != null) {
+            // year already wrapped — just clean up empty parens or stray space
+            // left over from previous steps
+            s = s.replace(Regex("""\(\s*\)"""), "").trim()
+        } else {
+            val yearMatch = Regex("""\b(19\d{2}|20\d{2})\b""").find(s)
+            val year = yearMatch?.value
+            if (year != null) {
+                // remove the bare year, then re-append as (YYYY)
+                val withoutYear = s.replace(
+                    Regex("""\b""" + Regex.escape(year) + Regex("""\b""")),
+                    ""
+                ).trim()
+                s = withoutYear.replace(Regex("""\s+"""), " ")
+                    .replace(Regex("""[\s\-:.,|]+$"""), "")
+                    .trim()
+                s = if (s.isBlank()) year else "$s ($year)"
+            }
+        }
+
+        return s.ifBlank { title.trim() }
     }
 
     // ─── Detect if a title looks like a TV series ────────────────────────
@@ -464,8 +530,10 @@ class TheNextPlanet : MainAPI() {
                 }
                 isMediafire || isFilepress || isPhoton || isFastilinks -> {
                     logd("Using loadExtractor for: $url")
-                    // Pass callback directly — loadExtractor invokes it with proper source names.
-                    // We just need to ensure the link gets resolved.
+                    // cloudstream3's built-in extractors already provide a host-specific
+                    // source name on each ExtractorLink they emit (e.g. "Vidhide",
+                    // "Voe", "Mediafire"). Don't override that — those labels are
+                    // already useful and consistent with the rest of CS3's UI.
                     loadExtractor(url, referer = referer, subtitleCallback, callback)
                     true
                 }
@@ -607,8 +675,33 @@ class GDFlix : ExtractorApi() {
                     }
 
                     text.contains("Instant DL", ignoreCase = true) -> {
-                        val link = app.get(href, allowRedirects = false)
-                            .headers["location"]?.substringAfter("url=").orEmpty()
+                        // Two formats observed on the live site:
+                        //   1) Old:  href is a short-link redirect; we follow with
+                        //      allowRedirects=false and read the `Location: ?url=...` header.
+                        //   2) New:  href IS the direct streamable URL (e.g. busycdn.xyz/...).
+                        //      The page wraps the file path with an HMAC-like hash but the
+                        //      `href` attribute already points at the playable file.
+                        val link = when {
+                            href.contains("url=") -> URLDecoder.decode(
+                                href.substringAfter("url="),
+                                "UTF-8"
+                            )
+                            else -> {
+                                // Try a non-redirected HEAD/GET first — if we get a 302
+                                // with `url=...` in the Location header, use that; otherwise
+                                // the href itself is the direct link.
+                                val redirectTarget = try {
+                                    app.get(href, allowRedirects = false)
+                                        .headers["location"]?.substringAfter("url=")
+                                        ?.let { URLDecoder.decode(it, "UTF-8") }
+                                        .orEmpty()
+                                } catch (e: Throwable) {
+                                    Log.w(TAG, "Instant DL HEAD failed for $href: ${e.message}")
+                                    ""
+                                }
+                                if (redirectTarget.isNotBlank()) redirectTarget else href
+                            }
+                        }
                         if (link.isNotBlank()) {
                             Log.d(TAG, "Instant DL: $link")
                             val label = TheNextPlanet.generateLabel("GDFlix [Instant]", fileName, fileSize)
