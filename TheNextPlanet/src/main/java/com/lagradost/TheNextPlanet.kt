@@ -108,6 +108,140 @@ class TheNextPlanet : MainAPI() {
                 }
             }
         }
+
+        /**
+         * Structured metadata about a single download link, scraped from the
+         * live site so the displayed label is consistent across all hosters
+         * (GDFlix, Mediafire, Photolinx, Fastilinks, Voe/Vidhide from Watch
+         * Online, direct m3u8/mp4, etc.).
+         *
+         * Fields are nullable; null = "no info available, don't fabricate".
+         */
+        data class LinkMeta(
+            val resolution: String? = null,   // "720p" / "1080p" / "2160p" / null
+            val print: String? = null,         // "WEB-DL" / "HEVC" / "BluRay" / null
+            val codec: String? = null,         // "x265" / "x264" / null
+            val language: String? = null,      // "Hindi" / "Dual Audio" / "English" / null
+            val size: String? = null           // "1.4GB" / "843MB" / null
+        ) {
+            fun toLabelFragment(): String {
+                // Order: resolution, print, language, codec, size — matches the
+                // existing generateLabel() ordering for visual consistency.
+                return listOfNotNull(resolution, print, language, codec, size)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" • ")
+            }
+        }
+
+        /**
+         * Parse the unlock-page `<details><summary>…</summary>` header text
+         * into a [LinkMeta]. The site uses headers like:
+         *   "720p HEVC Download Links"
+         *   "1080p Download Links"
+         *   "480p Download Links"
+         *   "2160p WEB-DL Download Links"
+         *
+         * Anything we can't parse cleanly is left as null — never fabricated.
+         */
+        fun parseGroupSummary(raw: String?): LinkMeta {
+            if (raw.isNullOrBlank()) return LinkMeta()
+            val s = raw.trim()
+
+            val resolution: String? = when {
+                Regex("""\b2160p\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "2160p"
+                Regex("""\b1440p\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "1440p"
+                Regex("""\b1080p\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "1080p"
+                Regex("""\b720p\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "720p"
+                Regex("""\b480p\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "480p"
+                Regex("""\b360p\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "360p"
+                Regex("""\b4k\b""",     RegexOption.IGNORE_CASE).containsMatchIn(s) -> "2160p"
+                Regex("""\b2k\b""",     RegexOption.IGNORE_CASE).containsMatchIn(s) -> "1440p"
+                else -> null
+            }
+
+            val print: String? = when {
+                Regex("""\bweb[-\s]?dl\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "WEB-DL"
+                Regex("""\bwebrip\b""",        RegexOption.IGNORE_CASE).containsMatchIn(s) -> "WEBRip"
+                Regex("""\bblu[-\s]?ray\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "BluRay"
+                Regex("""\bhdrip\b""",         RegexOption.IGNORE_CASE).containsMatchIn(s) -> "HDRip"
+                Regex("""\bhd[-\s]?tc\b""",    RegexOption.IGNORE_CASE).containsMatchIn(s) -> "HD-TC"
+                Regex("""\bhd[-\s]?ts\b""",    RegexOption.IGNORE_CASE).containsMatchIn(s) -> "HD-TS"
+                Regex("""\bhd[-]?tv\b""",      RegexOption.IGNORE_CASE).containsMatchIn(s) -> "HDTV"
+                Regex("""\bdvd[-\s]?rip\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "DVDRip"
+                Regex("""\bbr[-\s]?rip\b""",   RegexOption.IGNORE_CASE).containsMatchIn(s) -> "BR-Rip"
+                Regex("""\bremux\b""",         RegexOption.IGNORE_CASE).containsMatchIn(s) -> "REMUX"
+                Regex("""\bcam\b""",           RegexOption.IGNORE_CASE).containsMatchIn(s) -> "CAM"
+                Regex("""\bpre[-\s]?dvdrip\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "Pre-DVDRip"
+                Regex("""\bhevc\b""",          RegexOption.IGNORE_CASE).containsMatchIn(s) -> "HEVC"
+                else -> null
+            }
+
+            val codec: String? = when {
+                Regex("""\bx265\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "x265"
+                Regex("""\bx264\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "x264"
+                else -> null
+            }
+
+            val language: String? = when {
+                Regex("""\bdual\s*audio\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "Dual Audio"
+                Regex("""\bmulti\s*audio\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "Multi Audio"
+                Regex("""\bhindi\b""",   RegexOption.IGNORE_CASE).containsMatchIn(s) -> "Hindi"
+                Regex("""\benglish\b""", RegexOption.IGNORE_CASE).containsMatchIn(s) -> "English"
+                Regex("""\btamil\b""",   RegexOption.IGNORE_CASE).containsMatchIn(s) -> "Tamil"
+                Regex("""\btelugu\b""",  RegexOption.IGNORE_CASE).containsMatchIn(s) -> "Telugu"
+                else -> null
+            }
+
+            val sizeMatch = Regex("""\b(\d+(?:\.\d+)?\s*(?:GB|MB))\b""", RegexOption.IGNORE_CASE).find(s)
+            val size = sizeMatch?.groupValues?.get(1)?.uppercase()?.replace(" ", "")
+
+            return LinkMeta(resolution, print, codec, language, size)
+        }
+
+        /**
+         * Build a fully-branded label for a given source.  The label format is:
+         *
+         *   {SourceName} • {resolution} • {print} • {language} • {codec} • {size}
+         *
+         * Fields are joined with " • " in that order; missing fields are omitted.
+         * The order matches what parseFilename() / generateLabel() already
+         * produce for the GDFlix branches — so labels are visually consistent
+         * regardless of which extractor produced the link.
+         */
+        fun buildLabel(sourceName: String, meta: LinkMeta): String {
+            val frag = meta.toLabelFragment()
+            return if (frag.isBlank()) sourceName else "$sourceName • $frag"
+        }
+
+        /**
+         * Merge a richer [LinkMeta] (e.g. scraped from the GDFlix landing
+         * page) with a fallback [LinkMeta] (e.g. parsed from the unlock
+         * page's enclosing group).  Fields from `primary` win; `fallback`
+         * only fills in nulls.
+         */
+        fun mergeMeta(primary: LinkMeta, fallback: LinkMeta?): LinkMeta {
+            if (fallback == null) return primary
+            return LinkMeta(
+                resolution = primary.resolution ?: fallback.resolution,
+                print      = primary.print      ?: fallback.print,
+                codec      = primary.codec      ?: fallback.codec,
+                language   = primary.language   ?: fallback.language,
+                size       = primary.size       ?: fallback.size
+            )
+        }
+
+        /**
+         * Bucket-name → LinkMeta mapping for the Watch Online (`/get-doods`)
+         * API.  FHD = 1080p, HEVC = codec-only, LQ/HQ = no resolution hint.
+         * "HEVC" → print=HEVC is the common case the live site returns.
+         */
+        fun bucketToMeta(bucket: String): LinkMeta = when (bucket.uppercase()) {
+            "FHD" -> LinkMeta(resolution = "1080p")
+            "HD"  -> LinkMeta(resolution = "720p")
+            "HEVC" -> LinkMeta(print = "HEVC", codec = "x265")
+            "LQ", "HQ" -> LinkMeta()
+            else -> LinkMeta()
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -404,11 +538,14 @@ class TheNextPlanet : MainAPI() {
                                 if (dataNode.has(q)) {
                                     val linksStr = dataNode.get(q).asText()
                                     if (linksStr.isNotBlank()) {
+                                        val bucketMeta = bucketToMeta(q)
                                         for (link in linksStr.split(",").map { it.trim() }.filter { it.isNotBlank() }) {
-                                            logd("Watch Online embed: quality=$q, url=$link")
+                                            logd("Watch Online embed: bucket=$q, url=$link")
                                             try {
                                                 loadExtractor(link, referer = pageUrl, subtitleCallback) { extLink ->
-                                                    callback(extLink)
+                                                    callback(
+                                                        relabel(extLink, "TheNextPlanet [Watch Online]", bucketMeta)
+                                                    )
                                                     foundAny = true
                                                 }
                                             } catch (t: Throwable) {
@@ -459,6 +596,13 @@ class TheNextPlanet : MainAPI() {
             //   a) Links inside /depisode/ wrapper: <a href="/depisode/?lockey=...&url=https://...">
             //   b) Direct GDFlix links: <a href="https://gdflix.dev/file/...">
             //   c) Direct Filepress links (in depisode wrappers)
+            //
+            // The site groups every link inside <details><summary>...</summary>
+            // blocks (e.g. "720p HEVC Download Links", "1080p Download Links").
+            // We walk the unlock doc group-by-group so each link inherits
+            // the resolution / print / language metadata from its enclosing
+            // summary — that's the only place Mediafire, Photolinx, Fastilinks
+            // expose per-link quality info, since their URL slugs are opaque.
 
             // ── 5a: Process depisode-wrapped links ──
             val depisodeLinks = unlockDoc.select("a[href*=/depisode/]")
@@ -474,9 +618,17 @@ class TheNextPlanet : MainAPI() {
                 // Skip non-streamable file types
                 if (finalUrl.contains(".jpg", ignoreCase = true) || finalUrl.contains(".png", ignoreCase = true)) continue
 
-                logd("depisode link: label='$label', url=$finalUrl")
+                // Resolve the enclosing <details> summary text → structured LinkMeta.
+                // ancestor <details> → first <summary> child → its text content.
+                val summaryText = el.parents()
+                    .firstOrNull { it.tagName() == "details" }
+                    ?.selectFirst("summary")
+                    ?.text()
+                    ?.let { Regex("""\s+""").replace(it, " ").trim() }
+                val groupMeta = parseGroupSummary(summaryText)
+                logd("depisode link: label='$label', group='$summaryText', url=$finalUrl")
 
-                foundAny = resolveUrl(finalUrl, unlockUrl, label, subtitleCallback, callback) || foundAny
+                foundAny = resolveUrl(finalUrl, unlockUrl, label, groupMeta, subtitleCallback, callback) || foundAny
             }
 
             // ── 5b: Process direct GDFlix / Filepress links (not wrapped in depisode) ──
@@ -494,9 +646,16 @@ class TheNextPlanet : MainAPI() {
                 if (depisodeLinks.any { URLDecoder.decode(it.attr("href").substringAfter("url="), "UTF-8") == href }) continue
 
                 val label = a.text().trim()
-                logd("Direct host link: label='$label', url=$href")
 
-                foundAny = resolveUrl(href, unlockUrl, label, subtitleCallback, callback) || foundAny
+                val summaryText = a.parents()
+                    .firstOrNull { it.tagName() == "details" }
+                    ?.selectFirst("summary")
+                    ?.text()
+                    ?.let { Regex("""\s+""").replace(it, " ").trim() }
+                val groupMeta = parseGroupSummary(summaryText)
+                logd("Direct host link: label='$label', group='$summaryText', url=$href")
+
+                foundAny = resolveUrl(href, unlockUrl, label, groupMeta, subtitleCallback, callback) || foundAny
             }
 
             logd("loadLinks finished: foundAny=$foundAny")
@@ -512,6 +671,7 @@ class TheNextPlanet : MainAPI() {
         url: String,
         referer: String,
         label: String,
+        groupMeta: Companion.LinkMeta,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
@@ -521,20 +681,40 @@ class TheNextPlanet : MainAPI() {
         val isPhoton = url.contains("photolinx", ignoreCase = true) || url.contains("photon", ignoreCase = true)
         val isFastilinks = url.contains("fastilinks", ignoreCase = true)
 
+        // Derive a per-source brand name. The groupMeta is the fallback
+        // when the underlying extractor's own metadata is sparse (e.g. a
+        // Mediafire link with an opaque slug has no quality info of its own,
+        // but its enclosing unlock-page <details> block does).
+        val hosterBrand = when {
+            isGdflix -> null                          // GDFlix has its own rich labels
+            isMediafire -> "TheNextPlanet [Mediafire]"
+            isPhoton -> "TheNextPlanet [Photolinx]"
+            isFilepress -> "TheNextPlanet [Filepress]"
+            isFastilinks -> "TheNextPlanet [Fastilinks]"
+            else -> "TheNextPlanet [Direct]"
+        }
+
         return try {
             when {
                 isGdflix -> {
                     logd("Invoking GDFlix extractor: $url")
-                    GDFlix().getUrl(url, referer, subtitleCallback, callback)
+                    // Pass groupMeta down so GDFlix can use it as a fallback
+                    // when its own fileName parsing returns nothing (e.g. an
+                    // older GDFlix landing page missing the Name/Size fields).
+                    GDFlix().getUrl(url, referer, groupMeta, subtitleCallback, callback)
                     true
                 }
                 isMediafire || isFilepress || isPhoton || isFastilinks -> {
                     logd("Using loadExtractor for: $url")
-                    // cloudstream3's built-in extractors already provide a host-specific
-                    // source name on each ExtractorLink they emit (e.g. "Vidhide",
-                    // "Voe", "Mediafire"). Don't override that — those labels are
-                    // already useful and consistent with the rest of CS3's UI.
-                    loadExtractor(url, referer = referer, subtitleCallback, callback)
+                    val brand = hosterBrand!!
+                    loadExtractor(url, referer = referer, subtitleCallback) { extLink ->
+                        // CS3's built-in extractors emit a link with a host-only
+                        // source name (e.g. "MediaFire"). We rebuild it using
+                        // the same generateLabel() pattern the GDFlix branches
+                        // already use, fed by the per-link metadata scraped
+                        // from the unlock page's enclosing <details> group.
+                        callback(relabel(extLink, brand, groupMeta))
+                    }
                     true
                 }
                 else -> {
@@ -547,11 +727,16 @@ class TheNextPlanet : MainAPI() {
                         url.contains("480") -> Qualities.P480.value
                         else -> Qualities.Unknown.value
                     }
-                    val cleanFilename = url.split("/").lastOrNull()?.substringBefore("?") ?: label
-                    val sourceName = generateLabel("TheNextPlanet", cleanFilename, null)
+                    val brand = hosterBrand!!
+                    val sourceName = buildLabel(brand, groupMeta)
+                    val finalName = if (sourceName == brand) {
+                        // No group metadata — fall back to URL slug parsing so
+                        // we still get *some* structured info if available.
+                        generateLabel(brand, url.split("/").lastOrNull()?.substringBefore("?") ?: label, null)
+                    } else sourceName
 
                     callback(
-                        newExtractorLink(sourceName, sourceName, url, linkType) {
+                        newExtractorLink(finalName, finalName, url, linkType) {
                             this.referer = referer
                             this.quality = quality
                         }
@@ -563,6 +748,44 @@ class TheNextPlanet : MainAPI() {
             Log.e(TAG, "resolveUrl failed for $url: ${e.message}", e)
             false
         }
+    }
+
+    /**
+     * Replace the `source` and `name` on an [ExtractorLink] returned by an
+     * underlying extractor (loadExtractor, GDFlix(), …) so the label shown
+     * in the player's "Sources" UI matches the standard
+     *
+     *   {SourceName} • {resolution} • {print} • {language} • {codec} • {size}
+     *
+     * format.  The original link's URL, referer, quality, headers, type and
+     * audioTracks are preserved verbatim.  If the underlying extractor
+     * already supplied a richer meta fragment (e.g. GDFlix's "Kantara.2022.
+     * 720p.HEVC…") it wins; the fallback [groupMeta] only fills in nulls.
+     */
+    private fun relabel(
+        original: ExtractorLink,
+        sourceName: String,
+        fallback: Companion.LinkMeta
+    ): ExtractorLink {
+        val fromFilename = Companion.parseFilename(original.name)
+        val parsed = Companion.parseGroupSummary(fromFilename)   // re-parse the existing label back into LinkMeta
+        val merged = Companion.mergeMeta(parsed, fallback)
+        val newName = Companion.buildLabel(sourceName, merged)
+        // newExtractorLink is a suspend function in this CS3 version, but
+        // we want a synchronous "clone with new name" operation here.
+        // Use the public constructor directly — it's the same one
+        // newExtractorLink delegates to internally.
+        return ExtractorLink(
+            newName,
+            original.name,    // keep the original display name (e.g. "Kantara.2022.720p.HEVC…")
+            original.url,
+            original.referer,
+            original.quality,
+            original.headers,
+            original.extractorData,
+            original.type,
+            original.audioTracks
+        )
     }
 }
 
@@ -595,6 +818,27 @@ class GDFlix : ExtractorApi() {
     override suspend fun getUrl(
         url: String,
         referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        // Backwards-compat shim: ExtractorApi's getUrl is a 4-arg method, so
+        // we forward to the 5-arg overload (which carries the unlock-page
+        // group metadata) using a default empty LinkMeta when called by
+        // anything that doesn't know about the extra context.
+        getUrl(url, referer, TheNextPlanet.Companion.LinkMeta(), subtitleCallback, callback)
+    }
+
+    /**
+     * 5-argument overload that lets the caller pass the per-link metadata
+     * scraped from the unlock page's enclosing <details> group.  The
+     * GDFlix landing page's own `Name : …` field is normally richer, but
+     * if it ever returns nothing this fallback fills in resolution / print
+     * / language so the label is still informative.
+     */
+    suspend fun getUrl(
+        url: String,
+        referer: String?,
+        fallbackMeta: TheNextPlanet.Companion.LinkMeta,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
