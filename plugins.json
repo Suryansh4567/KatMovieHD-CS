@@ -46,14 +46,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/TheNextPlanet.cs3",
         "status": 1,
-        "version": 1,
+        "version": 2,
         "name": "TheNextPlanet",
         "internalName": "TheNextPlanet",
         "authors": [
             "arena"
         ],
         "description": "Stream movies, TV shows & anime from TheNextPlanet.",
-        "fileSize": 41729,
+        "fileSize": 42571,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -62,6 +62,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-afab7d5c46d23557b89f4794b330a17b0fbe78a45292b706fd0a99ab77b23f5c"
+        "fileHash": "sha256-1dcca19f08cfa780f000e4f0c1c74fe530082e7cbf2abc739915c87f9b76185a"
     }
 ]
