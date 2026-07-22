@@ -776,8 +776,8 @@ class TheNextPlanet : MainAPI() {
         // Use the public constructor directly — it's the same one
         // newExtractorLink delegates to internally.
         return ExtractorLink(
-            newName,
-            original.name,    // keep the original display name (e.g. "Kantara.2022.720p.HEVC…")
+            newName,          // source slot — shown in the source chip
+            newName,          // name slot — shown in the player's top-bar title
             original.url,
             original.referer,
             original.quality,
