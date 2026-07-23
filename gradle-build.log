@@ -35,13 +35,13 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
 > Task :TheNextPlanet:generateDebugResources
-> Task :KMMovies:parseDebugLocalResources
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
+> Task :KatMovieHD:parseDebugLocalResources
+> Task :KMMovies:parseDebugLocalResources
+> Task :TheNextPlanet:parseDebugLocalResources
 > Task :KatMovieHD:generateDebugRFile
 > Task :KMMovies:generateDebugRFile
-> Task :TheNextPlanet:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugRFile
 
 > Task :TheNextPlanet:compileDebugKotlin
@@ -88,6 +88,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Th
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 25s
+BUILD SUCCESSFUL in 53s
 34 actionable tasks: 34 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
