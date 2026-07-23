@@ -34,20 +34,20 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugResources
 > Task :KMMovies:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :TheNextPlanet:packageDebugResources
+> Task :TheNextPlanet:processDebugNavigationResources
 > Task :KatMovieHD:generateDebugRFile
 > Task :KMMovies:generateDebugRFile
-> Task :TheNextPlanet:processDebugNavigationResources
 > Task :TheNextPlanet:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugRFile
 
 > Task :TheNextPlanet:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:567:29 Unnecessary safe call on a non-null receiver of type 'String'.
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:627:13 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:969:16 'constructor(source: String, name: String, url: String, referer: String, quality: Int, headers: Map<String, String> = ..., extractorData: String? = ..., type: ExtractorLinkType, audioTracks: List<AudioFile> = ...): ExtractorLink' is deprecated. Use newExtractorLink.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:570:29 Unnecessary safe call on a non-null receiver of type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:630:13 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:998:16 'constructor(source: String, name: String, url: String, referer: String, quality: Int, headers: Map<String, String> = ..., extractorData: String? = ..., type: ExtractorLinkType, audioTracks: List<AudioFile> = ...): ExtractorLink' is deprecated. Use newExtractorLink.
 
 > Task :KMMovies:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:186:55 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
@@ -88,6 +88,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Th
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 28s
+BUILD SUCCESSFUL in 25s
 34 actionable tasks: 34 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
