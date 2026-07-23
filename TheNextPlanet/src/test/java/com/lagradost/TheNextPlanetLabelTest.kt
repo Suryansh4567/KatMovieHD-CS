@@ -185,4 +185,156 @@ class TheNextPlanetLabelTest {
         val frag = TheNextPlanet.parseFilename(name)
         assertEquals("", frag)
     }
+
+    // ─── shouldSkip (v4 audit follow-up) ───────────────────────────────
+    //
+    // The SOURCE_COVERAGE_AUDIT.md identified 5 hosters the plugin
+    // deliberately does not support (Gap A/B/C).  These tests pin down
+    // the shouldSkip() decisions so a future refactor can't accidentally
+    // re-enable a broken code path (e.g. fastmkv.sbs emitting a Source
+    // with a non-stream wrapper URL, or filepress.* silently falling
+    // through to loadExtractor() and back).
+    //
+    // Live sample URLs (from /tmp/audit/unlock_2441_from-s01.html and
+    // /tmp/audit/unlock_v3_3063.html — 22-title crawl, 2026-07-22):
+
+    @Test fun shouldSkip_fastmkv_sbs() {
+        val reason = TheNextPlanet.shouldSkip("https://fastmkv.sbs/file/giigof5dyjxmlhp")
+        assertTrue("fastmkv.sbs must be skipped (Gap B): got $reason", reason != null)
+        assertTrue("reason must mention the host: got $reason", reason!!.contains("fastmkv.sbs"))
+    }
+
+    @Test fun shouldSkip_gdtot_dad() {
+        val reason = TheNextPlanet.shouldSkip("https://new6.gdtot.dad/file/1929787440")
+        assertTrue("gdtot.dad must be skipped (Gap B): got $reason", reason != null)
+        assertTrue("reason must mention the host: got $reason", reason!!.contains("gdtot.dad"))
+    }
+
+    @Test fun shouldSkip_fastilinks() {
+        val reason = TheNextPlanet.shouldSkip("https://fastilinks.beauty/view/XGE5epQEAS")
+        assertTrue("fastilinks.beauty must be skipped (Gap A): got $reason", reason != null)
+        assertTrue("reason must mention the host: got $reason", reason!!.contains("fastilinks.beauty"))
+    }
+
+    @Test fun shouldSkip_filepress_subdomains() {
+        // All three observed subdomains must be caught by a single
+        // "filepress" substring check (the new2.filepress.baby one
+        // surfaced via the CF challenge cZone field on filepress.wiki).
+        val cloud = TheNextPlanet.shouldSkip("https://new4.filepress.cloud/file/6966957f7587707fbfa6e677")
+        val wiki  = TheNextPlanet.shouldSkip("https://new1.filepress.wiki/file/699bf8de4b1ecb5acf533121")
+        val baby  = TheNextPlanet.shouldSkip("https://new2.filepress.baby/file/abc123")
+        assertTrue("filepress.cloud must be skipped (Gap C)",  cloud != null)
+        assertTrue("filepress.wiki must be skipped (Gap C)",   wiki  != null)
+        assertTrue("filepress.baby must be skipped (Gap C)",   baby  != null)
+        assertTrue(cloud!!.contains("filepress"))
+        assertTrue(wiki!!.contains("filepress"))
+        assertTrue(baby!!.contains("filepress"))
+    }
+
+    // v5: photolinx is NO LONGER in the skip list — it now has a
+    // working extractor (Photolinx.kt).  This test pins that decision
+    // so a future refactor can't re-introduce the skip and break
+    // the v5 working-source path.
+
+    @Test fun shouldSkip_photolinx_NOT_skipped() {
+        val reason = TheNextPlanet.shouldSkip("https://photolinx.beauty/download/_fgDSPwWx8k")
+        assertEquals("photolinx.beauty must NOT be skipped (v5 added a working extractor)", null, reason)
+    }
+
+    // Negative cases — hosters we DO support must not be skipped:
+
+    @Test fun shouldSkip_mediafire_passes() {
+        val reason = TheNextPlanet.shouldSkip("https://www.mediafire.com/file/abc123/Kntra72pHV.mkv")
+        assertEquals("mediafire.com must NOT be skipped (CS3 built-in extractor)", null, reason)
+    }
+
+    @Test fun shouldSkip_gdflix_passes() {
+        val reason = TheNextPlanet.shouldSkip("https://gdflix.dev/file/uqsNtqApN62085U")
+        assertEquals("gdflix.dev must NOT be skipped (our custom GDFlix class)", null, reason)
+    }
+
+    @Test fun shouldSkip_voe_passes() {
+        val reason = TheNextPlanet.shouldSkip("https://voe.sx/e/abc123")
+        assertEquals("voe.sx must NOT be skipped (CS3 built-in Voe extractor)", null, reason)
+    }
+
+    @Test fun shouldSkip_vidhide_passes() {
+        val reason = TheNextPlanet.shouldSkip("https://vidhide.com/v/abc123")
+        assertEquals("vidhide.com must NOT be skipped (CS3 built-in VidhideExtractor)", null, reason)
+    }
+
+    @Test fun shouldSkip_substringDoesNotMatchUnrelated() {
+        // Regression guard: a "contains" check could in theory match a
+        // host like "notphotolinx.com" or "fakefastmkv.io".  The current
+        // implementation uses the full ".<tld>" boundary via the
+        // substring "photolinx.beauty" / "fastmkv.sbs" / "gdtot.dad" /
+        // "fastilinks.beauty" / "filepress" — verify the negatives stay
+        // unskipped.
+        val reason = TheNextPlanet.shouldSkip("https://notphotolinx.com/foo")
+        assertEquals("unrelated 'notphotolinx.com' must NOT be skipped", null, reason)
+        val reason2 = TheNextPlanet.shouldSkip("https://my-fastmkv-mirror.io/foo")
+        assertEquals("unrelated 'my-fastmkv-mirror.io' must NOT be skipped", null, reason2)
+    }
+
+    // ─── Photolinx extractor (v5) ──────────────────────────────────────
+    //
+    // The two pure functions below are the parsing primitives the
+    // Photolinx extractor uses; they are tested with real data captured
+    // on 2026-07-23 from the live server (see
+    // TheNextPlanet/SOURCE_COVERAGE_AUDIT_PHASE5.md).
+
+    @Test fun photolinx_parseUid_realUrl() {
+        // The URL format is /download/<uid>.  Real observed uids:
+        //   _fgDSPwWx8k   (Starman 480p)
+        //   adwrASfa1AS   (Starman 720p)
+        //   tzfG-c-TL6G   (earlier audit sample)
+        //   qEXQkTWT-eg   (Starman 1080p)
+        val u1 = Photolinx.parseUid("https://photolinx.beauty/download/_fgDSPwWx8k")
+        assertEquals("_fgDSPwWx8k", u1)
+        val u2 = Photolinx.parseUid("https://photolinx.beauty/download/adwrASfa1AS")
+        assertEquals("adwrASfa1AS", u2)
+        val u3 = Photolinx.parseUid("https://photolinx.beauty/download/tzfG-c-TL6G")
+        assertEquals("tzfG-c-TL6G", u3)
+        val u4 = Photolinx.parseUid("https://photolinx.beauty/download/qEXQkTWT-eg")
+        assertEquals("qEXQkTWT-eg", u4)
+    }
+
+    @Test fun photolinx_parseUid_nonMatchingUrl() {
+        // Non-photolinx URLs must return null so the extractor's
+        // getUrl() early-returns and logs a Skipping warning.
+        assertEquals(null, Photolinx.parseUid("https://example.com/foo/bar"))
+        assertEquals(null, Photolinx.parseUid("https://photolinx.beauty/"))
+        assertEquals(null, Photolinx.parseUid("https://photolinx.beauty/download/"))  // no uid segment
+        assertEquals(null, Photolinx.parseUid(""))
+    }
+
+    @Test fun photolinx_parseDownloadUrl_realSuccessResponse() {
+        // Captured live on 2026-07-23 from the Starman photolinx link.
+        val response = """{"status":true,"download_url":"https:\/\/winter-silence-9c49.ejohnsoncraig.workers.dev\/download\/_fgDSPwWx8k"}"""
+        val result = Photolinx.parseDownloadUrl(response)
+        assertEquals(
+            "https://winter-silence-9c49.ejohnsoncraig.workers.dev/download/_fgDSPwWx8k",
+            result
+        )
+    }
+
+    @Test fun photolinx_parseDownloadUrl_realErrorResponse() {
+        // Captured live: when the User-Agent doesn't match between GET
+        // and POST, the server returns this error payload.  We must
+        // NOT extract a download_url from this; parseDownloadUrl()
+        // must return null so the extractor skips cleanly.
+        val response = """{"error":"Invalid access token"}"""
+        val result = Photolinx.parseDownloadUrl(response)
+        assertEquals(null, result)
+    }
+
+    @Test fun photolinx_parseDownloadUrl_malformed() {
+        // Garbage / empty responses must return null, not crash.
+        assertEquals(null, Photolinx.parseDownloadUrl(""))
+        assertEquals(null, Photolinx.parseDownloadUrl("not json at all"))
+        assertEquals(null, Photolinx.parseDownloadUrl("{}"))
+        // A response with status:false and no download_url must
+        // return null too.
+        assertEquals(null, Photolinx.parseDownloadUrl("""{"status":false,"message":"something"}"""))
+    }
 }

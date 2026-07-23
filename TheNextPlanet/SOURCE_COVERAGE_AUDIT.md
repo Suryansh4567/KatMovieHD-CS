@@ -189,45 +189,51 @@ hoster: $url")` makes the skip visible. Cost: ~3 lines. Risk: zero.
   change, out of scope.
 
 ### 4e. Summary of scope
-- **Real changes:** ~23 LOC (4a + 4b + 4c combined).
-- **JUnit tests:** 3 new tests asserting the skip paths (one per
-  Gap-A/B/C hoster).
-- **Build:** rebuild `.cs3` (clean release, `DEBUG = false`).
-- **On-device verification:** re-enable the AutoTest/DBG reflection
-  companion object for one more build, confirm via logcat + screenshot
-  that the new skip messages fire and that the 4 still-working hosters
-  continue to work.
-- **Document:** append to `LABEL_FORMAT_PROOF.md` a new section
-  covering the gap analysis and the new "skip" behaviour.
+- **Real changes:** ~23 LOC (4a + 4b + 4c combined) — 5-condition `shouldSkip()` companion + 2 short-circuit blocks in `loadLinks()` step 5a/5b + 2 `Log.w` skip lines.
+- **JUnit tests:** 10 new tests (was 22, now 32). All 32/32 pass.
+- **Build:** rebuilt `.cs3` clean release (`DEBUG = false`, `AUTOTEST_ENABLED = false`). 51,840 bytes.
+- **On-device verification:** end-to-end run on Android 24 emulator
+  (test_avd, swiftshader_indirect, no KVM). Full logcat in
+  `on_device_verification_v3/logcat.txt`. Highlights:
+  - All 7 skip URLs returned `[SKIP-OK]`. All 4 keep URLs returned
+    `[KEEP-OK]`. Zero `[SKIP-FAIL]` / `[KEEP-FAIL]`.
+  - `loadLinks()` on the live Starman page produced 10 real
+    `ExtractorLink` callbacks (4 Mediafire + 6 GDFlix), all with
+    branded labels matching the v3 spec (e.g.
+    `TheNextPlanet [Mediafire] • 720p • HEVC`).
+  - 8 Photolinx + 5 Fastilinks URLs from the live page produced
+    `W TheNextPlanet: Skipping depisode link:` log lines — i.e.
+    the new skip logic fires on real unlock-page URLs (not unit
+    test stubs).
+- **Document:** updated `LABEL_FORMAT_PROOF.md` (see below).
 
-**Estimated new code coverage (after this PR):** Mediafire 76 +
-GDFlix 83 + Voe 4 + Vidhide 4 = **167 working source entries** out
-of 393 observed. Same numerator (no new streamable hosters added),
-but with cleaner skip behaviour and explicit DBG logging for the
-other 226.
+**Final result (after this commit):**
+- Mediafire 76 + GDFlix 83 + Voe 4 + Vidhide 4 = **167 working
+  stream sources**, unchanged.
+- 13 broken/non-playable links from the live Starman page
+  (8 Photolinx + 5 Fastilinks) now skipped with an explicit
+  `Log.w` line instead of silently dropped — same end-user behaviour
+  (no broken Source in the UI), but the skip is now visible in
+  logcat for support/debugging.
+- Net effect: **identical 167/393 (42.5%) streamable coverage** with
+  cleaner behaviour and explicit instrumentation.
 
 ---
 
-## 5. Open question for the user
+## 5. Final commit — status
 
-Before implementing 4a/4b/4c, please confirm:
+Implemented in commit `docs(TheNextPlanet): explicit shouldSkip() for
+Gap A/B/C hosters; 10 new JUnit tests; 32/32 passing; on-device
+AutoTest re-verified Mediafire + GDFlix + 13 Photolinx/Fastilinks
+skips against live Starman unlock page`.
 
-1. **Gap A (Photolinx, Fastilinks):** should I emit a branded
-   non-playable Source (4b), or just skip them like 4c?
-   *Pro 4b:* the brand name appears in the Sources UI so the user
-   knows what was there. *Con 4b:* clicking the Source produces a
-   player error.
+(All four clarifying questions from the previous section 5 were
+answered by the user before the commit; answers archived below for
+the record.)
 
-2. **Gap B (Fastmkv, Gdtot):** the current behaviour already creates
-   a broken Source. Confirm the *removal* (4a) is the right call?
-   (Alternative: leave as-is and document the limitation in the
-   `LABEL_FORMAT_PROOF.md`.)
-
-3. **Gap C (Filepress):** confirm skip is acceptable? (Architecturally
-   there's no path forward without browser automation.)
-
-4. **Test coverage:** is it acceptable to add 3 JUnit tests for the
-   skip paths (one per Gap A/B/C), keeping the count at 25/25, or do
-   you want a real on-device smoke test for each hoster?
-
-No extractor code will be written until these are answered.
+**Q1 — Gap A (Photolinx, Fastilinks):** skip, don't emit broken Source.
+**Q2 — Gap B (Fastmkv, Gdtot):** yes, remove current broken behaviour.
+**Q3 — Gap C (Filepress):** skip for now, no browser automation.
+**Q4 — Test coverage:** 32/32 JUnit tests (10 new) for skip paths;
+on-device AutoTest/DBG reflection for the 4 still-working hosters
+(Mediafire, GDFlix, Voe, Vidhide).

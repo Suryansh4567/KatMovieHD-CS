@@ -36,6 +36,16 @@ class TheNextPlanet : MainAPI() {
     override var name = "TheNextPlanet"
     override var mainUrl = "https://www.thenextplanet-official.space"
     override var supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
+
+    init {
+        // TEMPORARY: trigger the v4 audit AutoTest on first construction.
+        // MUST run on a background thread — the previous synchronous
+        // `Handler.post { runAutoTest() }` (which called runBlocking on
+        // the main looper) ANR'd the app on first launch.
+        if (Companion.AUTOTEST_ENABLED) {
+            Thread({ Companion.runAutoTest(this) }, "TheNextPlanet-AutoTest").start()
+        }
+    }
     override var hasMainPage = true
     override var lang = "hi"
 
@@ -51,6 +61,14 @@ class TheNextPlanet : MainAPI() {
     companion object {
         private const val TAG = "TheNextPlanet"
         private const val DEBUG = false
+
+        // ══════════════════════════════════════════════════════════════
+        // TEMPORARY: AutoTest self-test for the v4 audit on-device
+        // re-verification.  When AUTOTEST_ENABLED is true, the plugin
+        // runs `runAutoTest()` on first construction.  Set to false
+        // for the final clean release build.
+        // ══════════════════════════════════════════════════════════════
+        private const val AUTOTEST_ENABLED = false
 
         private fun logd(msg: String) {
             if (DEBUG) Log.d(TAG, msg)
@@ -241,6 +259,160 @@ class TheNextPlanet : MainAPI() {
             "HEVC" -> LinkMeta(print = "HEVC", codec = "x265")
             "LQ", "HQ" -> LinkMeta()
             else -> LinkMeta()
+        }
+
+        /**
+         * Hosters that the plugin deliberately does NOT turn into Source
+         * entries.  See `TheNextPlanet/SOURCE_COVERAGE_AUDIT.md` for the
+         * full audit.  Returns null if the URL should proceed through
+         * `resolveUrl()`; otherwise returns a short human-readable reason
+         * suitable for a `Log.w` line so users running logcat can see why
+         * a particular link was skipped.
+         *
+         * Skipped categories (all observed on the live site during the
+         * 22-title crawl, but none of them produce a playable stream
+         * through the plugin's available extractors):
+         *
+         *   - **fastmkv.sbs**       — host returns an error page for any
+         *                            file ID we probed; no working
+         *                            resolution pattern.  Live HTTP probe
+         *                            results in audit §Gap B.
+         *   - **gdtot.dad**         — host is a cookie-gated shortener
+         *                            returning a literal "OK" body; no
+         *                            resolution pattern without a session
+         *                            cookie we don't have.  Audit §Gap B.
+         *   - **photolinx.beauty**  — no built-in CS3 extractor matches
+         *                            this host (verified via dex inspection
+         *                            of the CS3 4.8.0-PRE APK), and the
+         *                            underlying site is a download-redirect
+         *                            chain that doesn't produce a stream.
+         *                            Audit §Gap A.
+         *   - **fastilinks.beauty** — same as photolinx.  Audit §Gap A.
+         *   - **filepress.**        — all observed subdomains (`.cloud`,
+         *                            `.wiki`, plus the CF-disclosed
+         *                            `new2.filepress.baby`) sit behind
+         *                            Cloudflare interactive JS challenges
+         *                            that no plugin can bypass.  Audit
+         *                            §Gap C.
+         *
+         * Importantly, this list is intentionally EXPLICIT — substring
+         * match against each domain so we don't accidentally match an
+         * unrelated host (e.g. `notphotolinx.com`).  Subdomain wildcards
+         * (e.g. `*.fastmkv.sbs`) are handled by the `contains` check
+         * below.
+         */
+        fun shouldSkip(url: String): String? {
+            val u = url.lowercase()
+            return when {
+                // Gap B — non-streamable / non-resolvable from the plugin
+                "fastmkv.sbs" in u   -> "fastmkv.sbs: no working resolution pattern (HTTP 520 from CF at probe time; see SOURCE_COVERAGE_AUDIT_PHASE5.md — re-probe if a working sample becomes available)"
+                "gdtot.dad" in u     -> "gdtot.dad: Anubis PoW browser-challenge gated"
+                // Gap A — no CS3 built-in extractor; download-redirect chain
+                "fastilinks.beauty" in u -> "fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor"
+                // Gap C — Cloudflare JS challenge
+                "filepress" in u      -> "filepress.*: Cloudflare Turnstile interactive challenge gated"
+                // NOTE: photolinx.beauty is no longer in the skip list —
+                // we now have a working extractor (Photolinx.kt, v5).
+                // See SOURCE_COVERAGE_AUDIT_PHASE5.md.
+                else -> null
+            }
+        }
+
+        /**
+         * TEMPORARY self-test driver for the v4 audit on-device
+         * re-verification.  Compiled into the .cs3 plugin and called
+         * once on first construction of [TheNextPlanet] when
+         * [AUTOTEST_ENABLED] is true.  Picked up and removed for the
+         * final clean build by flipping the flag to false.
+         *
+         * 1. Calls [loadLinks] for `/movie/251/starman/` and dumps every
+         *    ExtractorLink's `name`, `source`, `url` to logcat at INFO
+         *    level so a downstream grep can confirm the branded labels
+         *    for the 4 still-working hosters.
+         * 2. Calls [shouldSkip] for each of the 7 v4-audit skip-target
+         *    URLs and asserts each returns a non-null reason.  Asserts
+         *    the 4 kept hosters return null.  Each assertion logs
+         *    `[SKIP-OK]`, `[SKIP-FAIL]`, `[KEEP-OK]`, or `[KEEP-FAIL]`
+         *    so the on-device run is fully scriptable.
+         */
+        fun runAutoTest(plugin: TheNextPlanet) {
+            if (!AUTOTEST_ENABLED) return
+            Log.i("TheNextPlanet:AutoTest", "=== v4 audit AutoTest START ===")
+            try {
+                kotlinx.coroutines.runBlocking {
+                    val results = mutableListOf<Triple<String, String, String>>()
+                    // The skip/keep assertions are pure-Kotlin (no network) and
+                    // run first so we get evidence even if loadLinks() blocks.
+                    val skipUrls = listOf(
+                        "https://fastmkv.sbs/file/giigof5dyjxmlhp" to "fastmkv.sbs",
+                        "https://new6.gdtot.dad/file/1929787440" to "gdtot.dad",
+                        "https://fastilinks.beauty/view/XGE5epQEAS" to "fastilinks.beauty",
+                        "https://new4.filepress.cloud/file/6966957f7587707fbfa6e677" to "filepress.cloud",
+                        "https://new1.filepress.wiki/file/699bf8de4b1ecb5acf533121" to "filepress.wiki",
+                        "https://new1.filepress.cloud/file/69277e5fab1e76e289c72083" to "filepress.cloud-2"
+                    )
+                    for ((u, tag) in skipUrls) {
+                        val reason = shouldSkip(u)
+                        if (reason != null) {
+                            Log.i("TheNextPlanet:AutoTest", "[SKIP-OK] $tag url=$u -> $reason")
+                        } else {
+                            Log.e("TheNextPlanet:AutoTest", "[SKIP-FAIL] $tag url=$u should be skipped but shouldSkip() returned null")
+                        }
+                    }
+                    val keepUrls = listOf(
+                        "https://www.mediafire.com/file/abc/Kntra.mkv" to "mediafire",
+                        "https://gdflix.dev/file/uqsNtqApN62085U" to "gdflix",
+                        "https://voe.sx/e/abc123" to "voe",
+                        "https://vidhide.com/v/abc123" to "vidhide",
+                        // v5: photolinx is now KEEP (we have a working extractor)
+                        "https://photolinx.beauty/download/_fgDSPwWx8k" to "photolinx"
+                    )
+                    for ((u, tag) in keepUrls) {
+                        val reason = shouldSkip(u)
+                        if (reason == null) {
+                            Log.i("TheNextPlanet:AutoTest", "[KEEP-OK] $tag url=$u -> not skipped")
+                        } else {
+                            Log.e("TheNextPlanet:AutoTest", "[KEEP-FAIL] $tag url=$u should NOT be skipped but shouldSkip() returned '$reason'")
+                        }
+                    }
+
+                    // The loadLinks() call is the network-bound one. Wrap in
+                    // withTimeoutOrNull so a slow or unreachable live site
+                    // (the sandbox's host can't reach thenextplanet-official.space
+                    // from inside the emulator with SLIRP, often) doesn't hang
+                    // the AutoTest thread indefinitely.
+                    val loadResult = kotlinx.coroutines.withTimeoutOrNull(60_000L) {
+                        val ok = plugin.loadLinks(
+                            data = """{"url":"https://www.thenextplanet-official.space/movie/251/starman/","type":"movie","season":null,"episode":null}""",
+                            isCasting = false,
+                            subtitleCallback = { /* no-op */ },
+                            callback = { link ->
+                                val name = try { link.javaClass.getMethod("getName").invoke(link) as? String } catch (e: Throwable) { null }
+                                    ?: try { link.javaClass.getField("name").get(link) as? String } catch (e: Throwable) { null }
+                                    ?: "<no name field>"
+                                val source = try { link.javaClass.getMethod("getSource").invoke(link) as? String } catch (e: Throwable) { null }
+                                    ?: try { link.javaClass.getField("source").get(link) as? String } catch (e: Throwable) { null }
+                                    ?: "<no source field>"
+                                val url = try { link.javaClass.getMethod("getUrl").invoke(link) as? String } catch (e: Throwable) { null }
+                                    ?: try { link.javaClass.getField("url").get(link) as? String } catch (e: Throwable) { null }
+                                    ?: "<no url field>"
+                                results.add(Triple(name, source, url))
+                                Log.i("TheNextPlanet:AutoTest",
+                                    "[RESULT] name='$name' source='$source' url='$url'")
+                            }
+                        )
+                        ok
+                    }
+                    if (loadResult == null) {
+                        Log.w("TheNextPlanet:AutoTest", "[LOADLINKS-TIMEOUT] loadLinks() did not complete within 60s — likely network unreachable from emulator. Skip/keep assertions above are the primary evidence.")
+                    } else {
+                        Log.i("TheNextPlanet:AutoTest",
+                            "=== v4 audit AutoTest END: loadLinks returned $loadResult, ${results.size} callback invocations ===")
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.e("TheNextPlanet:AutoTest", "AutoTest crashed: ${t.message}", t)
+            }
         }
     }
 
@@ -618,6 +790,21 @@ class TheNextPlanet : MainAPI() {
                 // Skip non-streamable file types
                 if (finalUrl.contains(".jpg", ignoreCase = true) || finalUrl.contains(".png", ignoreCase = true)) continue
 
+                // Skip hosters that the plugin deliberately does not support —
+                // see SOURCE_COVERAGE_AUDIT.md §3 (Gap A/B/C) for the rationale.
+                // Without this, fastmkv / gdtot / photolinx / fastilinks /
+                // filepress links would either be silently dropped by
+                // loadExtractor() (Gap A, C) or emit a broken Source whose
+                // URL is a depisode wrapper instead of a stream (Gap B).
+                // Logged at WARN level (not DEBUG) so users running logcat
+                // can see the skip without enabling the plugin's verbose
+                // DEBUG flag.
+                val skipReason = Companion.shouldSkip(finalUrl)
+                if (skipReason != null) {
+                    Log.w(TAG, "Skipping depisode link: $skipReason — url=$finalUrl")
+                    continue
+                }
+
                 // Resolve the enclosing <details> summary text → structured LinkMeta.
                 // ancestor <details> → first <summary> child → its text content.
                 val summaryText = el.parents()
@@ -644,6 +831,13 @@ class TheNextPlanet : MainAPI() {
                 if (!isDirectGdflix && !isDirectFilepress) continue
                 // Skip if already handled via depisode wrapper
                 if (depisodeLinks.any { URLDecoder.decode(it.attr("href").substringAfter("url="), "UTF-8") == href }) continue
+
+                // Same hoster-skip as 5a — applies to direct (non-depisode) anchors
+                val skipReason = Companion.shouldSkip(href)
+                if (skipReason != null) {
+                    Log.w(TAG, "Skipping direct host link: $skipReason — url=$href")
+                    continue
+                }
 
                 val label = a.text().trim()
 
@@ -704,7 +898,33 @@ class TheNextPlanet : MainAPI() {
                     GDFlix().getUrl(url, referer, groupMeta, subtitleCallback, callback)
                     true
                 }
-                isMediafire || isFilepress || isPhoton || isFastilinks -> {
+                isPhoton -> {
+                    // Photolinx: custom extractor that does
+                    //   GET /download/<uid> -> extract data-token + data-uid
+                    //   POST /action with JSON -> get download_url
+                    // and emits a single ExtractorLink.  Photolinx itself
+                    // catches all errors and skips on failure; we also
+                    // wrap in try/catch here as a belt-and-suspenders guard.
+                    // The result.url is the final .mkv CF Worker URL, so
+                    // we don't need to rebrand the link.
+                    logd("Invoking Photolinx extractor: $url")
+                    try {
+                        Photolinx().getUrl(url, referer, subtitleCallback) { extLink ->
+                            // The Photolinx extractor emits a single
+                            // ExtractorLink with the download_url as
+                            // both source and name.  We rebrand using
+                            // the standard {Brand} • {res} • {print} ...
+                            // format so the label matches the rest of
+                            // the plugin's Sources UI.
+                            callback(relabel(extLink, hosterBrand!!, groupMeta))
+                        }
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Photolinx extractor threw for $url: ${t.message}")
+                        // skip cleanly
+                    }
+                    true
+                }
+                isMediafire || isFilepress || isFastilinks -> {
                     logd("Using loadExtractor for: $url")
                     val brand = hosterBrand!!
                     loadExtractor(url, referer = referer, subtitleCallback) { extLink ->

@@ -1,0 +1,771 @@
+07-23 01:18:44.917  2790  2811 D PluginManager: Files in '/storage/emulated/0/Cloudstream3/plugins' folder: 1
+07-23 01:18:44.980  2790  2810 I PluginManager: Plugin update done!
+07-23 01:18:45.046  2790  2815 I PluginManager: Loading plugin: PluginData(internalName=TheNextPlanet.cs3, url=null, isOnline=false, filePath=/storage/emulated/0/Android/data/com.lagradost.cloudstream3.prerelease/files/plugins/TheNextPlanet.cs3, version=-2147483648)
+07-23 01:19:00.415  2790  2815 I PluginInstance: Adding TheNextPlanet (https://www.thenextplanet-official.space) MainAPI
+07-23 01:19:00.423  2790  2830 I TheNextPlanet:AutoTest: === v4 audit AutoTest START ===
+07-23 01:19:00.427  2790  2830 I TheNextPlanet:AutoTest: [SKIP-OK] fastmkv.sbs url=https://fastmkv.sbs/file/giigof5dyjxmlhp -> fastmkv.sbs: no working resolution pattern (HTTP 520 from CF at probe time; see SOURCE_COVERAGE_AUDIT_PHASE5.md — re-probe if a working sample becomes available)
+07-23 01:19:00.427  2790  2830 I TheNextPlanet:AutoTest: [SKIP-OK] gdtot.dad url=https://new6.gdtot.dad/file/1929787440 -> gdtot.dad: Anubis PoW browser-challenge gated
+07-23 01:19:00.428  2790  2830 I TheNextPlanet:AutoTest: [SKIP-OK] fastilinks.beauty url=https://fastilinks.beauty/view/XGE5epQEAS -> fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor
+07-23 01:19:00.428  2790  2830 I TheNextPlanet:AutoTest: [SKIP-OK] filepress.cloud url=https://new4.filepress.cloud/file/6966957f7587707fbfa6e677 -> filepress.*: Cloudflare Turnstile interactive challenge gated
+07-23 01:19:00.428  2790  2830 I TheNextPlanet:AutoTest: [SKIP-OK] filepress.wiki url=https://new1.filepress.wiki/file/699bf8de4b1ecb5acf533121 -> filepress.*: Cloudflare Turnstile interactive challenge gated
+07-23 01:19:00.428  2790  2830 I TheNextPlanet:AutoTest: [SKIP-OK] filepress.cloud-2 url=https://new1.filepress.cloud/file/69277e5fab1e76e289c72083 -> filepress.*: Cloudflare Turnstile interactive challenge gated
+07-23 01:19:00.429  2790  2830 I TheNextPlanet:AutoTest: [KEEP-OK] mediafire url=https://www.mediafire.com/file/abc/Kntra.mkv -> not skipped
+07-23 01:19:00.429  2790  2830 I TheNextPlanet:AutoTest: [KEEP-OK] gdflix url=https://gdflix.dev/file/uqsNtqApN62085U -> not skipped
+07-23 01:19:00.429  2790  2830 I TheNextPlanet:AutoTest: [KEEP-OK] voe url=https://voe.sx/e/abc123 -> not skipped
+07-23 01:19:00.436  2790  2815 I PluginInstance: Adding GDFlix (https://gdflix.dev) ExtractorApi
+07-23 01:19:00.441  2790  2830 I TheNextPlanet:AutoTest: [KEEP-OK] vidhide url=https://vidhide.com/v/abc123 -> not skipped
+07-23 01:19:00.442  2790  2830 I TheNextPlanet:AutoTest: [KEEP-OK] photolinx url=https://photolinx.beauty/download/_fgDSPwWx8k -> not skipped
+07-23 01:19:00.701  2790  2815 I PluginManager: Loaded plugin TheNextPlanet.cs3 successfully
+07-23 01:19:13.423  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='TheNextPlanet [Mediafire] • 720p • HEVC' source='TheNextPlanet [Mediafire] • 720p • HEVC' url='https://download1501.mediafire.com/j61bdriw4dngjrp-OGcqBFZenFpzifBcZuVT7NEQx2FPMghFJHzvGhvcZx_4I4QfGRgqxTKkTZU5BRspQZw-UQiZE8TrE0l7ia1bGNMzGLMC8k9_2O2sFr4ofk46zLFZWf8FxM21ogzOiABoOsPa1N42gSk7xBFedvH9nG4FHiiODKs/wtlayohjm43dnnu/StrMn.72pHEV_World4ufree.tw.mkv'
+07-23 01:19:14.830  2790  2830 W TheNextPlanet:Photolinx: Skipping: /action returned no download_url — response={"error":"Invalid access token"} url=https://photolinx.beauty/download/tgRLrOXGpaP
+07-23 01:19:14.846  2790  2830 D TheNextPlanet:GDFlix: getUrl: https://gdflix.dev/file/IloSLhIgl7wxe48
+07-23 01:19:16.021  2790  2830 D TheNextPlanet:GDFlix: Landing page: https://gdflix.dev/file/IloSLhIgl7wxe48
+07-23 01:19:16.289  2790  2830 D TheNextPlanet:GDFlix: Found 6 anchor elements on landing page
+07-23 01:19:16.340  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='PixelDrain DL [20MB/s]', href='https://pixeldrain.dev/u/fv9WHor9'
+07-23 01:19:16.357  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='GoFile [Mirrors]', href='https://validate.multiup2.workers.dev/50ad4430a70c94355e22750c3b83206c'
+07-23 01:19:16.369  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Instant DL [10GBPS]', href='https://cdn.foxcloud.rest/?url=a4b5c55717cedfad8520d8b462bd21e454a2969cac0adf6c12238d42ba2280737a16698b709e4768dce52cb5c82fcc05fef96c91e1c62c6369914eb6145b3ab2294656a888a8ae3c24d97d372079f19d::a859ff6629def654cd5202997d512497&bytes=693031564'
+07-23 01:19:16.370  2790  2830 D TheNextPlanet:GDFlix: Instant DL: a4b5c55717cedfad8520d8b462bd21e454a2969cac0adf6c12238d42ba2280737a16698b709e4768dce52cb5c82fcc05fef96c91e1c62c6369914eb6145b3ab2294656a888a8ae3c24d97d372079f19d::a859ff6629def654cd5202997d512497&bytes=693031564
+07-23 01:19:16.395  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='GDFlix [Instant] • BluRay • x265 • 660.93MB | Views : 5' source='GDFlix [Instant] • BluRay • x265 • 660.93MB | Views : 5' url='a4b5c55717cedfad8520d8b462bd21e454a2969cac0adf6c12238d42ba2280737a16698b709e4768dce52cb5c82fcc05fef96c91e1c62c6369914eb6145b3ab2294656a888a8ae3c24d97d372079f19d::a859ff6629def654cd5202997d512497&bytes=693031564'
+07-23 01:19:16.397  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Login To DL [10GBPS]', href='/login?ref=/file/IloSLhIgl7wxe48'
+07-23 01:19:16.397  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Login To DL [10GBPS]
+07-23 01:19:16.399  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='FAST CLOUD / ZIPDISK', href='/cloud/1784766042/IloSLhIgl7wxe48'
+07-23 01:19:16.399  2790  2830 D TheNextPlanet:GDFlix: No handler for button: FAST CLOUD / ZIPDISK
+07-23 01:19:16.401  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Telegram File', href='https://filesgram.xyz/?start=11_333y9v2&bot=gdflix28_bot'
+07-23 01:19:16.414  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Telegram File
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: GDFlix anchor failed for 'GoFile [Mirrors]': java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.SSLUtils.toSSLHandshakeException(SSLUtils.java:361)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.convertException(ConscryptEngine.java:1138)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1093)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:880)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:751)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:716)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.processDataFromSocket(ConscryptEngineSocket.java:833)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.access$100(ConscryptEngineSocket.java:706)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.doHandshake(ConscryptEngineSocket.java:230)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.startHandshake(ConscryptEngineSocket.java:209)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTls(ConnectPlan.kt:351)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTlsEtc(ConnectPlan.kt:206)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.FastFallbackExchangeFinder.find(FastFallbackExchangeFinder.kt:78)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.initExchange$okhttp(RealCall.kt:298)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectInterceptor.intercept(ConnectInterceptor.kt:32)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.cache.CacheInterceptor.intercept(CacheInterceptor.kt:101)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.BridgeInterceptor.intercept(BridgeInterceptor.kt:85)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RetryAndFollowUpInterceptor.intercept(RetryAndFollowUpInterceptor.kt:74)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.getResponseWithInterceptorChain$okhttp(RealCall.kt:226)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall$AsyncCall.run(RealCall.kt:574)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1133)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:607)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		... 27 more
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:27.774  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		... 24 more
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		... 43 more
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.777  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	... 24 more
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.778  2790  2830 E TheNextPlanet:GDFlix: 	... 43 more
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: GDFlix anchor failed for 'PixelDrain DL [20MB/s]': java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.SSLUtils.toSSLHandshakeException(SSLUtils.java:361)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.convertException(ConscryptEngine.java:1138)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1093)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:880)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:751)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:716)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.processDataFromSocket(ConscryptEngineSocket.java:833)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.access$100(ConscryptEngineSocket.java:706)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.doHandshake(ConscryptEngineSocket.java:230)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.startHandshake(ConscryptEngineSocket.java:209)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTls(ConnectPlan.kt:351)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTlsEtc(ConnectPlan.kt:206)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.FastFallbackExchangeFinder.find(FastFallbackExchangeFinder.kt:78)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.initExchange$okhttp(RealCall.kt:298)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectInterceptor.intercept(ConnectInterceptor.kt:32)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.cache.CacheInterceptor.intercept(CacheInterceptor.kt:101)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.BridgeInterceptor.intercept(BridgeInterceptor.kt:85)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RetryAndFollowUpInterceptor.intercept(RetryAndFollowUpInterceptor.kt:74)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.getResponseWithInterceptorChain$okhttp(RealCall.kt:226)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall$AsyncCall.run(RealCall.kt:574)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1133)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:607)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		... 27 more
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.813  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		... 24 more
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		... 43 more
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:27.815  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	... 24 more
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:27.816  2790  2830 E TheNextPlanet:GDFlix: 	... 43 more
+07-23 01:19:28.235  2790  2830 D TheNextPlanet:GDFlix: CF Backup (type=1): https://restless-pine-d3e5.joker45.workers.dev/71e2c6916b7209c0a212c1c07d3eb2ab/new3.gdflix.io/Starman.1984.HEVC.[Hin-Eng].BluRay_World4ufree.tw.mkv
+07-23 01:19:28.239  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='GDFlix [CF] • BluRay • x265 • 660.93MB | Views : 5' source='GDFlix [CF] • BluRay • x265 • 660.93MB | Views : 5' url='https://restless-pine-d3e5.joker45.workers.dev/71e2c6916b7209c0a212c1c07d3eb2ab/new3.gdflix.io/Starman.1984.HEVC.[Hin-Eng].BluRay_World4ufree.tw.mkv'
+07-23 01:19:28.468  2790  2830 D TheNextPlanet:GDFlix: CF Backup (type=2): https://plain-recipe-5246.fejeva9564.workers.dev/f2e4ba6f77a604a418ce203edde0613e/new3.gdflix.io/Starman.1984.HEVC.[Hin-Eng].BluRay_World4ufree.tw.mkv
+07-23 01:19:28.471  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='GDFlix [CF] • BluRay • x265 • 660.93MB | Views : 5' source='GDFlix [CF] • BluRay • x265 • 660.93MB | Views : 5' url='https://plain-recipe-5246.fejeva9564.workers.dev/f2e4ba6f77a604a418ce203edde0613e/new3.gdflix.io/Starman.1984.HEVC.[Hin-Eng].BluRay_World4ufree.tw.mkv'
+07-23 01:19:28.474  2790  2830 W TheNextPlanet: Skipping depisode link: fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor — url=https://fastilinks.beauty/view/q710bsDB34
+07-23 01:19:29.372  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='TheNextPlanet [Mediafire] • 1080p' source='TheNextPlanet [Mediafire] • 1080p' url='https://download853.mediafire.com/54tmx5p6kotg5SsE3gbynUgJ8yT7vodWcK-dO5ebs5CtaJFnnLNSNr3CqoW-UHWKEWRA6aJc1XUXLy80D9Hq19MnfAY3sGihm72UxM6jyDfzdSGaRcMVCCl74ArIfSRKnBzlJR-FMO4SWl5JUcdgq9vfYBzlvV3jTQiLTMH3qnkLQSM5/iofqe1427r7mzkd/StrMn.108p_World4ufree.tw.mkv'
+07-23 01:19:29.956  2790  2830 W TheNextPlanet:Photolinx: Skipping: /action returned no download_url — response={"error":"Invalid access token"} url=https://photolinx.beauty/download/adwrASfa1AS
+07-23 01:19:29.986  2790  2830 D TheNextPlanet:GDFlix: getUrl: https://gdflix.dev/file/YWC0OKhzpnWGD7e
+07-23 01:19:30.220  2790  2830 D TheNextPlanet:GDFlix: Landing page: https://gdflix.dev/file/YWC0OKhzpnWGD7e
+07-23 01:19:30.483  2790  2830 D TheNextPlanet:GDFlix: Found 6 anchor elements on landing page
+07-23 01:19:30.508  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='PixelDrain DL [20MB/s]', href='https://pixeldrain.dev/u/nYwq7ZNQ'
+07-23 01:19:30.523  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='GoFile [Multiup]', href='https://goflix.sbs/en/mirror/16a270750daf798a684b9cfc3c889c7e'
+07-23 01:19:30.543  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Instant DL [10GBPS]', href='https://cdn.foxcloud.rest/?url=196086635839cce2b128af84fbe58a0ce90875b4954b302f810a4e3f58c6b5d37af81c3e77185550cefad4825c5ee1895c9e7b5c6ed8333b635a24f01e648964856d312a27fac637b4e6e3666a78a195::a97217f898468e1d6c4ad5292d18be52&bytes=2544994562'
+07-23 01:19:30.543  2790  2830 D TheNextPlanet:GDFlix: Instant DL: 196086635839cce2b128af84fbe58a0ce90875b4954b302f810a4e3f58c6b5d37af81c3e77185550cefad4825c5ee1895c9e7b5c6ed8333b635a24f01e648964856d312a27fac637b4e6e3666a78a195::a97217f898468e1d6c4ad5292d18be52&bytes=2544994562
+07-23 01:19:30.552  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='GDFlix [Instant] • 1080p • BluRay • 2.37GB | Views : 4' source='GDFlix [Instant] • 1080p • BluRay • 2.37GB | Views : 4' url='196086635839cce2b128af84fbe58a0ce90875b4954b302f810a4e3f58c6b5d37af81c3e77185550cefad4825c5ee1895c9e7b5c6ed8333b635a24f01e648964856d312a27fac637b4e6e3666a78a195::a97217f898468e1d6c4ad5292d18be52&bytes=2544994562'
+07-23 01:19:30.553  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Login To DL [10GBPS]', href='/login?ref=/file/YWC0OKhzpnWGD7e'
+07-23 01:19:30.554  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Login To DL [10GBPS]
+07-23 01:19:30.555  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='FAST CLOUD / ZIPDISK', href='/cloud/1784766044/YWC0OKhzpnWGD7e'
+07-23 01:19:30.555  2790  2830 D TheNextPlanet:GDFlix: No handler for button: FAST CLOUD / ZIPDISK
+07-23 01:19:30.557  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Telegram File', href='https://filesgram.xyz/?start=11_423y6v4&bot=gdflix28_bot'
+07-23 01:19:30.557  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Telegram File
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: GDFlix anchor failed for 'PixelDrain DL [20MB/s]': java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.SSLUtils.toSSLHandshakeException(SSLUtils.java:361)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.convertException(ConscryptEngine.java:1138)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1093)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:880)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:751)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:716)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.processDataFromSocket(ConscryptEngineSocket.java:833)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.access$100(ConscryptEngineSocket.java:706)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.doHandshake(ConscryptEngineSocket.java:230)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.startHandshake(ConscryptEngineSocket.java:209)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTls(ConnectPlan.kt:351)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTlsEtc(ConnectPlan.kt:206)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.FastFallbackExchangeFinder.find(FastFallbackExchangeFinder.kt:78)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.initExchange$okhttp(RealCall.kt:298)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectInterceptor.intercept(ConnectInterceptor.kt:32)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.cache.CacheInterceptor.intercept(CacheInterceptor.kt:101)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.BridgeInterceptor.intercept(BridgeInterceptor.kt:85)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RetryAndFollowUpInterceptor.intercept(RetryAndFollowUpInterceptor.kt:74)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.getResponseWithInterceptorChain$okhttp(RealCall.kt:226)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall$AsyncCall.run(RealCall.kt:574)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1133)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:607)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		... 27 more
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:41.849  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		... 24 more
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		... 43 more
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:41.854  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	... 24 more
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:41.856  2790  2830 E TheNextPlanet:GDFlix: 	... 43 more
+07-23 01:19:42.323  2790  2830 W TheNextPlanet: Skipping depisode link: fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor — url=https://fastilinks.beauty/view/kqjXe8c8fh
+07-23 01:19:42.909  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='TheNextPlanet [Mediafire] • 720p' source='TheNextPlanet [Mediafire] • 720p' url='https://download1523.mediafire.com/5tvcw513debga3ejNnX68YH19MpoT9zNd0zI7ZVqCg-aNxcR8MN7Ml70PNChOPCaav9zvX__dRBWrK34H7ka6jk_UbpK-8yT9F97JEfGk0YvEkcSht-Ys0lL2A-_KJUThL1YlCPOWNOn_FISTox5LLkNZZK4dQmPwk6BuUbr82591AKI/ljxbb8q4sdho6ub/StrMn.72p_World4ufree.tw.mkv'
+07-23 01:19:43.393  2790  2830 W TheNextPlanet:Photolinx: Skipping: /action returned no download_url — response={"error":"Invalid access token"} url=https://photolinx.beauty/download/qEXQkTWT-eg
+07-23 01:19:43.408  2790  2830 D TheNextPlanet:GDFlix: getUrl: https://gdflix.dev/file/pxP6MwGoJT0EiW6
+07-23 01:19:43.590  2790  2830 D TheNextPlanet:GDFlix: Landing page: https://gdflix.dev/file/pxP6MwGoJT0EiW6
+07-23 01:19:43.783  2790  2830 D TheNextPlanet:GDFlix: Found 6 anchor elements on landing page
+07-23 01:19:43.806  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='PixelDrain DL [20MB/s]', href='https://pixeldrain.dev/u/qa71UACY'
+07-23 01:19:43.830  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='GoFile [Multiup]', href='https://goflix.sbs/en/mirror/16f9a990f854dd92aa89cdc854e705ba'
+07-23 01:19:43.852  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Instant DL [10GBPS]', href='https://cdn.foxcloud.rest/?url=2696f0b8ea65ed0193bd7c9afdfcb2ea954e9ab1843c6a6d7542feaa21e382769a120507ab54a8ada5fd56a4cc0b801828569bc0fe5e254f862238668bbc6d2a4b97f71c0b6f59963cfc7c47c686d079::f1dced434f06648a8b350161193fdabc&bytes=1195567383'
+07-23 01:19:43.853  2790  2830 D TheNextPlanet:GDFlix: Instant DL: 2696f0b8ea65ed0193bd7c9afdfcb2ea954e9ab1843c6a6d7542feaa21e382769a120507ab54a8ada5fd56a4cc0b801828569bc0fe5e254f862238668bbc6d2a4b97f71c0b6f59963cfc7c47c686d079::f1dced434f06648a8b350161193fdabc&bytes=1195567383
+07-23 01:19:43.856  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='GDFlix [Instant] • 720p • BluRay • 1.11GB | Views : 2' source='GDFlix [Instant] • 720p • BluRay • 1.11GB | Views : 2' url='2696f0b8ea65ed0193bd7c9afdfcb2ea954e9ab1843c6a6d7542feaa21e382769a120507ab54a8ada5fd56a4cc0b801828569bc0fe5e254f862238668bbc6d2a4b97f71c0b6f59963cfc7c47c686d079::f1dced434f06648a8b350161193fdabc&bytes=1195567383'
+07-23 01:19:43.857  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Login To DL [10GBPS]', href='/login?ref=/file/pxP6MwGoJT0EiW6'
+07-23 01:19:43.857  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Login To DL [10GBPS]
+07-23 01:19:43.859  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='FAST CLOUD / ZIPDISK', href='/cloud/1784766048/pxP6MwGoJT0EiW6'
+07-23 01:19:43.859  2790  2830 D TheNextPlanet:GDFlix: No handler for button: FAST CLOUD / ZIPDISK
+07-23 01:19:43.884  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Telegram File', href='https://filesgram.xyz/?start=8_1324y9v9&bot=gdflix28_bot'
+07-23 01:19:43.884  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Telegram File
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: GDFlix anchor failed for 'PixelDrain DL [20MB/s]': java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.SSLUtils.toSSLHandshakeException(SSLUtils.java:361)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.convertException(ConscryptEngine.java:1138)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1093)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:880)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:751)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.unwrap(ConscryptEngine.java:716)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.processDataFromSocket(ConscryptEngineSocket.java:833)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$SSLInputStream.access$100(ConscryptEngineSocket.java:706)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.doHandshake(ConscryptEngineSocket.java:230)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket.startHandshake(ConscryptEngineSocket.java:209)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTls(ConnectPlan.kt:351)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectPlan.connectTlsEtc(ConnectPlan.kt:206)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.FastFallbackExchangeFinder.find(FastFallbackExchangeFinder.kt:78)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.initExchange$okhttp(RealCall.kt:298)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.ConnectInterceptor.intercept(ConnectInterceptor.kt:32)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.cache.CacheInterceptor.intercept(CacheInterceptor.kt:101)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.BridgeInterceptor.intercept(BridgeInterceptor.kt:85)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RetryAndFollowUpInterceptor.intercept(RetryAndFollowUpInterceptor.kt:74)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.http.RealInterceptorChain.proceed(RealInterceptorChain.kt:126)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall.getResponseWithInterceptorChain$okhttp(RealCall.kt:226)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at okhttp3.internal.connection.RealCall$AsyncCall.run(RealCall.kt:574)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1133)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:607)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: javax.net.ssl.SSLHandshakeException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		... 27 more
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:55.107  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		... 24 more
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 	Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		... 43 more
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketException: Socket closed
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:338)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:55.110  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	Suppressed: java.net.SocketTimeoutException: connect timed out
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.PlainSocketImpl.socketConnect(Native Method)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.doConnect(AbstractPlainSocketImpl.java:334)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connectToAddress(AbstractPlainSocketImpl.java:196)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:178)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.SocksSocketImpl.connect(SocksSocketImpl.java:356)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at java.net.Socket.connect(Socket.java:586)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.platform.AndroidPlatform.connectSocket(AndroidPlatform.kt:69)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectSocket(ConnectPlan.kt:276)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.ConnectPlan.connectTcp(ConnectPlan.kt:135)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.connection.FastFallbackExchangeFinder$launchTcpConnect$1.runOnce(FastFallbackExchangeFinder.kt:141)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		at okhttp3.internal.concurrent.TaskRunner$runnable$1.run(TaskRunner.kt:81)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 		... 3 more
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertificateException: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:549)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrustedRecursive(TrustManagerImpl.java:508)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:401)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.checkTrusted(TrustManagerImpl.java:375)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at com.android.org.conscrypt.TrustManagerImpl.getTrustedChainForServer(TrustManagerImpl.java:304)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.NetworkSecurityTrustManager.checkServerTrusted(NetworkSecurityTrustManager.java:94)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at android.security.net.config.RootTrustManager.checkServerTrusted(RootTrustManager.java:88)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform$$ExternalSyntheticApiModelOutline0.m$1(D8$$SyntheticClass:0)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngineSocket$2.checkServerTrusted(ConscryptEngineSocket.java:156)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.reflect.Method.invoke(Native Method)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkTrusted(Platform.java:388)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.Platform.checkServerTrusted(Platform.java:434)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.verifyCertificateChain(ConscryptEngine.java:1643)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeCrypto.ENGINE_SSL_read_direct(Native Method)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.NativeSsl.readDirectByteBuffer(NativeSsl.java:567)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextDataDirect(ConscryptEngine.java:1099)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	at org.conscrypt.ConscryptEngine.readPlaintextData(ConscryptEngine.java:1083)
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	... 24 more
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: Caused by: java.security.cert.CertPathValidatorException: Trust anchor for certification path not found.
+07-23 01:19:55.113  2790  2830 E TheNextPlanet:GDFlix: 	... 43 more
+07-23 01:19:55.599  2790  2830 W TheNextPlanet: Skipping depisode link: fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor — url=https://fastilinks.beauty/view/G17HRy0z9P
+07-23 01:19:56.404  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='TheNextPlanet [Mediafire] • 480p' source='TheNextPlanet [Mediafire] • 480p' url='https://download1587.mediafire.com/oejoctn83ewg1LHO7pGCLD9Ec8LbilfmEvZBPJ3zS4zVyR0k3I9fdsladK0KaY59LrD6T_KWDa3CVOtYx3_UnZRtSFLDoP-7oTVZeagSzGbWNcsNycinUhC-bfImVJPRGI-bTE7dMgX1-9ZunQOfNaDZvno1t-kjPxKkUG9pW8ZSW62j/2sm6tubzqhm32t3/StrMn.48p_World4ufree.tw.mkv'
+07-23 01:19:56.949  2790  2830 W TheNextPlanet:Photolinx: Skipping: /action returned no download_url — response={"error":"Invalid access token"} url=https://photolinx.beauty/download/_fgDSPwWx8k
+07-23 01:19:56.963  2790  2830 D TheNextPlanet:GDFlix: getUrl: https://gdflix.dev/file/wed8g5c2MrIB000
+07-23 01:19:57.199  2790  2830 D TheNextPlanet:GDFlix: Landing page: https://gdflix.dev/file/wed8g5c2MrIB000
+07-23 01:19:57.423  2790  2830 D TheNextPlanet:GDFlix: Found 6 anchor elements on landing page
+07-23 01:19:57.455  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='PixelDrain DL [20MB/s]', href='https://pixeldrain.dev/u/PtEQJHbz'
+07-23 01:19:57.468  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='GoFile [Multiup]', href='https://goflix.sbs/en/mirror/8f92a9f848d2fe8fb712667d0b1d2979'
+07-23 01:19:57.483  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Instant DL [10GBPS]', href='https://cdn.foxcloud.rest/?url=f97707e994dd5e9464d4a8725ac6ce43b04d2c9d6dd451059fb2ed79532c15914a90b4d7a02032aaab9bb22d360b4f9718bee5421e29da5b26de37f813de3e0d900b222072c8c4be7d76aadf546af068::19ab15c443280793d91a2ffbf4737b1c&bytes=443452373'
+07-23 01:19:57.483  2790  2830 D TheNextPlanet:GDFlix: Instant DL: f97707e994dd5e9464d4a8725ac6ce43b04d2c9d6dd451059fb2ed79532c15914a90b4d7a02032aaab9bb22d360b4f9718bee5421e29da5b26de37f813de3e0d900b222072c8c4be7d76aadf546af068::19ab15c443280793d91a2ffbf4737b1c&bytes=443452373
+07-23 01:19:57.486  2790  2830 I TheNextPlanet:AutoTest: [RESULT] name='GDFlix [Instant] • 480p • BluRay • 422.91MB | Views : 2' source='GDFlix [Instant] • 480p • BluRay • 422.91MB | Views : 2' url='f97707e994dd5e9464d4a8725ac6ce43b04d2c9d6dd451059fb2ed79532c15914a90b4d7a02032aaab9bb22d360b4f9718bee5421e29da5b26de37f813de3e0d900b222072c8c4be7d76aadf546af068::19ab15c443280793d91a2ffbf4737b1c&bytes=443452373'
+07-23 01:19:57.487  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Login To DL [10GBPS]', href='/login?ref=/file/wed8g5c2MrIB000'
+07-23 01:19:57.487  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Login To DL [10GBPS]
+07-23 01:19:57.489  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='FAST CLOUD / ZIPDISK', href='/cloud/1784766051/wed8g5c2MrIB000'
+07-23 01:19:57.489  2790  2830 D TheNextPlanet:GDFlix: No handler for button: FAST CLOUD / ZIPDISK
+07-23 01:19:57.490  2790  2830 D TheNextPlanet:GDFlix: Processing anchor: text='Telegram File', href='https://filesgram.xyz/?start=11_333y7v6&bot=gdflix28_bot'
+07-23 01:19:57.490  2790  2830 D TheNextPlanet:GDFlix: No handler for button: Telegram File
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: GDFlix anchor failed for 'PixelDrain DL [20MB/s]': Timed out waiting for 60000 ms
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: kotlinx.coroutines.TimeoutCancellationException: Timed out waiting for 60000 ms
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: 	at kotlinx.coroutines.TimeoutKt.TimeoutCancellationException(Timeout.kt:281)
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: 	at kotlinx.coroutines.TimeoutCoroutine.run(Timeout.kt:243)
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: 	at kotlinx.coroutines.EventLoopImplBase$DelayedRunnableTask.run(EventLoop.common.kt:498)
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: 	at kotlinx.coroutines.DefaultExecutor.run(DefaultExecutor.kt:105)
+07-23 01:20:00.460  2790  2830 E TheNextPlanet:GDFlix: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: resolveUrl failed for https://gdflix.dev/file/wed8g5c2MrIB000: Timed out waiting for 60000 ms
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: kotlinx.coroutines.TimeoutCancellationException: Timed out waiting for 60000 ms
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.TimeoutKt.TimeoutCancellationException(Timeout.kt:281)
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.TimeoutCoroutine.run(Timeout.kt:243)
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.EventLoopImplBase$DelayedRunnableTask.run(EventLoop.common.kt:498)
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.DefaultExecutor.run(DefaultExecutor.kt:105)
+07-23 01:20:00.464  2790  2830 E TheNextPlanet: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:20:00.465  2790  2830 W TheNextPlanet: Skipping depisode link: fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor — url=https://fastilinks.beauty/view/SQBz2TSXfP
+07-23 01:20:00.484  2790  2830 D TheNextPlanet:GDFlix: getUrl: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/IloSLhIgl7wxe48
+07-23 01:20:00.486  2790  2830 E TheNextPlanet:GDFlix: Failed to fetch redirect: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.486  2790  2830 D TheNextPlanet:GDFlix: Landing page: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/IloSLhIgl7wxe48
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: resolveUrl failed for /depisode/?lockey=1784773152&url=https://gdflix.dev/file/IloSLhIgl7wxe48: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: java.lang.IllegalArgumentException: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Builder.parse$okhttp(HttpUrl.kt:1360)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Companion.get(HttpUrl.kt:1734)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at okhttp3.Request$Builder.url(Request.kt:230)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.RequestsKt.requestCreator(Requests.kt:57)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom$suspendImpl(Requests.kt:136)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom(Requests.kt)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get(Requests.kt:175)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get$default(Requests.kt:161)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.GDFlix.getUrl(TheNextPlanet.kt:1079)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.resolveUrl(TheNextPlanet.kt:898)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.loadLinks(TheNextPlanet.kt:852)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$loadLinks$1.invokeSuspend(TheNextPlanet.kt)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:98)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingImpl(Unknown Source)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingK(Unknown Source)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:22)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:20)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$Companion.runAutoTest(TheNextPlanet.kt:342)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet._init_$lambda$0(TheNextPlanet.kt:46)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)
+07-23 01:20:00.490  2790  2830 E TheNextPlanet: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:20:00.506  2790  2830 D TheNextPlanet:GDFlix: getUrl: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/YWC0OKhzpnWGD7e
+07-23 01:20:00.507  2790  2830 E TheNextPlanet:GDFlix: Failed to fetch redirect: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.507  2790  2830 D TheNextPlanet:GDFlix: Landing page: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/YWC0OKhzpnWGD7e
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: resolveUrl failed for /depisode/?lockey=1784773152&url=https://gdflix.dev/file/YWC0OKhzpnWGD7e: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: java.lang.IllegalArgumentException: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Builder.parse$okhttp(HttpUrl.kt:1360)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Companion.get(HttpUrl.kt:1734)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at okhttp3.Request$Builder.url(Request.kt:230)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.RequestsKt.requestCreator(Requests.kt:57)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom$suspendImpl(Requests.kt:136)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom(Requests.kt)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get(Requests.kt:175)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get$default(Requests.kt:161)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.GDFlix.getUrl(TheNextPlanet.kt:1079)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.resolveUrl(TheNextPlanet.kt:898)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.loadLinks(TheNextPlanet.kt:852)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$loadLinks$1.invokeSuspend(TheNextPlanet.kt)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:98)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingImpl(Unknown Source)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingK(Unknown Source)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:22)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:20)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$Companion.runAutoTest(TheNextPlanet.kt:342)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet._init_$lambda$0(TheNextPlanet.kt:46)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)
+07-23 01:20:00.510  2790  2830 E TheNextPlanet: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:20:00.528  2790  2830 D TheNextPlanet:GDFlix: getUrl: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/pxP6MwGoJT0EiW6
+07-23 01:20:00.529  2790  2830 E TheNextPlanet:GDFlix: Failed to fetch redirect: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.530  2790  2830 D TheNextPlanet:GDFlix: Landing page: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/pxP6MwGoJT0EiW6
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: resolveUrl failed for /depisode/?lockey=1784773152&url=https://gdflix.dev/file/pxP6MwGoJT0EiW6: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: java.lang.IllegalArgumentException: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Builder.parse$okhttp(HttpUrl.kt:1360)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Companion.get(HttpUrl.kt:1734)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at okhttp3.Request$Builder.url(Request.kt:230)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.RequestsKt.requestCreator(Requests.kt:57)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom$suspendImpl(Requests.kt:136)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom(Requests.kt)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get(Requests.kt:175)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get$default(Requests.kt:161)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.GDFlix.getUrl(TheNextPlanet.kt:1079)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.resolveUrl(TheNextPlanet.kt:898)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.loadLinks(TheNextPlanet.kt:852)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$loadLinks$1.invokeSuspend(TheNextPlanet.kt)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:98)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingImpl(Unknown Source)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingK(Unknown Source)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:22)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:20)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$Companion.runAutoTest(TheNextPlanet.kt:342)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet._init_$lambda$0(TheNextPlanet.kt:46)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)
+07-23 01:20:00.534  2790  2830 E TheNextPlanet: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:20:00.562  2790  2830 D TheNextPlanet:GDFlix: getUrl: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/wed8g5c2MrIB000
+07-23 01:20:00.564  2790  2830 E TheNextPlanet:GDFlix: Failed to fetch redirect: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.564  2790  2830 D TheNextPlanet:GDFlix: Landing page: /depisode/?lockey=1784773152&url=https://gdflix.dev/file/wed8g5c2MrIB000
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: resolveUrl failed for /depisode/?lockey=1784773152&url=https://gdflix.dev/file/wed8g5c2MrIB000: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: java.lang.IllegalArgumentException: Expected URL scheme 'http' or 'https' but no scheme was found for /depis...
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Builder.parse$okhttp(HttpUrl.kt:1360)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at okhttp3.HttpUrl$Companion.get(HttpUrl.kt:1734)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at okhttp3.Request$Builder.url(Request.kt:230)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.RequestsKt.requestCreator(Requests.kt:57)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom$suspendImpl(Requests.kt:136)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.custom(Requests.kt)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get(Requests.kt:175)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.nicehttp.Requests.get$default(Requests.kt:161)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.GDFlix.getUrl(TheNextPlanet.kt:1079)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.resolveUrl(TheNextPlanet.kt:898)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet.loadLinks(TheNextPlanet.kt:852)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$loadLinks$1.invokeSuspend(TheNextPlanet.kt)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:35)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:101)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:47)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:98)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:256)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:54)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlockingImpl(Builders.kt:30)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingImpl(Unknown Source)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__Builders_concurrentKt.runBlockingK(Builders.concurrent.kt:172)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlockingK(Unknown Source)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:22)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:20)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$Companion.runAutoTest(TheNextPlanet.kt:342)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet._init_$lambda$0(TheNextPlanet.kt:46)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at com.lagradost.TheNextPlanet$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)
+07-23 01:20:00.566  2790  2830 E TheNextPlanet: 	at java.lang.Thread.run(Thread.java:761)
+07-23 01:20:00.569  2790  2830 W TheNextPlanet:AutoTest: [LOADLINKS-TIMEOUT] loadLinks() did not complete within 60s — likely network unreachable from emulator. Skip/keep assertions above are the primary evidence.
