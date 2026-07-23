@@ -305,7 +305,7 @@ class TheNextPlanet : MainAPI() {
             val u = url.lowercase()
             return when {
                 // Gap B — non-streamable / non-resolvable from the plugin
-                "fastmkv.sbs" in u   -> "fastmkv.sbs: no working resolution pattern (HTTP 520 from CF at probe time; see SOURCE_COVERAGE_AUDIT_PHASE5.md — re-probe if a working sample becomes available)"
+                "fastmkv.sbs" in u   -> "fastmkv.sbs: JS-obfuscated landing page; non-streamable without browser automation (Verified 2026-07-23)"
                 "gdtot.dad" in u     -> "gdtot.dad: Anubis PoW browser-challenge gated"
                 // Gap A — no CS3 built-in extractor; download-redirect chain
                 "fastilinks.beauty" in u -> "fastilinks.beauty: Google reCAPTCHA-gated, no CS3 extractor"
