@@ -1,0 +1,34 @@
+{
+  "katmoviehd": "https://new.katmoviehd.top",
+  "katmoviehd_candidates": [
+    "https://new.katmoviehd.top",
+    "https://new1.katmoviehd.cymru",
+    "https://katmoviehd.cymru"
+  ],
+  "katmoviehd_hubs": [
+    "https://katmovie.org.in/",
+    "https://katworld.net/?type=KatmovieHD"
+  ],
+  "sister_hubs": [
+    "https://katmovie.org.in/"
+  ],
+  "moviesbaba": "https://moviesbaba.lol",
+  "moviesbaba_candidates": [
+    "https://moviesbaba.lol"
+  ],
+  "katdrama": "https://www.katdrama.net",
+  "katdrama_candidates": [
+    "https://www.katdrama.net",
+    "https://katdrama.net"
+  ],
+  "pikahd": "https://new.pikahd.co",
+  "pikahd_candidates": [
+    "https://new.pikahd.co"
+  ],
+  "kmmovies": "https://kmmovies.shop",
+  "kmmovies_candidates": [
+    "https://kmmovies.shop"
+  ],
+  "_comment": "Domains used by the KatMovieHD and KMMovies extensions. Update a URL if a site moves domain.",
+  "_updated": "2026-07-10"
+}

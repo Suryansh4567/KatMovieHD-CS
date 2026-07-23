@@ -337,4 +337,23 @@ class TheNextPlanetLabelTest {
         // return null too.
         assertEquals(null, Photolinx.parseDownloadUrl("""{"status":false,"message":"something"}"""))
     }
+
+    @Test fun photolinx_parseSetCookie_simple() {
+        val header = "PHPSESSID=abc123xyz"
+        val result = Photolinx.parseSetCookie(header)
+        assertEquals("abc123xyz", result)
+    }
+
+    @Test fun photolinx_parseSetCookie_complex() {
+        val header = "PHPSESSID=abc123xyz; expires=Thu, 23-Jul-2026 12:00:00 GMT; path=/; domain=photolinx.beauty; HttpOnly; SameSite=Lax"
+        val result = Photolinx.parseSetCookie(header)
+        assertEquals("abc123xyz", result)
+    }
+
+    @Test fun photolinx_parseSetCookie_missing() {
+        val header = "other_cookie=123"
+        val result = Photolinx.parseSetCookie(header)
+        assertEquals(null, result)
+        assertEquals(null, Photolinx.parseSetCookie(null))
+    }
 }

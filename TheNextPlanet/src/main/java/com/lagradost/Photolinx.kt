@@ -61,6 +61,11 @@ class Photolinx : ExtractorApi() {
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
         private const val ENDPOINT_ACTION = "https://photolinx.beauty/action"
+        private const val DEBUG = false
+
+        private fun dbg(msg: String) {
+            if (DEBUG) android.util.Log.i(TAG, msg)
+        }
 
         /**
          * Parse a Photolinx download URL like
@@ -116,6 +121,16 @@ class Photolinx : ExtractorApi() {
             // common escapes) so the result is a real URL.
             return raw.replace("\\/", "/").replace("\\\\", "\\").replace("\\\"", "\"")
         }
+
+        /**
+         * Manually parse the PHPSESSID from a Set-Cookie header.
+         * Returns only the value part (e.g. "abc123xyz").
+         */
+        fun parseSetCookie(header: String?): String? {
+            if (header == null) return null
+            val match = Regex("""PHPSESSID=([^;]+)""").find(header)
+            return match?.groupValues?.getOrNull(1)
+        }
     }
 
     override suspend fun getUrl(
@@ -151,6 +166,9 @@ class Photolinx : ExtractorApi() {
                     "Accept-Language" to "en-US,en;q=0.9"
                 )
             )
+            val phpsessid = parseSetCookie(pageResponse.headers["Set-Cookie"])
+            dbg("[DBG] GET page done: phpsessid=$phpsessid")
+
             val doc = Jsoup.parse(pageResponse.text)
 
             val generateSection = doc.selectFirst("section#generate_url")
@@ -175,13 +193,8 @@ class Photolinx : ExtractorApi() {
 
             // ── Step 2: POST /action to get the download URL.
             // We use the same session cookies as the GET
-            // (the `app` client retains them across calls), the
-            // same UA, and a Referer matching the GET URL.
-            //
-            // The CS3 `app.post(url, json = ..., headers = ...)`
-            // overload JSON-encodes the `json` map and sets
-            // `Content-Type: application/json` automatically, so
-            // we don't need to set that header ourselves.
+            // (the `app` client doesn't auto-carry them, so we pass
+            // explicitly), the same UA, and a Referer matching the GET URL.
             val postJson = mapOf(
                 "type" to "DOWNLOAD_GENERATE",
                 "payload" to mapOf(
@@ -192,6 +205,7 @@ class Photolinx : ExtractorApi() {
             val postResponse = app.post(
                 ENDPOINT_ACTION,
                 json = postJson,
+                cookies = mapOf("PHPSESSID" to (phpsessid ?: "")),
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
                     "X-Requested-With" to "XMLHttpRequest",
@@ -202,6 +216,7 @@ class Photolinx : ExtractorApi() {
             )
 
             val responseBody = postResponse.text
+            dbg("[DBG] POST response: $responseBody")
             val downloadUrl = parseDownloadUrl(responseBody)
             if (downloadUrl == null) {
                 // The server returned an error payload (e.g. invalid

@@ -1,0 +1,9 @@
+.idea/
+.gradle/
+build/
+local.properties
+*.iml
+.DS_Store
+captures/
+.vscode/
+KatMovieHD-CS/
