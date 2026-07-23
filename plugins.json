@@ -53,7 +53,7 @@
             "arena"
         ],
         "description": "Stream movies, TV shows & anime from TheNextPlanet.",
-        "fileSize": 51840,
+        "fileSize": 56632,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -62,6 +62,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-7343d4a03ac144208acf14bfe8c0d7bf014e1640122dfe83ec9533b5df1d567b"
+        "fileHash": "sha256-d1200c6801e605f5757ca1540295081ef824cc384368992c886266c792f216a3"
     }
 ]
