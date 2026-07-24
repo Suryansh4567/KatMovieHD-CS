@@ -63,5 +63,26 @@
         "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64",
         "apiVersion": 1,
         "fileHash": "sha256-038c54013b4596b0e0968f183ad54db102bf2b1c6715c8ce2ddbeb51ad6fc4b8"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/YupFlix.cs3",
+        "status": 1,
+        "version": 1,
+        "name": "YupFlix",
+        "internalName": "YupFlix",
+        "authors": [
+            "arena"
+        ],
+        "description": "Stream movies & TV series from YupFlix (watch.yupflix.org). Direct HLS streams via the public JSON API.",
+        "fileSize": 27259,
+        "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
+        "language": "en",
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?domain=watch.yupflix.org&sz=64",
+        "apiVersion": 1,
+        "fileHash": "sha256-889b98e6796c40ee301643ca92c6485eba83fadcc93f081a1a77d794716104ec"
     }
 ]
