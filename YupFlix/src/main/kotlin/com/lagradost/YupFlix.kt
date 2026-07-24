@@ -31,6 +31,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.net.URLEncoder
@@ -142,13 +143,33 @@ class YupFlix : MainAPI() {
         )
 
         // Mongo-style ObjectIds are 24 hex chars (confirmed from real API data).
-        private val ID_REGEX = Regex("""/(?:detail|watch)/(movie|series)/([a-f0-9]{24})""")
+        // Tolerant of legacy "double-slash" URLs produced by v1 (empty type
+        // slot), e.g. /detail//<id> — group 1 may then be blank.
+        private val ID_REGEX = Regex("""/(?:detail|watch)/([a-z]*)/([a-f0-9]{24})""")
 
         // ── pure helpers (unit-tested, no CS3 runtime needed) ──────────────
 
-        fun extractId(url: String): Pair<String, String>? {
+        fun extractId(url: String): Pair<String?, String>? {
             val m = ID_REGEX.find(url) ?: return null
-            return m.groupValues[1] to m.groupValues[2]
+            val rawType = m.groupValues[1].lowercase().ifBlank { null }
+            val id = m.groupValues[2]
+            val normType = when (rawType) {
+                "series", "tv", "tvseries" -> "series"
+                "movie" -> "movie"
+                null -> null                      // unknown → load() tries both
+                else -> null
+            }
+            return normType to id
+        }
+
+        /** Infer content type from schema-differentiating fields when neither
+         *  `type` nor `contentType` is present. Series carry firstAirDate /
+         *  numberOfSeasons; movies carry runtime. Falls back to "movie". */
+        fun inferType(item: JsonNode): String {
+            if (item.get("firstAirDate") != null && !item.get("firstAirDate").isNull) return "series"
+            if (item.get("numberOfSeasons") != null && !item.get("numberOfSeasons").isNull) return "series"
+            if (item.get("runtime") != null && !item.get("runtime").isNull) return "movie"
+            return "movie"
         }
 
         fun qualityFromString(quality: String): Int = when (quality.lowercase(Locale.ROOT)) {
@@ -394,11 +415,20 @@ class YupFlix : MainAPI() {
             val list = mutableListOf<SearchResponse>()
             for (item in items) {
                 val id = item.get("_id")?.asText().orEmpty()
-                val t = item.get("type")?.asText().orEmpty()
                 val name = item.get("title")?.asText().orEmpty()
-                val type = if (t == "series") TvType.TvSeries else TvType.Movie
+                // Bug #1 Part A: most sections use `contentType`, not `type`.
+                // Fall back to `contentType`, then to field-based inference.
+                val rawType = item.get("type")?.asText()?.takeIf { it.isNotBlank() }
+                    ?: item.get("contentType")?.asText()?.takeIf { it.isNotBlank() }
+                    ?: Companion.inferType(item)
+                // Normalize to canonical "movie"/"series" (API also sends tv/tvseries/show).
+                val canonicalType = when (rawType?.lowercase()) {
+                    "series", "tv", "tvseries", "show", "tvshow" -> "series"
+                    else -> "movie"
+                }
+                val tvType = if (canonicalType == "series") TvType.TvSeries else TvType.Movie
                 list.add(
-                    newMovieSearchResponse(name, "$SITE_URL/detail/$t/$id", type) {
+                    newMovieSearchResponse(name, "$SITE_URL/detail/$canonicalType/$id", tvType) {
                         this.posterUrl = item.get("posterPath")?.asText()
                     }
                 )
@@ -424,6 +454,8 @@ class YupFlix : MainAPI() {
             } else {
                 newHomePageResponse(parseHomepage(r.body), hasNext = false)
             }
+        } catch (ce: CancellationException) {
+            throw ce                                          // never swallow cancellation
         } catch (t: Throwable) {
             YupFlixLog.w(TAG, "getMainPage failed: ${t.message}")
             newHomePageResponse(emptyList<HomePageList>(), hasNext = false)
@@ -444,6 +476,8 @@ class YupFlix : MainAPI() {
             } else {
                 parseSearch(r.body)
             }
+        } catch (ce: CancellationException) {
+            throw ce                                          // never swallow cancellation
         } catch (t: Throwable) {
             YupFlixLog.e(TAG, "search failed for '$query': ${t.message}", t)
             emptyList()
@@ -452,59 +486,77 @@ class YupFlix : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         return try {
-            val (type, id) = Companion.extractId(url) ?: run {
+            val parsed = Companion.extractId(url) ?: run {
                 YupFlixLog.w(TAG, "load: cannot parse id from $url")
                 return null
             }
-            val apiUrl = "${Companion.API_BASE}/api/${type}s/public/$id"
-            val r = Companion.retryOn429(2) { _ ->
-                val resp = app.get(apiUrl, headers = Companion.API_HEADERS)
-                RateLimitedResponse(resp.code, resp.text, resp.headers["Retry-After"])
-            }
-            if (r == null) {
-                YupFlixLog.w(TAG, "load rate-limited after 3 attempts for $apiUrl; returning null")
-                return null
-            }
-            val text = r.body
-
-            if (type == "movie") {
-                val d = Companion.parseMovieDetail(text)
-                val data = mapper.writeValueAsString(d.streamingLinks)
-                newMovieLoadResponse(d.title, url, TvType.Movie, data) {
-                    this.posterUrl = d.posterUrl
-                    this.backgroundPosterUrl = d.backdropUrl
-                    this.plot = d.plot
-                    this.year = d.year
-                    this.score = Score.from(d.rating ?: 0, 10000)
-                    this.tags = d.tags
-                    this.duration = d.duration
-                    this.actors = d.actors
-                }
-            } else {
-                val d = Companion.parseSeriesDetail(text)
-                val episodes: List<Episode> = d.episodes.map { ep ->
-                    newEpisode(mapper.writeValueAsString(ep.streamingLinks)) {
-                        this.name = ep.name
-                        this.season = ep.season
-                        this.episode = ep.episode
-                        this.posterUrl = ep.stillUrl
-                        this.description = ep.overview
-                        this.runTime = ep.runtime
+            val (typeOrNull, id) = parsed
+            // Bug #1 Part B: legacy v1 URLs had an empty type slot; when the
+            // type is unknown, try movie then series and keep whichever resolves.
+            val typesToTry = if (typeOrNull != null) listOf(typeOrNull) else listOf("movie", "series")
+            for (type in typesToTry) {
+                val apiUrl = "${Companion.API_BASE}/api/${type}s/public/$id"
+                val r = try {
+                    Companion.retryOn429(2) { _ ->
+                        val resp = app.get(apiUrl, headers = Companion.API_HEADERS)
+                        RateLimitedResponse(resp.code, resp.text, resp.headers["Retry-After"])
                     }
+                } catch (t: Throwable) {
+                    YupFlixLog.w(TAG, "load $apiUrl failed: ${t.message}")
+                    null
+                } ?: continue
+                if (r.code == 404) continue            // wrong type, try the other
+                if (r.code >= 400) {
+                    YupFlixLog.w(TAG, "load $apiUrl returned ${r.code}")
+                    continue
                 }
-                newTvSeriesLoadResponse(d.title, url, TvType.TvSeries, episodes) {
-                    this.posterUrl = d.posterUrl
-                    this.backgroundPosterUrl = d.backdropUrl
-                    this.plot = d.plot
-                    this.year = d.year
-                    this.score = Score.from(d.rating ?: 0, 10000)
-                    this.tags = d.tags
-                    this.actors = d.actors
-                }
+                return buildLoadResponse(type, url, r.body)
             }
+            null
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (t: Throwable) {
             YupFlixLog.e(TAG, "load failed for $url: ${t.message}", t)
             null
+        }
+    }
+
+    /** Build a LoadResponse from an already-fetched detail JSON body. */
+    private suspend fun buildLoadResponse(type: String, url: String, text: String): LoadResponse {
+        return if (type == "movie") {
+            val d = Companion.parseMovieDetail(text)
+            val data = mapper.writeValueAsString(d.streamingLinks)
+            newMovieLoadResponse(d.title, url, TvType.Movie, data) {
+                this.posterUrl = d.posterUrl
+                this.backgroundPosterUrl = d.backdropUrl
+                this.plot = d.plot
+                this.year = d.year
+                this.score = Score.from(d.rating ?: 0, 10000)
+                this.tags = d.tags
+                this.duration = d.duration
+                this.actors = d.actors
+            }
+        } else {
+            val d = Companion.parseSeriesDetail(text)
+            val episodes: List<Episode> = d.episodes.map { ep ->
+                newEpisode(mapper.writeValueAsString(ep.streamingLinks)) {
+                    this.name = ep.name
+                    this.season = ep.season
+                    this.episode = ep.episode
+                    this.posterUrl = ep.stillUrl
+                    this.description = ep.overview
+                    this.runTime = ep.runtime
+                }
+            }
+            newTvSeriesLoadResponse(d.title, url, TvType.TvSeries, episodes) {
+                this.posterUrl = d.posterUrl
+                this.backgroundPosterUrl = d.backdropUrl
+                this.plot = d.plot
+                this.year = d.year
+                this.score = Score.from(d.rating ?: 0, 10000)
+                this.tags = d.tags
+                this.actors = d.actors
+            }
         }
     }
 

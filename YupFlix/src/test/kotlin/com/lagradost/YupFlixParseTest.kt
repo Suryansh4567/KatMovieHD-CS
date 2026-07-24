@@ -109,6 +109,11 @@ class YupFlixParseTest {
         assertTrue("at least one section produced", lists.isNotEmpty())
         assertTrue("every produced list has items", lists.all { it.list.isNotEmpty() })
 
+        // Bug #1 invariant: no generated homepage URL may contain a double slash
+        // (empty type slot) — that was the v1 regression that broke navigation.
+        val doubleSlash = lists.flatMap { it.list }.count { it.url.contains(Regex("/detail//|/watch//")) }
+        assertEquals("no double-slash (empty type) homepage URLs (Bug #1 invariant)", 0, doubleSlash)
+
         // count non-empty sections directly in the raw fixture
         val tree = ObjectMapper().readTree(res("home_sec.json"))
         val nonEmpty = tree.get("data")?.count {
@@ -153,5 +158,56 @@ class YupFlixParseTest {
         assertEquals("should surface the 200 after two 429s", 200, r?.code)
         assertEquals("body should be the 200 response", "real body", r?.body)
         assertEquals("must have attempted all three times", 3, calls)
+    }
+
+    // ── TASK 02.2 (v1.1) Bug #1 tests ────────────────────────────────────
+
+    @Test
+    fun homepage_readsContentTypeFallback() {
+        val lists = yf.parseHomepage(res("home_sec.json"))
+        assertTrue("at least one section produced", lists.isNotEmpty())
+
+        // Every generated detail URL must carry a concrete type slot and must
+        // NOT contain a double slash (the v1 bug). Most sections use
+        // `contentType` (not `type`), so this exercises the fallback path.
+        val allUrls = lists.flatMap { it.list }.map { it.url }
+        assertTrue("no empty-type (double-slash) URLs", allUrls.none { it.contains(Regex("/detail//|/watch//")) })
+        assertTrue(
+            "all URLs have a concrete movie/series type slot",
+            allUrls.all { it.matches(Regex(".*/detail/(movie|series)/[a-f0-9]{24}.*")) },
+        )
+
+        val trending = lists.find { it.name == "Trending Now" }
+        assertTrue("Trending Now present", trending != null)
+        assertTrue("Trending items resolved via contentType", trending!!.list.isNotEmpty())
+        val movies = lists.find { it.name == "Movies" }
+        assertTrue("Movies present", movies != null)
+        assertTrue("Movies items resolved via contentType", movies!!.list.isNotEmpty())
+    }
+
+    @Test
+    fun homepage_inferTypeFromFields() {
+        assertEquals("series", YupFlix.inferType(ObjectMapper().readTree("""{"firstAirDate":"2020-01-01"}""")))
+        assertEquals("series", YupFlix.inferType(ObjectMapper().readTree("""{"numberOfSeasons":3}""")))
+        assertEquals("movie", YupFlix.inferType(ObjectMapper().readTree("""{"runtime":120}""")))
+        assertEquals("movie", YupFlix.inferType(ObjectMapper().readTree("{}")))
+    }
+
+    @Test
+    fun urlParser_recoversFromDoubleSlash() {
+        // Legacy v1 URLs had an empty type slot: /detail//<id>.
+        val r = YupFlix.extractId("https://watch.yupflix.org/detail//6a6279c7c6106e990cf55b7d")
+        assertNull("type slot empty → null (load() will try both)", r?.first)
+        assertEquals("6a6279c7c6106e990cf55b7d", r?.second)
+    }
+
+    @Test
+    fun urlParser_stillHandlesGoodUrls() {
+        val r1 = YupFlix.extractId("https://watch.yupflix.org/detail/movie/6a452eda5f5543dc5c4d42bf")
+        assertEquals("movie", r1?.first)
+        assertEquals("6a452eda5f5543dc5c4d42bf", r1?.second)
+        val r2 = YupFlix.extractId("https://watch.yupflix.org/watch/series/6a4d547d5f5543dc5c807e3b")
+        assertEquals("series", r2?.first)
+        assertEquals("6a4d547d5f5543dc5c807e3b", r2?.second)
     }
 }
