@@ -37,12 +37,21 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :TheNextPlanet:generateDebugResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :TheNextPlanet:parseDebugLocalResources
+> Task :YupFlix:preBuild UP-TO-DATE
+> Task :YupFlix:preDebugBuild UP-TO-DATE
+> Task :YupFlix:generateDebugBuildConfig
 > Task :TheNextPlanet:generateDebugRFile
-> Task :KatMovieHD:generateDebugRFile
 > Task :KMMovies:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
+> Task :YupFlix:generateDebugResources
+> Task :YupFlix:packageDebugResources
+> Task :YupFlix:processDebugNavigationResources
+> Task :YupFlix:parseDebugLocalResources
+> Task :YupFlix:generateDebugRFile
+> Task :YupFlix:compileDebugKotlin
 
 > Task :TheNextPlanet:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:570:29 Unnecessary safe call on a non-null receiver of type 'String'.
@@ -52,6 +61,9 @@ w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/ma
 > Task :KMMovies:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:186:55 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:217:87 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
+
+> Task :YupFlix:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/build/intermediates/classes.dex
 
 > Task :KatMovieHD:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
@@ -84,10 +96,16 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/TheNextPlanet.cs3
 
 > Task :TheNextPlanet:writeCacheEntry
+> Task :YupFlix:generateManifest
+
+> Task :YupFlix:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/build/YupFlix.cs3
+
+> Task :YupFlix:writeCacheEntry
 
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 46s
-34 actionable tasks: 34 executed
+BUILD SUCCESSFUL in 50s
+45 actionable tasks: 45 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
