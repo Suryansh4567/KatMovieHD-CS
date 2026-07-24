@@ -46,7 +46,7 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/TheNextPlanet.cs3",
         "status": 1,
-        "version": 3,
+        "version": 4,
         "name": "TheNextPlanet",
         "internalName": "TheNextPlanet",
         "authors": [
@@ -62,6 +62,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-087460e19c9e9635fb4e2f8ae07d99aa6b5feb668a73b5cd673c645764be23de"
+        "fileHash": "sha256-038c54013b4596b0e0968f183ad54db102bf2b1c6715c8ce2ddbeb51ad6fc4b8"
     }
 ]
