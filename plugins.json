@@ -67,14 +67,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/YupFlix.cs3",
         "status": 1,
-        "version": 1,
+        "version": 2,
         "name": "YupFlix",
         "internalName": "YupFlix",
         "authors": [
             "arena"
         ],
         "description": "Stream movies & TV series from YupFlix (watch.yupflix.org). Direct HLS streams via the public JSON API.",
-        "fileSize": 27259,
+        "fileSize": 28624,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -83,6 +83,6 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=watch.yupflix.org&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-889b98e6796c40ee301643ca92c6485eba83fadcc93f081a1a77d794716104ec"
+        "fileHash": "sha256-12a5cf21d581cfecea2517c97cd73e8488b9e7e45fea5df22a0499e1405f941f"
     }
 ]
