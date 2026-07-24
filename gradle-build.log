@@ -34,24 +34,26 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugResources
+> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
-> Task :KMMovies:parseDebugLocalResources
-> Task :KatMovieHD:parseDebugLocalResources
-> Task :TheNextPlanet:parseDebugLocalResources
 > Task :YupFlix:preBuild UP-TO-DATE
 > Task :YupFlix:preDebugBuild UP-TO-DATE
-> Task :YupFlix:generateDebugBuildConfig
-> Task :TheNextPlanet:generateDebugRFile
 > Task :KMMovies:generateDebugRFile
 > Task :KatMovieHD:generateDebugRFile
+> Task :YupFlix:generateDebugBuildConfig
+> Task :TheNextPlanet:parseDebugLocalResources
 > Task :YupFlix:generateDebugResources
+> Task :TheNextPlanet:generateDebugRFile
 > Task :YupFlix:packageDebugResources
 > Task :YupFlix:processDebugNavigationResources
 > Task :YupFlix:parseDebugLocalResources
 > Task :YupFlix:generateDebugRFile
+
 > Task :YupFlix:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/src/main/kotlin/com/lagradost/YupFlix.kt:425:50 Unnecessary safe call on a non-null receiver of type 'String'.
 
 > Task :TheNextPlanet:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:570:29 Unnecessary safe call on a non-null receiver of type 'String'.
@@ -106,6 +108,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Yu
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 50s
+BUILD SUCCESSFUL in 49s
 45 actionable tasks: 45 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
