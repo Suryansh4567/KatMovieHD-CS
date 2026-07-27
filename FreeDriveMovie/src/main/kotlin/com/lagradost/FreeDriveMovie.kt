@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
@@ -24,28 +25,28 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.CancellationException
 import org.jsoup.nodes.Document
+import org.json.JSONObject
 
 /**
  * FreeDriveMovie provider — freedrivemovie.cyou (Dooplay / WordPress).
  *
- * Hoster chain (verified against the live site):
+ * Metadata is enriched from TMDB (search by cleaned title + year), like the
+ * professional references (FourKHDHub fetchtmdb, ViStream TmdbProvider). For TV
+ * this also pulls per-episode name + still + overview from
+ * /tv/{id}/season/{n}. Every TMDB call is best-effort; on any failure we fall
+ * back to the page's own metadata so load() never breaks.
  *
- *   content page (.links_table tr > a[href*=/links/<code>/])
- *     -> /links/<code>/  intermediate HTML  (<a id="link" href="...">)
- *     -> dl.freedrivemovie.org/<slug>/  download-resolver page
- *        - Cloudflare-Worker GDToT mirrors (.mkv) -> directly playable,
- *          labelled "FreeDriveMovie - <quality>".
- *        - file lockers (gdflix/hubcloud/gdtot) -> CloudStream's loadExtractor.
+ * Hoster chain: content page (.links_table -> /links/<code>/) -> intermediate
+ * (<a id="link">) -> dl.freedrivemovie.org/<slug>/ (.wp-block-button a).
+ *   - Cloudflare-Worker GDToT mirrors (.mkv) -> directly playable, labelled
+ *     "FreeDriveMovie - <quality>" (no URL in the name).
+ *   - file lockers (gdflix/hubcloud/gdtot) -> CloudStream's loadExtractor.
  *
- * Both source kinds are always emitted so the user has the widest choice.
+ * "Complete season" entries are kept as their own episode.
  *
- * Design follows the in-repo professional providers (KatMovieHD / YupFlix):
- * load() does a SINGLE fetch and parses; all link resolution happens in
- * loadLinks(). No network I/O inside load() (that previously caused device
- * crashes/ANRs on the TV path).
- *
- * Movies: /movies/<slug>/. TV: /tvshows/<slug>/ with #seasons > .se-c >
- * .episodios li -> /episodes/<slug>/ pages that reuse the same links table.
+ * Design follows the in-repo pros (KatMovieHD/YupFlix): load() does a single
+ * page fetch + parse (+ best-effort TMDB); all link resolution is in
+ * loadLinks(), now parallel (amap) and fetch-capped (<=3 shortlinks).
  */
 class FreeDriveMovie : MainAPI() {
 
@@ -61,6 +62,12 @@ class FreeDriveMovie : MainAPI() {
     companion object {
         private const val MAIN = "https://freedrivemovie.cyou"
         private const val DL_REFERER = "https://dl.freedrivemovie.org/"
+
+        // TMDB (public CS3 community key, same one ViStream ships).
+        private const val TMDB_API = "https://api.themoviedb.org/3"
+        private const val TMDB_KEY = "8ff0f5d3eb22a8130a33808a70688dce"
+        private const val TMDB_IMG = "https://image.tmdb.org/t/p/w500"
+        private const val TMDB_BACKDROP = "https://image.tmdb.org/t/p/w780"
 
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -79,8 +86,6 @@ class FreeDriveMovie : MainAPI() {
                 """HEVC|x264|x265|AVC|AAC|DDP|DDPA|ESub|HC|LiNE|2160p|1080p|720p|480p|360p|4K)\b""",
             RegexOption.IGNORE_CASE,
         )
-
-        /** Matches "Episode 3" inside a dl-page button label (for label cleanup). */
         private val EPISODE_NUM = Regex("""(?:Episode|Ep)\s*[.-]?\s*(\d+)""", RegexOption.IGNORE_CASE)
     }
 
@@ -132,7 +137,6 @@ class FreeDriveMovie : MainAPI() {
             "workers.dev" in u || "/0:/" in u
     }
 
-    /** Tidy a dl-page button label: drop the "Episode N" prefix, collapse whitespace. */
     private fun cleanLabel(raw: String): String =
         EPISODE_NUM.replace(raw, "")
             .replace(Regex("\\s+"), " ")
@@ -140,6 +144,89 @@ class FreeDriveMovie : MainAPI() {
             .trimStart('-', ':')
             .trim()
             .ifBlank { "Mirror" }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // TMDB enrichment (best-effort; never throws)
+    // ──────────────────────────────────────────────────────────────────────
+
+    private data class TmdbMeta(
+        val title: String?, val poster: String?, val backdrop: String?,
+        val plot: String?, val rating: String?, val year: Int?, val tags: List<String>,
+    )
+
+    private data class TmdbEp(val name: String?, val still: String?, val overview: String?)
+
+    private suspend fun tmdbId(title: String, year: Int?, isMovie: Boolean): Int? = try {
+        val type = if (isMovie) "movie" else "tv"
+        val q = java.net.URLEncoder.encode(title, "UTF-8")
+        val y = year?.let { if (isMovie) "&year=$it" else "&first_air_date_year=$it" } ?: ""
+        val res = JSONObject(app.get("$TMDB_API/search/$type?api_key=$TMDB_KEY&query=$q$y", timeout = 10).text)
+            .optJSONArray("results")
+        res?.optJSONObject(0)?.optInt("id")?.takeIf { it > 0 }
+    } catch (_: Throwable) {
+        null
+    }
+
+    private fun genresOf(d: JSONObject): List<String> {
+        val arr = d.optJSONArray("genres") ?: return emptyList()
+        val out = ArrayList<String>(arr.length())
+        for (i in 0 until arr.length()) {
+            arr.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() }?.let(out::add)
+        }
+        return out
+    }
+
+    private suspend fun fetchMovieMeta(id: Int): TmdbMeta? = try {
+        val d = JSONObject(app.get("$TMDB_API/movie/$id?api_key=$TMDB_KEY", timeout = 10).text)
+        TmdbMeta(
+            d.optString("title").ifBlank { null },
+            d.optString("poster_path").takeIf { it.isNotBlank() && it != "null" }?.let { "$TMDB_IMG$it" },
+            d.optString("backdrop_path").takeIf { it.isNotBlank() && it != "null" }?.let { "$TMDB_BACKDROP$it" },
+            d.optString("overview").ifBlank { null },
+            d.optString("vote_average").takeIf { it.isNotBlank() && it != "0" && it != "0.0" },
+            d.optString("release_date").take(4).toIntOrNull(),
+            genresOf(d),
+        )
+    } catch (_: Throwable) {
+        null
+    }
+
+    private suspend fun fetchTvMeta(id: Int): TmdbMeta? = try {
+        val d = JSONObject(app.get("$TMDB_API/tv/$id?api_key=$TMDB_KEY", timeout = 10).text)
+        TmdbMeta(
+            d.optString("name").ifBlank { null },
+            d.optString("poster_path").takeIf { it.isNotBlank() && it != "null" }?.let { "$TMDB_IMG$it" },
+            d.optString("backdrop_path").takeIf { it.isNotBlank() && it != "null" }?.let { "$TMDB_BACKDROP$it" },
+            d.optString("overview").ifBlank { null },
+            d.optString("vote_average").takeIf { it.isNotBlank() && it != "0" && it != "0.0" },
+            d.optString("first_air_date").take(4).toIntOrNull(),
+            genresOf(d),
+        )
+    } catch (_: Throwable) {
+        null
+    }
+
+    /** season -> (episodeNumber -> episode meta). */
+    private suspend fun fetchSeasonEpisodes(id: Int, season: Int): Map<Int, TmdbEp>? = try {
+        val arr = JSONObject(app.get("$TMDB_API/tv/$id/season/$season?api_key=$TMDB_KEY", timeout = 10).text)
+            .optJSONArray("episodes")
+            ?: return null
+        val map = HashMap<Int, TmdbEp>()
+        for (i in 0 until arr.length()) {
+            val e = arr.optJSONObject(i) ?: continue
+            val num = e.optInt("episode_number")
+            if (num > 0) {
+                map[num] = TmdbEp(
+                    e.optString("name").ifBlank { null },
+                    e.optString("still_path").takeIf { it.isNotBlank() && it != "null" }?.let { "$TMDB_IMG$it" },
+                    e.optString("overview").ifBlank { null },
+                )
+            }
+        }
+        map
+    } catch (_: Throwable) {
+        null
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     // Home page
@@ -208,33 +295,64 @@ class FreeDriveMovie : MainAPI() {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // Load (single fetch; pure parse — no network expansion)
+    // Load (single page fetch + parse + best-effort TMDB enrichment)
     // ──────────────────────────────────────────────────────────────────────
 
     override suspend fun load(url: String): LoadResponse? {
         return try {
-            val doc = app.get(url, headers = HEADERS).document
+            val doc = app.get(url, headers = HEADERS, timeout = 15).document
             val rawTitle = doc.selectFirst("h1")?.text()
                 ?: doc.selectFirst("meta[property=og:title]")?.attr("content") ?: ""
-            val title = cleanTitle(rawTitle).ifBlank { url.trimEnd('/').substringAfterLast('/') }
+            val pageTitle = cleanTitle(rawTitle).ifBlank { url.trimEnd('/').substringAfterLast('/') }
             val year = parseYear(rawTitle)
-            val poster = upScalePoster(doc.selectFirst(".poster img")?.absUrl("src"))
-            val plot = doc.selectFirst("meta[name=description]")?.attr("content")?.trim()
-            val tags = doc.select("a[href*=/genre/]").eachTextClean().take(8)
+            val pagePoster = upScalePoster(doc.selectFirst(".poster img")?.absUrl("src"))
+            val pagePlot = doc.selectFirst("meta[name=description]")?.attr("content")?.trim()
+            val pageTags = doc.select("a[href*=/genre/]").eachTextClean().take(8)
+            fun score(rating: String?) =
+                if (rating.isNullOrBlank()) null else Score.from((rating.toFloatOrNull() ?: 0f).times(1000).toInt(), 10000)
 
             if (url.contains("/tvshows/")) {
-                newTvSeriesLoadResponse(title, url, TvType.TvSeries, parseEpisodes(doc)) {
-                    this.posterUrl = poster
-                    this.plot = plot
-                    this.year = year
-                    this.tags = tags
+                val rawEpisodes = parseEpisodes(doc)
+                val showId = tmdbId(pageTitle, year, false)
+                val show = showId?.let { fetchTvMeta(it) }
+                val seasonCache = HashMap<Int, Map<Int, TmdbEp>>()
+                if (showId != null) {
+                    for (s in rawEpisodes.mapNotNull { it.season }.toSet()) {
+                        fetchSeasonEpisodes(showId, s)?.let { seasonCache[s] = it }
+                    }
+                }
+                val episodes = mutableListOf<Episode>()
+                for (ep in rawEpisodes) {
+                    val data = ep.data ?: continue
+                    val isBatch = ep.name?.contains("Complete", ignoreCase = true) == true
+                    val tmdbEp = if (!isBatch) ep.season?.let { seasonCache[it] }?.get(ep.episode ?: 0) else null
+                    episodes.add(
+                        newEpisode(data) {
+                            this.name = tmdbEp?.name ?: ep.name
+                            this.season = ep.season
+                            this.episode = ep.episode
+                            this.posterUrl = tmdbEp?.still
+                            this.description = tmdbEp?.overview
+                        },
+                    )
+                }
+                newTvSeriesLoadResponse(show?.title ?: pageTitle, url, TvType.TvSeries, episodes) {
+                    this.posterUrl = show?.poster ?: pagePoster
+                    this.backgroundPosterUrl = show?.backdrop
+                    this.plot = show?.plot ?: pagePlot
+                    this.year = show?.year ?: year
+                    this.tags = show?.tags?.ifEmpty { null } ?: pageTags
+                    score(show?.rating)?.let { this.score = it }
                 }
             } else {
-                newMovieLoadResponse(title, url, TvType.Movie, url) {
-                    this.posterUrl = poster
-                    this.plot = plot
-                    this.year = year
-                    this.tags = tags
+                val movie = tmdbId(pageTitle, year, true)?.let { fetchMovieMeta(it) }
+                newMovieLoadResponse(movie?.title ?: pageTitle, url, TvType.Movie, url) {
+                    this.posterUrl = movie?.poster ?: pagePoster
+                    this.backgroundPosterUrl = movie?.backdrop
+                    this.plot = movie?.plot ?: pagePlot
+                    this.year = movie?.year ?: year
+                    this.tags = movie?.tags?.ifEmpty { null } ?: pageTags
+                    score(movie?.rating)?.let { this.score = it }
                 }
             }
         } catch (ce: CancellationException) {
@@ -244,9 +362,7 @@ class FreeDriveMovie : MainAPI() {
         }
     }
 
-    /** Parse `#seasons > .se-c > .episodios li` into Episodes. Batch "Complete"
-     *  entries are kept as single episodes whose links page holds per-episode
-     *  sources (resolved in loadLinks). */
+    /** Parse `#seasons > .se-c > .episodios li` into Episodes (batches included). */
     private fun parseEpisodes(doc: Document): List<Episode> {
         val episodes = mutableListOf<Episode>()
         for (seasonEl in doc.select("#seasons .se-c")) {
@@ -283,10 +399,6 @@ class FreeDriveMovie : MainAPI() {
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
         return try {
-            // Resolve shortlink -> dl page -> source anchors IN PARALLEL (idea
-            // taken from Megix VegaMovies, which resolves its sources via
-            // `sources.amap`). Sequential fetches made loadLinks slow enough to
-            // time out on device (read as "no sources" / crash).
             val anchors = parseShortLinks(data).amap { resolveAnchors(it) }.flatten()
             emitLinksFromAnchors(anchors, subtitleCallback, callback)
         } catch (ce: CancellationException) {
@@ -296,7 +408,6 @@ class FreeDriveMovie : MainAPI() {
         }
     }
 
-    /** Follow one shortlink to its dl.freedrivemovie.org source anchors. */
     private suspend fun resolveAnchors(shortlink: String): List<Pair<String, String>> {
         return try {
             val sdoc = app.get(shortlink, headers = HEADERS, timeout = 15).document
@@ -314,8 +425,9 @@ class FreeDriveMovie : MainAPI() {
     }
 
     /**
-     * Emit EVERY source so the user has the widest choice. Direct mirrors get
-     * clean labels; file lockers are resolved through CloudStream's extractors.
+     * Emit sources. Direct mirrors get clean labels ("FreeDriveMovie - 720p",
+     * no URL) and are listed first; file lockers go through CloudStream's
+     * extractors as a fallback so episodes without a direct mirror still play.
      */
     private suspend fun emitLinksFromAnchors(
         anchors: List<Pair<String, String>>,
@@ -324,17 +436,25 @@ class FreeDriveMovie : MainAPI() {
     ): Boolean {
         var found = false
         val seen = linkedSetOf<String>()
+        // 1. Direct mirrors — clean labels, no URL.
         for ((href, rawLabel) in anchors) {
             if (!seen.add(href)) continue
-            if (isDirectPlayable(href)) {
-                callback.invoke(
-                    newExtractorLink("FreeDriveMovie", "FreeDriveMovie - ${cleanLabel(rawLabel)}", href, ExtractorLinkType.VIDEO) {
-                        this.quality = qualityFromLabel(rawLabel)
-                        this.referer = DL_REFERER
-                    },
-                )
-                found = true
-            } else {
+            if (!isDirectPlayable(href)) continue
+            callback.invoke(
+                newExtractorLink("FreeDriveMovie", "FreeDriveMovie - ${cleanLabel(rawLabel)}", href, ExtractorLinkType.VIDEO) {
+                    this.quality = qualityFromLabel(rawLabel)
+                    this.referer = DL_REFERER
+                },
+            )
+            found = true
+        }
+        // 2. File lockers via CS3 extractors (fallback; their names is set by
+        //    the extractor and may include a URL — only used when no direct
+        //    mirror is available so playback still works).
+        if (!found) {
+            for ((href, _) in anchors) {
+                if (!seen.add(href + "#locker")) continue
+                if (isDirectPlayable(href)) continue
                 try {
                     loadExtractor(href, mainUrl, subtitleCallback, callback)
                     found = true
@@ -344,10 +464,7 @@ class FreeDriveMovie : MainAPI() {
         return found
     }
 
-    /** Collect every `/links/<code>/` shortlink from a movie/episode page.
-     *  Capped at 3: the first shortlink's dl page already carries every quality,
-     *  so resolving >3 only multiplies network calls (the cause of slow/failed
-     *  playback on device). */
+    /** Collect every `/links/<code>/` shortlink (capped at 3). */
     private suspend fun parseShortLinks(pageUrl: String): List<String> {
         val doc = app.get(pageUrl, headers = HEADERS, timeout = 15).document
         val out = linkedSetOf<String>()
