@@ -173,7 +173,12 @@ class FreeDriveMovie : MainAPI() {
         for (art in doc.select("article.item")) {
             val href = art.selectFirst("a[href*=/movies/], a[href*=/tvshows/]")?.absUrl("href")
                 ?.takeIf { it.startsWith("http") } ?: continue
-            val name = cleanTitle(art.selectFirst("h3 a, h3, .title")?.text() ?: "")
+            val name = cleanTitle(
+                art.selectFirst(".title")?.text()
+                    ?: art.selectFirst("h3")?.text()
+                    ?: art.selectFirst("img")?.attr("alt")
+                    ?: "",
+            )
             if (name.isBlank()) continue
             val poster = upScalePoster(art.selectFirst("img")?.absUrl("src"))
             out.add(
