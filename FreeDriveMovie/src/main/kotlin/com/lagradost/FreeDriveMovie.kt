@@ -427,32 +427,54 @@ class FreeDriveMovie : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
+        // Separate clean direct mirrors from messy file-locker pages.
+        val directs = mutableListOf<Pair<String, String>>()
+        val lockers = mutableListOf<Pair<String, String>>()
+        for ((href, label) in anchors) {
+            (if (isDirectPlayable(href)) directs else lockers).add(href to label)
+        }
+
         var found = false
         val seen = linkedSetOf<String>()
-        for ((href, rawLabel) in anchors) {
-            if (!seen.add(href)) continue
-            // Drop the "Episode N" prefix from the displayed label when present.
-            val label = EPISODE_NUM.replace(rawLabel, "").trim().replace(Regex("\\s+"), " ").ifBlank { "Mirror" }
-            val referer = if (href.contains("dl.freedrivemovie") || href.contains("workers.dev")) DL_REFERER else mainUrl
-            if (isDirectPlayable(href)) {
-                if (isPlayable(href)) {
-                    callback.invoke(
-                        newExtractorLink("FreeDriveMovie", "FreeDriveMovie - $label", href, ExtractorLinkType.VIDEO) {
-                            this.quality = qualityFromLabel(label)
-                            this.referer = referer
-                        },
-                    )
-                    found = true
-                }
-            } else {
-                found = true
+
+        // 1. Prefer direct mirrors — they get clean labels and are range-probed
+        //    for liveness, so the user never sees a dead/verbose source when a
+        //    clean one is available.
+        for ((href, rawLabel) in directs) {
+            if (!seen.add(href) || !isPlayable(href)) continue
+            callback.invoke(
+                newExtractorLink("FreeDriveMovie", "FreeDriveMovie - ${cleanLabel(rawLabel)}", href, ExtractorLinkType.VIDEO) {
+                    this.quality = qualityFromLabel(rawLabel)
+                    this.referer = DL_REFERER
+                },
+            )
+            found = true
+        }
+
+        // 2. Fall back to file lockers (gdflix / hubcloud / gdtot) via
+        //    CloudStream's extractors ONLY when no direct mirror is alive.
+        //    Their extractor names are verbose, so we avoid them whenever a
+        //    clean direct source exists.
+        if (!found) {
+            for ((href, _) in lockers) {
+                if (!seen.add(href)) continue
                 try {
                     loadExtractor(href, mainUrl, subtitleCallback, callback)
+                    found = true
                 } catch (_: Throwable) { /* best-effort */ }
             }
         }
         return found
     }
+
+    /** Tidy a dl-page button label: drop the "Episode N" prefix, collapse whitespace. */
+    private fun cleanLabel(raw: String): String =
+        EPISODE_NUM.replace(raw, "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trimStart('-', ':')
+            .trim()
+            .ifBlank { "Mirror" }
 
     /** Collect every `/links/<code>/` shortlink from a movie/episode page. */
     private suspend fun parseShortLinks(pageUrl: String): List<String> {
