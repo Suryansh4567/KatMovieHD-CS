@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/FreeDriveMovie.cs3",
         "status": 1,
-        "version": 2,
+        "version": 3,
         "name": "FreeDriveMovie",
         "internalName": "FreeDriveMovie",
         "authors": [
             "arena"
         ],
         "description": "FreeDriveMovie (freedrivemovie.cyou) \u2014 stream & download movies and TV series (Hindi / English / South Indian). Resolves the Dooplay download-link chain (shortlink -> dl.freedrivemovie.org player page) to direct-playable MKV/MP4 mirrors (Cloudflare-Worker GDToT). Movies + multi-season TV with episodes.",
-        "fileSize": 28284,
+        "fileSize": 28124,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -18,7 +18,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=freedrivemovie.cyou&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-233bd3d66f2528ec930c740c7df9d16ced0d314e23b2b633ad8e904858e010c5"
+        "fileHash": "sha256-55f97cae0cf96526b5094a1096871ec03d31485d726911fda8b23727d167a574"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
