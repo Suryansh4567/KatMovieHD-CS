@@ -323,7 +323,7 @@ class FreeDriveMovie : MainAPI() {
                 }
                 val episodes = mutableListOf<Episode>()
                 for (ep in rawEpisodes) {
-                    val data = ep.data ?: continue
+                    val data = ep.data
                     val isBatch = ep.name?.contains("Complete", ignoreCase = true) == true
                     val tmdbEp = if (!isBatch) ep.season?.let { seasonCache[it] }?.get(ep.episode ?: 0) else null
                     episodes.add(
