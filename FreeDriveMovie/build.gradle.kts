@@ -1,5 +1,5 @@
 // Bump this integer on every published fix.
-version = 4
+version = 5
 
 cloudstream {
     authors = listOf("arena")
@@ -18,5 +18,5 @@ cloudstream {
 
     tvTypes = listOf("Movie", "TvSeries")
 
-    iconUrl = "https://freedrivemovie.cyou/wp-content/uploads/2025/10/logo.png"
+    iconUrl = "https://freedrivemovie.cyou/wp-content/uploads/2020/10/cropped-PicsArt_10-11-07.20.53-192x192.jpg"
 }
