@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
@@ -282,35 +283,33 @@ class FreeDriveMovie : MainAPI() {
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
         return try {
-            val anchors = mutableListOf<Pair<String, String>>() // href to label
-
-            // 1. Content page -> Dooplay shortlinks -> dl.freedrivemovie.org pages.
-            for (sl in parseShortLinks(data)) {
-                val sdoc = app.get(sl, headers = HEADERS).document
-                val target = sdoc.selectFirst("a#link")?.absUrl("href")?.takeIf { it.startsWith("http") }
-                if (target == null) continue
-                if (target.contains("freedrivemovie")) {
-                    // 2. dl page -> all source anchors.
-                    val ddoc = try {
-                        app.get(target, headers = HEADERS).document
-                    } catch (_: Throwable) {
-                        continue
-                    }
-                    for (a in ddoc.select(".wp-block-button a")) {
-                        val href = a.absUrl("href").trim()
-                        if (href.startsWith("http")) anchors.add(href to (a.text().trim().ifBlank { "Mirror" }))
-                    }
-                } else {
-                    // Shortlink pointed straight at a third-party hoster (rare).
-                    anchors.add(target to "Mirror")
-                }
-            }
-
+            // Resolve shortlink -> dl page -> source anchors IN PARALLEL (idea
+            // taken from Megix VegaMovies, which resolves its sources via
+            // `sources.amap`). Sequential fetches made loadLinks slow enough to
+            // time out on device (read as "no sources" / crash).
+            val anchors = parseShortLinks(data).amap { resolveAnchors(it) }.flatten()
             emitLinksFromAnchors(anchors, subtitleCallback, callback)
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
             false
+        }
+    }
+
+    /** Follow one shortlink to its dl.freedrivemovie.org source anchors. */
+    private suspend fun resolveAnchors(shortlink: String): List<Pair<String, String>> {
+        return try {
+            val sdoc = app.get(shortlink, headers = HEADERS).document
+            val target = sdoc.selectFirst("a#link")?.absUrl("href")?.takeIf { it.startsWith("http") }
+                ?: return emptyList()
+            if (!target.contains("freedrivemovie")) return listOf(target to "Mirror")
+            val ddoc = app.get(target, headers = HEADERS).document
+            ddoc.select(".wp-block-button a").mapNotNull { a ->
+                val href = a.absUrl("href").trim()
+                if (href.startsWith("http")) href to (a.text().trim().ifBlank { "Mirror" }) else null
+            }
+        } catch (_: Throwable) {
+            emptyList()
         }
     }
 
