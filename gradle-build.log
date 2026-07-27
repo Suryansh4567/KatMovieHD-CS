@@ -34,21 +34,21 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KMMovies:preBuild UP-TO-DATE
 > Task :KMMovies:preDebugBuild UP-TO-DATE
 > Task :KMMovies:generateDebugBuildConfig
+> Task :FreeDriveMovie:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:generateDebugResources
 > Task :KMMovies:packageDebugResources
 > Task :KMMovies:processDebugNavigationResources
-> Task :KatMovieHD:parseDebugLocalResources
-> Task :FreeDriveMovie:parseDebugLocalResources
-> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
-> Task :FreeDriveMovie:generateDebugRFile
-> Task :KMMovies:generateDebugRFile
-> Task :KatMovieHD:generateDebugRFile
 > Task :TheNextPlanet:generateDebugResources
+> Task :FreeDriveMovie:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
 > Task :TheNextPlanet:packageDebugResources
+> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:processDebugNavigationResources
+> Task :KMMovies:generateDebugRFile
 > Task :TheNextPlanet:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugRFile
 > Task :FreeDriveMovie:compileDebugKotlin
@@ -88,6 +88,15 @@ w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/
 > Task :TheNextPlanet:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/intermediates/classes.dex
 
+> Task :KatMovieHD:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
+
+> Task :KatMovieHD:generateManifest
+
+> Task :KatMovieHD:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
+
+> Task :KatMovieHD:writeCacheEntry
 > Task :TheNextPlanet:generateManifest
 
 > Task :TheNextPlanet:make
@@ -106,16 +115,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Th
 > Task :YupFlix:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/src/main/kotlin/com/lagradost/YupFlix.kt:425:50 Unnecessary safe call on a non-null receiver of type 'String'.
 
-> Task :KatMovieHD:compileDex
-Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
-
-> Task :KatMovieHD:generateManifest
-
-> Task :KatMovieHD:make
-Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
-
-> Task :KatMovieHD:writeCacheEntry
-
 > Task :YupFlix:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/build/intermediates/classes.dex
 
@@ -129,6 +128,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Yu
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 39s
+BUILD SUCCESSFUL in 52s
 56 actionable tasks: 56 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
