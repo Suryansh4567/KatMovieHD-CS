@@ -41,19 +41,19 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KMMovies:processDebugNavigationResources
 > Task :FreeDriveMovie:generateDebugRFile
 > Task :KatMovieHD:generateDebugRFile
+> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
+> Task :KMMovies:generateDebugRFile
 > Task :TheNextPlanet:generateDebugResources
-> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
-> Task :KMMovies:generateDebugRFile
 > Task :TheNextPlanet:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugRFile
 
 > Task :FreeDriveMovie:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/FreeDriveMovie/src/main/kotlin/com/lagradost/FreeDriveMovie.kt:316:34 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/FreeDriveMovie/src/main/kotlin/com/lagradost/FreeDriveMovie.kt:304:34 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
 
 > Task :TheNextPlanet:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:570:29 Unnecessary safe call on a non-null receiver of type 'String'.
@@ -74,21 +74,11 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Fr
 
 > Task :FreeDriveMovie:writeCacheEntry
 
-> Task :KMMovies:compileDex
-Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/intermediates/classes.dex
-
-> Task :KMMovies:generateManifest
-
-> Task :KMMovies:make
-Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/KMMovies.cs3
-
-> Task :KMMovies:writeCacheEntry
-
 > Task :KatMovieHD:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
-> Task :TheNextPlanet:compileDex
-Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/intermediates/classes.dex
+> Task :KMMovies:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/intermediates/classes.dex
 
 > Task :KatMovieHD:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
@@ -99,6 +89,16 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/bui
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
 
 > Task :KatMovieHD:writeCacheEntry
+> Task :KMMovies:generateManifest
+
+> Task :KMMovies:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/KMMovies.cs3
+
+> Task :KMMovies:writeCacheEntry
+
+> Task :TheNextPlanet:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/intermediates/classes.dex
+
 > Task :TheNextPlanet:generateManifest
 
 > Task :TheNextPlanet:make
