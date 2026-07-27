@@ -33,10 +33,10 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KatMovieHD:processDebugNavigationResources
 > Task :KMMovies:preBuild UP-TO-DATE
 > Task :KMMovies:preDebugBuild UP-TO-DATE
-> Task :FreeDriveMovie:parseDebugLocalResources
 > Task :KMMovies:generateDebugBuildConfig
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:generateDebugResources
+> Task :FreeDriveMovie:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:packageDebugResources
 > Task :KMMovies:processDebugNavigationResources
 > Task :FreeDriveMovie:generateDebugRFile
@@ -44,8 +44,8 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
-> Task :TheNextPlanet:generateDebugBuildConfig
 > Task :KMMovies:generateDebugRFile
+> Task :TheNextPlanet:generateDebugBuildConfig
 > Task :TheNextPlanet:generateDebugResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
@@ -80,15 +80,6 @@ w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/
 > Task :KMMovies:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/build/intermediates/classes.dex
 
-> Task :KatMovieHD:compileDex
-Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
-
-> Task :KatMovieHD:generateManifest
-
-> Task :KatMovieHD:make
-Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
-
-> Task :KatMovieHD:writeCacheEntry
 > Task :KMMovies:generateManifest
 
 > Task :KMMovies:make
@@ -99,6 +90,15 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KM
 > Task :TheNextPlanet:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/intermediates/classes.dex
 
+> Task :KatMovieHD:compileDex
+Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
+
+> Task :KatMovieHD:generateManifest
+
+> Task :KatMovieHD:make
+Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
+
+> Task :KatMovieHD:writeCacheEntry
 > Task :TheNextPlanet:generateManifest
 
 > Task :TheNextPlanet:make
@@ -130,6 +130,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Yu
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 52s
+BUILD SUCCESSFUL in 43s
 56 actionable tasks: 56 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
