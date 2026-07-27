@@ -299,11 +299,11 @@ class FreeDriveMovie : MainAPI() {
     /** Follow one shortlink to its dl.freedrivemovie.org source anchors. */
     private suspend fun resolveAnchors(shortlink: String): List<Pair<String, String>> {
         return try {
-            val sdoc = app.get(shortlink, headers = HEADERS).document
+            val sdoc = app.get(shortlink, headers = HEADERS, timeout = 15).document
             val target = sdoc.selectFirst("a#link")?.absUrl("href")?.takeIf { it.startsWith("http") }
                 ?: return emptyList()
             if (!target.contains("freedrivemovie")) return listOf(target to "Mirror")
-            val ddoc = app.get(target, headers = HEADERS).document
+            val ddoc = app.get(target, headers = HEADERS, timeout = 15).document
             ddoc.select(".wp-block-button a").mapNotNull { a ->
                 val href = a.absUrl("href").trim()
                 if (href.startsWith("http")) href to (a.text().trim().ifBlank { "Mirror" }) else null
@@ -344,9 +344,12 @@ class FreeDriveMovie : MainAPI() {
         return found
     }
 
-    /** Collect every `/links/<code>/` shortlink from a movie/episode page. */
+    /** Collect every `/links/<code>/` shortlink from a movie/episode page.
+     *  Capped at 3: the first shortlink's dl page already carries every quality,
+     *  so resolving >3 only multiplies network calls (the cause of slow/failed
+     *  playback on device). */
     private suspend fun parseShortLinks(pageUrl: String): List<String> {
-        val doc = app.get(pageUrl, headers = HEADERS).document
+        val doc = app.get(pageUrl, headers = HEADERS, timeout = 15).document
         val out = linkedSetOf<String>()
         for (tr in doc.select(".links_table tr")) {
             val href = tr.selectFirst("a[href]")?.absUrl("href") ?: continue
@@ -357,7 +360,7 @@ class FreeDriveMovie : MainAPI() {
                 a.absUrl("href").takeIf { "/links/" in it }?.let(out::add)
             }
         }
-        return out.take(10)
+        return out.take(3)
     }
 }
 
