@@ -1,5 +1,5 @@
 // Bump this integer on every published fix.
-version = 3
+version = 4
 
 cloudstream {
     authors = listOf("arena")
@@ -11,14 +11,12 @@ cloudstream {
     status = 1
 
     description =
-        "FreeDriveMovie (freedrivemovie.cyou) — stream & download movies and TV series " +
-        "(Hindi / English / South Indian). Resolves the Dooplay download-link chain " +
-        "(shortlink -> dl.freedrivemovie.org player page) to direct-playable MKV/MP4 " +
-        "mirrors (Cloudflare-Worker GDToT). Movies + multi-season TV with episodes."
+        "Stream & download movies and TV series (Hindi / English / South Indian) " +
+        "from FreeDriveMovie. Movies + multi-season TV with episodes."
 
     language = "en"
 
     tvTypes = listOf("Movie", "TvSeries")
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=freedrivemovie.cyou&sz=64"
+    iconUrl = "https://freedrivemovie.cyou/wp-content/uploads/2025/10/logo.png"
 }

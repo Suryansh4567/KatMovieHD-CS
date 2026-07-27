@@ -36,9 +36,8 @@ import org.jsoup.nodes.Document
  *      download/player page URL.
  *   3. dl.freedrivemovie.org is a WordPress "download resolver" whose
  *      `.wp-block-button a` anchors are the actual sources:
- *        - Cloudflare-Worker GDToT mirrors (.mkv) -> directly playable. These
- *          expire sometimes, so each is range-probed via [isPlayable] before it
- *          is offered (dead 404 mirrors are skipped).
+ *        - Cloudflare-Worker GDToT mirrors (.mkv) -> directly playable
+ *          (labelled "FreeDriveMovie - <quality>").
  *        - File lockers (gdflix.dev / hubcloud.foo / gdtot / mega) -> handed to
  *          CloudStream's generic [loadExtractor].
  *
@@ -141,17 +140,6 @@ class FreeDriveMovie : MainAPI() {
             u.endsWith(".m4v") || u.endsWith(".mov") || u.endsWith(".m3u8") ||
             "workers.dev" in u || "/0:/" in u
     }
-
-    /**
-     * Range-probes a direct mirror so dead/expired CDN links (observed: some
-     * Cloudflare-Worker mirrors 404) are never offered to the player. Workers
-     * mirrors honour Range, so this is a ~2-byte request.
-     */
-    private suspend fun isPlayable(url: String): Boolean = runCatching {
-        val r = app.get(url, headers = HEADERS + ("Range" to "bytes=0-1"), timeout = 10)
-        val ct = r.headers["content-type"]?.lowercase().orEmpty()
-        r.code in 200..299 && !ct.contains("text/html")
-    }.getOrDefault(false)
 
     // ──────────────────────────────────────────────────────────────────────
     // Home page
@@ -418,8 +406,8 @@ class FreeDriveMovie : MainAPI() {
     }
 
     /**
-     * Turn (href, label) pairs into ExtractorLinks. Direct mirrors are
-     * range-probed; file-locker anchors go to [loadExtractor]. Returns true if
+     * Turn (href, label) pairs into ExtractorLinks. Direct mirrors get clean
+     * labels; file-locker anchors go to [loadExtractor]. Returns true if
      * anything was emitted.
      */
     private suspend fun emitLinksFromAnchors(
@@ -427,37 +415,27 @@ class FreeDriveMovie : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
-        // Separate clean direct mirrors from messy file-locker pages.
-        val directs = mutableListOf<Pair<String, String>>()
-        val lockers = mutableListOf<Pair<String, String>>()
-        for ((href, label) in anchors) {
-            (if (isDirectPlayable(href)) directs else lockers).add(href to label)
-        }
-
+        // Emit EVERY source so the user has the widest choice of playable
+        // links. Direct mirrors get clean labels ("FreeDriveMovie - 720p");
+        // file lockers (gdflix / hubcloud / gdtot) are resolved through
+        // CloudStream's own extractors.
+        //
+        // No liveness probe: an earlier Range-probe per direct mirror slowed
+        // loadLinks enough to time out on device and showed nothing. Dead
+        // links, if any, simply fail when picked — the rest still play.
         var found = false
         val seen = linkedSetOf<String>()
-
-        // 1. Prefer direct mirrors — they get clean labels and are range-probed
-        //    for liveness, so the user never sees a dead/verbose source when a
-        //    clean one is available.
-        for ((href, rawLabel) in directs) {
-            if (!seen.add(href) || !isPlayable(href)) continue
-            callback.invoke(
-                newExtractorLink("FreeDriveMovie", "FreeDriveMovie - ${cleanLabel(rawLabel)}", href, ExtractorLinkType.VIDEO) {
-                    this.quality = qualityFromLabel(rawLabel)
-                    this.referer = DL_REFERER
-                },
-            )
-            found = true
-        }
-
-        // 2. Fall back to file lockers (gdflix / hubcloud / gdtot) via
-        //    CloudStream's extractors ONLY when no direct mirror is alive.
-        //    Their extractor names are verbose, so we avoid them whenever a
-        //    clean direct source exists.
-        if (!found) {
-            for ((href, _) in lockers) {
-                if (!seen.add(href)) continue
+        for ((href, rawLabel) in anchors) {
+            if (!seen.add(href)) continue
+            if (isDirectPlayable(href)) {
+                callback.invoke(
+                    newExtractorLink("FreeDriveMovie", "FreeDriveMovie - ${cleanLabel(rawLabel)}", href, ExtractorLinkType.VIDEO) {
+                        this.quality = qualityFromLabel(rawLabel)
+                        this.referer = DL_REFERER
+                    },
+                )
+                found = true
+            } else {
                 try {
                     loadExtractor(href, mainUrl, subtitleCallback, callback)
                     found = true
