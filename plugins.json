@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/FreeDriveMovie.cs3",
         "status": 1,
-        "version": 11,
+        "version": 12,
         "name": "FreeDriveMovie",
         "internalName": "FreeDriveMovie",
         "authors": [
             "arena"
         ],
         "description": "Stream & download movies and TV series (Hindi / English / South Indian) from FreeDriveMovie. Movies + multi-season TV with episodes.",
-        "fileSize": 33494,
+        "fileSize": 35871,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
@@ -18,7 +18,7 @@
         ],
         "iconUrl": "https://freedrivemovie.cyou/wp-content/uploads/2020/10/cropped-PicsArt_10-11-07.20.53-192x192.jpg",
         "apiVersion": 1,
-        "fileHash": "sha256-3990b4822bf94ba43f28370fa9cccc35113719c2c255d0c604101c147c7b7aef"
+        "fileHash": "sha256-6b90fdf701a822c03e2d8baa8737c4d7bc509fd03069eeb8e4018b6aeb27fefc"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
