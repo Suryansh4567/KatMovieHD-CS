@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbUrl
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
@@ -157,7 +158,7 @@ class FreeDriveMovie : MainAPI() {
     private data class TmdbMeta(
         val title: String?, val poster: String?, val backdrop: String?,
         val plot: String?, val rating: String?, val year: Int?, val tags: List<String>,
-        val actors: List<ActorData>,
+        val actors: List<ActorData>, val imdbId: String?,
     )
 
     private data class TmdbEp(val name: String?, val still: String?, val overview: String?)
@@ -213,6 +214,7 @@ class FreeDriveMovie : MainAPI() {
             d.optString("release_date").take(4).toIntOrNull(),
             genresOf(d),
             fetchCredits("movie", id),
+            d.optString("imdb_id").takeIf { it.isNotBlank() && it != "null" },
         )
     } catch (_: Throwable) {
         null
@@ -229,6 +231,7 @@ class FreeDriveMovie : MainAPI() {
             d.optString("first_air_date").take(4).toIntOrNull(),
             genresOf(d),
             fetchCredits("tv", id),
+            d.optString("imdb_id").takeIf { it.isNotBlank() && it != "null" },
         )
     } catch (_: Throwable) {
         null
@@ -418,6 +421,8 @@ class FreeDriveMovie : MainAPI() {
                     this.tags = show?.tags?.ifEmpty { null } ?: pageTags
                     score(show?.rating)?.let { this.score = it }
                     show?.actors?.let { this.actors = it }
+                }.also { resp ->
+                    show?.imdbId?.let { resp.addImdbUrl("https://www.imdb.com/title/$it/") }
                 }
             } else {
                 val movie = tmdbId(pageTitle, year, true)?.let { fetchMovieMeta(it) }
@@ -429,6 +434,8 @@ class FreeDriveMovie : MainAPI() {
                     this.tags = movie?.tags?.ifEmpty { null } ?: pageTags
                     score(movie?.rating)?.let { this.score = it }
                     movie?.actors?.let { this.actors = it }
+                }.also { resp ->
+                    movie?.imdbId?.let { resp.addImdbUrl("https://www.imdb.com/title/$it/") }
                 }
             }
             fetchTrailer(doc)?.let { response.addTrailer(it) }
