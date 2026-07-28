@@ -243,8 +243,19 @@ class FreeDriveMovie : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         return try {
-            val doc = app.get(request.data, headers = HEADERS).document
-            newHomePageResponse(parseCards(doc, request.name), hasNext = false)
+            val base = request.data
+            // Homepage doesn't paginate (/page/2/ -> 404); every other section
+            // paginates via /page/N/ (verified: genre + tvshows archives -> 200,
+            // /page/1/ -> 301 to base, so page 1 uses the base URL).
+            val url = when {
+                base == "$MAIN/" -> base
+                page <= 1 -> base
+                else -> base.trimEnd('/') + "/page/$page/"
+            }
+            val doc = app.get(url, headers = HEADERS, timeout = 15).document
+            val cards = parseCards(doc, request.name)
+            val hasNext = base != "$MAIN/" && cards.isNotEmpty()
+            newHomePageResponse(cards, hasNext = hasNext)
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
