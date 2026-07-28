@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.SearchResponseList
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
@@ -19,6 +20,7 @@ import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newSearchResponseList
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -310,23 +312,25 @@ class FreeDriveMovie : MainAPI() {
     // Search
     // ──────────────────────────────────────────────────────────────────────
 
-    override suspend fun search(query: String): List<SearchResponse> {
+    override suspend fun search(query: String, page: Int): SearchResponseList? {
         return try {
-            val doc = app.get("$MAIN/?s=${java.net.URLEncoder.encode(query, "UTF-8")}", headers = HEADERS).document
-            val out = mutableListOf<SearchResponse>()
-            for (item in doc.select(".result-item")) {
+            val q = java.net.URLEncoder.encode(query, "UTF-8")
+            val url = if (page <= 1) "$MAIN/?s=$q" else "$MAIN/page/$page/?s=$q"
+            val doc = app.get(url, headers = HEADERS, timeout = 15).document
+            val results = doc.select(".result-item").mapNotNull { item ->
                 val href = item.selectFirst("a[href*=/movies/], a[href*=/tvshows/]")?.absUrl("href")
-                    ?.takeIf { it.startsWith("http") } ?: continue
+                    ?.takeIf { it.startsWith("http") } ?: return@mapNotNull null
                 val name = cleanTitle(item.selectFirst(".title a")?.text() ?: item.selectFirst(".title")?.text() ?: "")
-                if (name.isBlank()) continue
-                val poster = upScalePoster(item.selectFirst("img")?.absUrl("src"))
-                out.add(newMovieSearchResponse(name, href, tvTypeFor(href)) { this.posterUrl = poster })
+                if (name.isBlank()) return@mapNotNull null
+                newMovieSearchResponse(name, href, tvTypeFor(href)) {
+                    this.posterUrl = upScalePoster(item.selectFirst("img")?.absUrl("src"))
+                }
             }
-            out
+            newSearchResponseList(results)
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
-            emptyList()
+            null
         }
     }
 
