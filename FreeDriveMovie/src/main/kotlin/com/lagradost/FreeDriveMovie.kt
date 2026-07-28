@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -259,6 +260,39 @@ class FreeDriveMovie : MainAPI() {
     // Home page
     // ──────────────────────────────────────────────────────────────────────
 
+    /** YouTube trailer via the Dooplay player API (data-nume='trailer'). */
+    private suspend fun fetchTrailer(doc: Document): String? = try {
+        val li = doc.selectFirst("[data-nume='trailer']") ?: return null
+        val post = li.attr("data-post").takeIf { it.isNotBlank() } ?: return null
+        val type = li.attr("data-type").takeIf { it.isNotBlank() } ?: "movie"
+        val json = JSONObject(app.get("$MAIN/wp-json/dooplayer/v2/$post/$type/trailer", headers = HEADERS, timeout = 10).text)
+        json.optString("embed_url").takeIf { it.startsWith("http") }
+    } catch (_: Throwable) {
+        null
+    }
+
+    /** Related posts from the #single_relacionados block. */
+    private fun parseRelated(doc: Document): List<SearchResponse> {
+        val rel = doc.selectFirst("#single_relacionados, .srelacionados") ?: return emptyList()
+        val out = mutableListOf<SearchResponse>()
+        for (art in rel.select("article.item, .item, .poster")) {
+            val href = art.selectFirst("a[href*=/movies/], a[href*=/tvshows/]")?.absUrl("href")
+                ?.takeIf { it.startsWith("http") } ?: continue
+            val name = cleanTitle(
+                art.selectFirst(".title")?.text()
+                    ?: art.selectFirst("h3")?.text()
+                    ?: art.selectFirst("img")?.attr("alt") ?: "",
+            )
+            if (name.isBlank()) continue
+            out.add(
+                newMovieSearchResponse(name, href, tvTypeFor(href)) {
+                    this.posterUrl = upScalePoster(art.selectFirst("img")?.absUrl("src"))
+                },
+            )
+        }
+        return out
+    }
+
     override val mainPage = mainPageOf(
         "$MAIN/" to "Home",
         "$MAIN/tvshows/" to "TV Series",
@@ -351,7 +385,7 @@ class FreeDriveMovie : MainAPI() {
             fun score(rating: String?) =
                 if (rating.isNullOrBlank()) null else Score.from((rating.toFloatOrNull() ?: 0f).times(1000).toInt(), 10000)
 
-            if (url.contains("/tvshows/")) {
+            val response = if (url.contains("/tvshows/")) {
                 val rawEpisodes = parseEpisodes(doc)
                 val showId = tmdbId(pageTitle, year, false)
                 val show = showId?.let { fetchTvMeta(it) }
@@ -397,6 +431,9 @@ class FreeDriveMovie : MainAPI() {
                     movie?.actors?.let { this.actors = it }
                 }
             }
+            fetchTrailer(doc)?.let { response.addTrailer(it) }
+            parseRelated(doc).takeIf { it.isNotEmpty() }?.let { response.recommendations = it }
+            response
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
