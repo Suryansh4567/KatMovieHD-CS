@@ -1,5 +1,7 @@
 package com.lagradost
 
+import com.lagradost.cloudstream3.Actor
+import com.lagradost.cloudstream3.ActorData
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
@@ -152,6 +154,7 @@ class FreeDriveMovie : MainAPI() {
     private data class TmdbMeta(
         val title: String?, val poster: String?, val backdrop: String?,
         val plot: String?, val rating: String?, val year: Int?, val tags: List<String>,
+        val actors: List<ActorData>,
     )
 
     private data class TmdbEp(val name: String?, val still: String?, val overview: String?)
@@ -176,6 +179,26 @@ class FreeDriveMovie : MainAPI() {
         return out
     }
 
+    private suspend fun fetchCredits(type: String, id: Int): List<ActorData> = try {
+        val arr = JSONObject(app.get("$TMDB_API/$type/$id/credits?api_key=$TMDB_KEY", timeout = 10).text)
+            .optJSONArray("cast")
+        if (arr == null) {
+            emptyList()
+        } else {
+            val out = ArrayList<ActorData>()
+            for (i in 0 until minOf(arr.length(), 15)) {
+                val c = arr.optJSONObject(i) ?: continue
+                val name = c.optString("name").takeIf { it.isNotBlank() } ?: continue
+                val profile = c.optString("profile_path").takeIf { it.isNotBlank() && it != "null" }
+                    ?.let { "https://image.tmdb.org/t/p/w185$it" }
+                out.add(ActorData(Actor(name, profile), roleString = c.optString("character").takeIf { it.isNotBlank() }))
+            }
+            out
+        }
+    } catch (_: Throwable) {
+        emptyList()
+    }
+
     private suspend fun fetchMovieMeta(id: Int): TmdbMeta? = try {
         val d = JSONObject(app.get("$TMDB_API/movie/$id?api_key=$TMDB_KEY", timeout = 10).text)
         TmdbMeta(
@@ -186,6 +209,7 @@ class FreeDriveMovie : MainAPI() {
             d.optString("vote_average").takeIf { it.isNotBlank() && it != "0" && it != "0.0" },
             d.optString("release_date").take(4).toIntOrNull(),
             genresOf(d),
+            fetchCredits("movie", id),
         )
     } catch (_: Throwable) {
         null
@@ -201,6 +225,7 @@ class FreeDriveMovie : MainAPI() {
             d.optString("vote_average").takeIf { it.isNotBlank() && it != "0" && it != "0.0" },
             d.optString("first_air_date").take(4).toIntOrNull(),
             genresOf(d),
+            fetchCredits("tv", id),
         )
     } catch (_: Throwable) {
         null
@@ -354,6 +379,7 @@ class FreeDriveMovie : MainAPI() {
                     this.year = show?.year ?: year
                     this.tags = show?.tags?.ifEmpty { null } ?: pageTags
                     score(show?.rating)?.let { this.score = it }
+                    show?.actors?.let { this.actors = it }
                 }
             } else {
                 val movie = tmdbId(pageTitle, year, true)?.let { fetchMovieMeta(it) }
@@ -364,6 +390,7 @@ class FreeDriveMovie : MainAPI() {
                     this.year = movie?.year ?: year
                     this.tags = movie?.tags?.ifEmpty { null } ?: pageTags
                     score(movie?.rating)?.let { this.score = it }
+                    movie?.actors?.let { this.actors = it }
                 }
             }
         } catch (ce: CancellationException) {
