@@ -33,24 +33,24 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KatMovieHD:processDebugNavigationResources
 > Task :KMMovies:preBuild UP-TO-DATE
 > Task :KMMovies:preDebugBuild UP-TO-DATE
+> Task :FreeDriveMovie:parseDebugLocalResources
 > Task :KMMovies:generateDebugBuildConfig
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:generateDebugResources
+> Task :KatMovieHD:generateDebugRFile
 > Task :KMMovies:packageDebugResources
+> Task :FreeDriveMovie:generateDebugRFile
 > Task :KMMovies:processDebugNavigationResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
 > Task :TheNextPlanet:generateDebugResources
+> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
-> Task :KatMovieHD:parseDebugLocalResources
-> Task :FreeDriveMovie:parseDebugLocalResources
-> Task :KMMovies:parseDebugLocalResources
+> Task :KMMovies:generateDebugRFile
 > Task :TheNextPlanet:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugRFile
-> Task :KatMovieHD:generateDebugRFile
-> Task :FreeDriveMovie:generateDebugRFile
-> Task :KMMovies:generateDebugRFile
 
 > Task :TheNextPlanet:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:570:29 Unnecessary safe call on a non-null receiver of type 'String'.
@@ -129,6 +129,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Yu
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 43s
+BUILD SUCCESSFUL in 53s
 56 actionable tasks: 56 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
