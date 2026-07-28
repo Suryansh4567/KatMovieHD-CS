@@ -522,10 +522,13 @@ class FreeDriveMovie : MainAPI() {
     ): Boolean {
         var found = false
         val seen = linkedSetOf<String>()
-        // 1. Direct mirrors — clean labels, no URL.
-        for ((href, rawLabel) in anchors) {
+        // 1. Direct mirrors — clean labels, no URL; best quality first.
+        val directs = anchors
+            .filter { isDirectPlayable(it.first) }
+            .distinctBy { it.first }
+            .sortedByDescending { qualityFromLabel(it.second) }
+        for ((href, rawLabel) in directs) {
             if (!seen.add(href)) continue
-            if (!isDirectPlayable(href)) continue
             callback.invoke(
                 newExtractorLink("FreeDriveMovie", "FreeDriveMovie - ${cleanLabel(rawLabel)}", href, ExtractorLinkType.VIDEO) {
                     this.quality = qualityFromLabel(rawLabel)
