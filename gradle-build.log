@@ -31,24 +31,24 @@ It was removed in version 9.0 of the Android Gradle plugin.
 > Task :KatMovieHD:generateDebugResources
 > Task :KatMovieHD:packageDebugResources
 > Task :KatMovieHD:processDebugNavigationResources
-> Task :FreeDriveMovie:parseDebugLocalResources
 > Task :KMMovies:preBuild UP-TO-DATE
 > Task :KMMovies:preDebugBuild UP-TO-DATE
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :KMMovies:generateDebugBuildConfig
 > Task :KMMovies:generateDebugResources
-> Task :KatMovieHD:generateDebugRFile
-> Task :FreeDriveMovie:generateDebugRFile
 > Task :KMMovies:packageDebugResources
 > Task :KMMovies:processDebugNavigationResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
 > Task :TheNextPlanet:generateDebugBuildConfig
-> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugResources
-> Task :KMMovies:generateDebugRFile
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
+> Task :KMMovies:parseDebugLocalResources
+> Task :FreeDriveMovie:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
+> Task :KatMovieHD:generateDebugRFile
+> Task :FreeDriveMovie:generateDebugRFile
+> Task :KMMovies:generateDebugRFile
 > Task :TheNextPlanet:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugRFile
 
@@ -129,6 +129,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Yu
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 44s
+BUILD SUCCESSFUL in 57s
 56 actionable tasks: 56 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
