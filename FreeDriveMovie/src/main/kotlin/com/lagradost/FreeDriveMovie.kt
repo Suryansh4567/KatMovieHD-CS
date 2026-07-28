@@ -11,6 +11,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
+import com.lagradost.cloudstream3.SearchQuality
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SearchResponseList
 import com.lagradost.cloudstream3.SubtitleFile
@@ -133,6 +134,19 @@ class FreeDriveMovie : MainAPI() {
             "480" in l -> Qualities.P480.value
             "360" in l -> Qualities.P360.value
             else -> Qualities.Unknown.value
+        }
+    }
+
+    private fun searchQuality(text: String): SearchQuality? {
+        val t = text.lowercase()
+        return when {
+            Regex("""\b(4k|2160p|uhd)\b""").containsMatchIn(t) -> SearchQuality.FourK
+            Regex("""\b(blu-?ray|bdrip|brrip)\b""").containsMatchIn(t) -> SearchQuality.BlueRay
+            Regex("""\b(1080p|fullhd|fhd)\b""").containsMatchIn(t) -> SearchQuality.HD
+            Regex("""\b(720p)\b""").containsMatchIn(t) -> SearchQuality.SD
+            Regex("""\b(web-?dl|webrip|webdl|web-?rip)\b""").containsMatchIn(t) -> SearchQuality.WebRip
+            Regex("""\b(hdcam|hdts|hdtc|hdrcam|camrip|cam)\b""").containsMatchIn(t) -> SearchQuality.Cam
+            else -> null
         }
     }
 
@@ -281,15 +295,15 @@ class FreeDriveMovie : MainAPI() {
         for (art in rel.select("article.item, .item, .poster")) {
             val href = art.selectFirst("a[href*=/movies/], a[href*=/tvshows/]")?.absUrl("href")
                 ?.takeIf { it.startsWith("http") } ?: continue
-            val name = cleanTitle(
-                art.selectFirst(".title")?.text()
-                    ?: art.selectFirst("h3")?.text()
-                    ?: art.selectFirst("img")?.attr("alt") ?: "",
-            )
+            val rawName = art.selectFirst(".title")?.text()
+                ?: art.selectFirst("h3")?.text()
+                ?: art.selectFirst("img")?.attr("alt") ?: ""
+            val name = cleanTitle(rawName)
             if (name.isBlank()) continue
             out.add(
                 newMovieSearchResponse(name, href, tvTypeFor(href)) {
                     this.posterUrl = upScalePoster(art.selectFirst("img")?.absUrl("src"))
+                    this.quality = searchQuality(rawName)
                 },
             )
         }
@@ -332,15 +346,17 @@ class FreeDriveMovie : MainAPI() {
         for (art in doc.select("article.item")) {
             val href = art.selectFirst("a[href*=/movies/], a[href*=/tvshows/]")?.absUrl("href")
                 ?.takeIf { it.startsWith("http") } ?: continue
-            val name = cleanTitle(
-                art.selectFirst(".title")?.text()
-                    ?: art.selectFirst("h3")?.text()
-                    ?: art.selectFirst("img")?.attr("alt")
-                    ?: "",
-            )
+            val rawName = art.selectFirst(".title")?.text()
+                ?: art.selectFirst("h3")?.text()
+                ?: art.selectFirst("img")?.attr("alt")
+                ?: ""
+            val name = cleanTitle(rawName)
             if (name.isBlank()) continue
             val poster = upScalePoster(art.selectFirst("img")?.absUrl("src"))
-            out.add(newMovieSearchResponse(name, href, tvTypeFor(href)) { this.posterUrl = poster })
+            out.add(newMovieSearchResponse(name, href, tvTypeFor(href)) {
+                this.posterUrl = poster
+                this.quality = searchQuality(rawName)
+            })
         }
         return if (out.isEmpty()) emptyList() else listOf(HomePageList(section, out))
     }
@@ -357,10 +373,12 @@ class FreeDriveMovie : MainAPI() {
             val results = doc.select(".result-item").mapNotNull { item ->
                 val href = item.selectFirst("a[href*=/movies/], a[href*=/tvshows/]")?.absUrl("href")
                     ?.takeIf { it.startsWith("http") } ?: return@mapNotNull null
-                val name = cleanTitle(item.selectFirst(".title a")?.text() ?: item.selectFirst(".title")?.text() ?: "")
+                val rawName = item.selectFirst(".title a")?.text() ?: item.selectFirst(".title")?.text() ?: ""
+                val name = cleanTitle(rawName)
                 if (name.isBlank()) return@mapNotNull null
                 newMovieSearchResponse(name, href, tvTypeFor(href)) {
                     this.posterUrl = upScalePoster(item.selectFirst("img")?.absUrl("src"))
+                    this.quality = searchQuality(rawName)
                 }
             }
             newSearchResponseList(results)
