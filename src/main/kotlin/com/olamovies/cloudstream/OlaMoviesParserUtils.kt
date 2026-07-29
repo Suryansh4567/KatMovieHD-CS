@@ -27,7 +27,6 @@ object OlaMoviesParserUtils {
             ?: element.selectFirst("img")
         val poster = img?.attr("src")?.takeIf { it.isNotBlank() }
             ?: img?.attr("data-src")?.takeIf { it.isNotBlank() }
-            ?: img?.attr("data-lazy-src")
 
         val fullPoster = poster?.let { if (it.startsWith("http")) it else baseUrl + it }
 
@@ -72,19 +71,45 @@ object OlaMoviesParserUtils {
         val synopsis = doc.selectFirst(".entry-content p")?.text()?.trim()
             ?: doc.select("meta[name=description]").attr("content")
 
-        // Extract season info from title
+        // Extract season number
         val seasonMatch = Regex("""Season\s*(\d+)|S(\d{1,2})""", RegexOption.IGNORE_CASE).find(title)
         val season = seasonMatch?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: seasonMatch?.groupValues?.getOrNull(2)?.toIntOrNull() ?: 1
 
-        // We create a single episode representing the full season pack
-        val episodes = listOf(
-            newEpisode(url) {
-                this.name = title
-                this.season = season
-                this.episode = 1
+        // === FIX 3: Extract individual episodes ===
+        val episodes = mutableListOf<Episode>()
+
+        // Look for episode links on the page (e.g. "episode 01", "episode 02")
+        val episodeLinks = doc.select("a[href]").filter { el ->
+            val text = el.text().lowercase()
+            text.contains("episode") || Regex("ep\\s*\\d+", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        }
+
+        if (episodeLinks.isNotEmpty()) {
+            episodeLinks.forEachIndexed { index, a ->
+                val href = a.attr("href")
+                val epText = a.text()
+                val epNum = Regex("(?:episode|ep)\\s*(\\d+)", RegexOption.IGNORE_CASE)
+                    .find(epText)?.groupValues?.get(1)?.toIntOrNull() ?: (index + 1)
+
+                episodes.add(
+                    newEpisode(href) {
+                        this.name = epText.ifBlank { "Episode $epNum" }
+                        this.season = season
+                        this.episode = epNum
+                    }
+                )
             }
-        )
+        } else {
+            // Fallback: Season pack model (no individual episodes)
+            episodes.add(
+                newEpisode(url) {
+                    this.name = "Season $season - Full Pack"
+                    this.season = season
+                    this.episode = 1
+                }
+            )
+        }
 
         return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
             this.posterUrl = poster
@@ -104,35 +129,30 @@ object OlaMoviesParserUtils {
         }?.let { if (it.startsWith("http")) it else baseUrl + it }
     }
 
-    fun extractGoogleDriveLinks(doc: Document): List<Pair<String, String>> {
+    fun extractDownloadLinks(doc: Document): List<Pair<String, String>> {
         val links = mutableListOf<Pair<String, String>>()
 
-        // Look for links containing "drive.google.com"
+        // Primary: links that contain "episode" or quality labels
+        doc.select("a[href]").forEach { a ->
+            val href = a.attr("href")
+            val text = a.text().trim()
+
+            if (href.contains("links.ol-am.top") || 
+                href.contains("drive.google.com") || 
+                text.lowercase().contains("episode") ||
+                Regex("\\d{3,4}p", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+                
+                if (href.startsWith("http") && !href.contains("olamovies") && !href.contains("youtube")) {
+                    links.add(text.ifBlank { "Download" } to href)
+                }
+            }
+        }
+
+        // Also capture GDrive links directly
         doc.select("a[href*='drive.google.com']").forEach { a ->
             val href = a.attr("href")
-            if (href.contains("drive.google.com")) {
-                val label = a.text().trim().ifBlank { a.selectFirst("span")?.text() ?: "Google Drive" }
-                links.add(label to href)
-            }
-        }
-
-        // Also check inside buttons and wp-block-button
-        doc.select(".wp-block-button a, a.wp-block-button__link").forEach { a ->
-            val href = a.attr("href")
-            if (href.contains("drive.google.com")) {
-                val label = a.text().trim()
-                links.add(label to href)
-            }
-        }
-
-        // Fallback: look for any href mentioning drive in the entire page
-        if (links.isEmpty()) {
-            val driveLinks = doc.select("a[href]").filter { 
-                it.attr("href").contains("drive.google", ignoreCase = true) 
-            }
-            driveLinks.forEach { a ->
-                links.add(a.text().take(60) to a.attr("href"))
-            }
+            val label = a.text().ifBlank { a.selectFirst("span")?.text() ?: "Google Drive" }
+            links.add(label to href)
         }
 
         return links.distinctBy { it.second }
@@ -140,7 +160,7 @@ object OlaMoviesParserUtils {
 
     fun parseQuality(label: String): Int {
         return when {
-            label.contains("2160", true) || label.contains("4K", true) -> Qualities.P2160.value
+            label.contains("2160", true) || label.contains("4K", true) || label.contains("HDR", true) -> Qualities.P2160.value
             label.contains("1080", true) -> Qualities.P1080.value
             label.contains("720", true) -> Qualities.P720.value
             label.contains("480", true) -> Qualities.P480.value

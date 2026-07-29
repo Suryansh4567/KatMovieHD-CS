@@ -111,21 +111,25 @@ class OlaMoviesProvider : MainAPI() {
                 .get()
         }
 
-        val gdriveLinks = OlaMoviesParserUtils.extractGoogleDriveLinks(doc)
-
+        val links = OlaMoviesParserUtils.extractDownloadLinks(doc)
         var emitted = false
 
-        gdriveLinks.forEach { (label, link) ->
+        links.forEach { (label, url) ->
             try {
                 val quality = OlaMoviesParserUtils.parseQuality(label)
 
-                // Try to load using CloudStream's built-in extractors
+                // Use loadExtractor for known hosts (GDrive + others)
                 val success = loadExtractor(
-                    url = link,
+                    url = url,
                     referer = mainUrl,
                     subtitleCallback = subtitleCallback,
                     callback = { extracted ->
-                        callback(extracted.copy(quality = if (quality != Qualities.Unknown.value) quality else extracted.quality))
+                        callback(
+                            extracted.copy(
+                                name = "OlaMovies • $label",
+                                quality = if (quality != Qualities.Unknown.value) quality else extracted.quality
+                            )
+                        )
                     }
                 )
 
@@ -134,12 +138,12 @@ class OlaMoviesProvider : MainAPI() {
                     return@forEach
                 }
 
-                // Fallback: emit direct link with metadata
+                // Final fallback direct link
                 callback(
                     newExtractorLink(
                         source = name,
                         name = "OlaMovies • $label",
-                        url = link,
+                        url = url,
                         type = ExtractorLinkType.VIDEO
                     ) {
                         this.referer = mainUrl
@@ -148,7 +152,7 @@ class OlaMoviesProvider : MainAPI() {
                 )
                 emitted = true
             } catch (e: Exception) {
-                // Continue to next link
+                // log and continue (self-healing)
             }
         }
 

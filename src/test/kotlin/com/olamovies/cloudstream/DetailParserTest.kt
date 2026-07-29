@@ -16,23 +16,25 @@ class DetailParserTest {
     }
 
     @Test
-    fun `series detail parses correctly`() {
+    fun `series detail parses with multiple episodes from fixture`() {
         val doc = Fixtures.loadDocument("series.html")
         val load = OlaMoviesParserUtils.parseTvSeriesLoadResponse(doc, "https://v3.olamovies.mov/musafir-cafe-2026/", OlaMoviesConstants.BASE_URL)
 
         assertNotNull(load)
         assertTrue(load!!.name.contains("Musafir Cafe", ignoreCase = true))
-        assertTrue(load.episodes.isNotEmpty())
+        
+        // FIX 3: Should now detect multiple episodes
+        assertTrue("Should have multiple episodes", load.episodes.size > 1)
+        assertTrue(load.episodes.any { it.episode >= 1 && it.episode <= 8 })
         assertEquals(1, load.episodes.first().season)
     }
 
     @Test
-    fun `extracts google drive links from movie page`() {
-        val doc = Fixtures.loadDocument("movie.html")
-        val links = OlaMoviesParserUtils.extractGoogleDriveLinks(doc)
+    fun `extracts download links including episodes and packs`() {
+        val doc = Fixtures.loadDocument("series.html")
+        val links = OlaMoviesParserUtils.extractDownloadLinks(doc)
         
-        // The fixture may not contain actual drive links in static HTML, but we test parsing logic
-        // In real run the page has buttons like "1080p [2.92GB]"
-        assertNotNull(links)
+        assertTrue("Should find episode links", links.any { it.first.lowercase().contains("episode") })
+        assertTrue("Should find quality packs", links.any { it.first.contains("1080p") || it.first.contains("720p") })
     }
 }
