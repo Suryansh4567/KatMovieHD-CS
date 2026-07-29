@@ -32,12 +32,9 @@ fun Project.android(configuration: BaseExtension.() -> Unit) =
     extensions.getByName<BaseExtension>("android").configuration()
 
 subprojects {
-plugins {
-    id("com.android.library")
-    kotlin("android")
-    id("com.lagradost.cloudstream3.gradle")
-    id("java")
-}
+    apply(plugin = "com.android.library")
+    apply(plugin = "kotlin-android")
+    apply(plugin = "com.lagradost.cloudstream3.gradle")
 
     cloudstream {
         setRepo(System.getenv("GITHUB_REPOSITORY") ?: "Suryansh4567/KatMovieHD-CS")
@@ -57,12 +54,6 @@ plugins {
             targetCompatibility = JavaVersion.VERSION_1_8
         }
 
-        testOptions {
-            unitTests {
-                isIncludeAndroidResources = false
-            }
-        }
-
         tasks.withType<KotlinJvmCompile> {
             compilerOptions {
                 jvmTarget.set(JvmTarget.JVM_1_8)
@@ -78,7 +69,6 @@ plugins {
     dependencies {
         val cloudstream by configurations
         val implementation by configurations
-        val testImplementation by configurations
 
         cloudstream("com.lagradost:cloudstream3:pre-release")
 
@@ -86,13 +76,6 @@ plugins {
         implementation("com.github.Blatzar:NiceHttp:0.4.11")
         implementation("org.jsoup:jsoup:1.18.3")
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
-
-        testImplementation("junit:junit:4.13.2")
-        testImplementation(kotlin("test"))
-    }
-
-    tasks.withType<Test> {
-        useJUnit()
     }
 }
 
