@@ -6,7 +6,7 @@ import android.content.Context
 
 @CloudstreamPlugin
 class OlaMoviesPlugin: BasePlugin() {
-    override fun load(context: Context) {
+    override fun load() {
         registerMainAPI(OlaMoviesProvider())
     }
 }

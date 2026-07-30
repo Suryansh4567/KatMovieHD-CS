@@ -22,7 +22,7 @@ class OlaMoviesProvider : MainAPI() {
         "$mainUrl/category/tv-series/korean-tv-series/" to "Korean TV Series",
     )
 
-    override suspend fun getMainPage(page: Int, request: HomePageRequest): HomePageResponse {
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}page/$page/"
         val document = app.get(url).document
         val home = document.select("article").mapNotNull {
@@ -119,21 +119,21 @@ class OlaMoviesProvider : MainAPI() {
     ): Boolean {
         val sources = if (data.contains(";")) data.split(";") else listOf(data)
 
-        sources.apmap { source ->
+        sources.map { source ->
             val parts = source.split("|")
             val url = parts[0]
             val name = parts.getOrNull(1) ?: "OlaMovies"
             val size = parts.getOrNull(2) ?: ""
             
             callback(
-                ExtractorLink(
-                    this.name,
+                newExtractorLink(
                     "$name ($size)",
+                    this.name,
                     url,
-                    mainUrl,
-                    Qualities.Unknown.value,
-                    isM3u8 = false
-                )
+                ) {
+                    this.quality = Qualities.Unknown.value
+                    this.referer = mainUrl
+                }
             )
         }
         
