@@ -2,6 +2,7 @@ package com.olamovies
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.network.WebViewResolver
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import org.jsoup.nodes.Element
@@ -28,7 +29,7 @@ class OlaMoviesProvider : MainAPI() {
         val home = document.select("article").mapNotNull {
             it.toSearchResult()
         }
-        return newHomePageResponse(request.name, home, hasNext = true)
+        return newHomePageResponse(this.name, home, hasNext = true)
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
@@ -119,22 +120,36 @@ class OlaMoviesProvider : MainAPI() {
     ): Boolean {
         val sources = if (data.contains(";")) data.split(";") else listOf(data)
 
-        sources.map { source ->
-            val parts = source.split("|")
-            val url = parts[0]
-            val name = parts.getOrNull(1) ?: "OlaMovies"
-            val size = parts.getOrNull(2) ?: ""
-            
-            callback(
-                newExtractorLink(
-                    "$name ($size)",
-                    this.name,
-                    url,
-                ) {
-                    this.quality = Qualities.Unknown.value
-                    this.referer = mainUrl
+        sources.forEach { source ->
+            runCatching {
+                val parts = source.split("|")
+                val url = parts[0]
+                val name = parts.getOrNull(1) ?: "OlaMovies"
+                val size = parts.getOrNull(2) ?: ""
+
+                val resolver = WebViewResolver(
+                    Regex("""drive\.google\.com|mega\.nz|googleusercontent\.com|dl\.olamovies|1drv\.ms|mediafire\.com""")
+                )
+                
+                // Use resolver as interceptor to catch the final URL
+                val response = app.get(url, interceptor = resolver, referer = mainUrl)
+                val finalUrl = response.url
+
+                if (finalUrl.contains("drive.google.com") || finalUrl.contains("mega.nz")) {
+                    loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)
+                } else {
+                    callback(
+                        newExtractorLink(
+                            "$name ($size)",
+                            this.name,
+                            finalUrl,
+                        ) {
+                            this.referer = mainUrl
+                            this.quality = Qualities.Unknown.value
+                        }
+                    )
                 }
-            )
+            }
         }
         
         return true
