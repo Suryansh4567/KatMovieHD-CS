@@ -45,15 +45,15 @@
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
-        "status": 1,
-        "version": 1,
+        "status": 3,
+        "version": 2,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
-        "description": "Highest Quality UHD Movies and Series from OlaMovies.",
-        "fileSize": 16265,
+        "description": "Highest Quality UHD Movies and Series from OlaMovies. v2: Improved resolution, episode grouping, and playback bypass.",
+        "fileSize": 19513,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -63,7 +63,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v3.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-2f4789dd6037f03ffcc3bd7049bb9a72e2fe0e9ea99e75200e02255bfa5df37c"
+        "fileHash": "sha256-92c6e032ce4fe928f5e1e44debca314fd70db3cca8f22f8ab26da6f439985225"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/TheNextPlanet.cs3",
