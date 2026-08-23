@@ -1,12 +1,12 @@
-version = 4
+version = 5
 
 cloudstream {
     authors = listOf("arena")
     status = 1
-    description = "Stream movies, TV shows & anime from TheNextPlanet."
+    description = "Stream movies, TV shows & anime from TheNextPlanet. v5: domain moved to thenextplanet-official.site (.space retired); site verified 2026-08-23."
     language = "en"
     tvTypes = listOf("Movie", "TvSeries")
-    iconUrl = "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64"
+    iconUrl = "https://www.google.com/s2/favicons?domain=thenextplanet-official.site&sz=64"
 }
 
 dependencies {

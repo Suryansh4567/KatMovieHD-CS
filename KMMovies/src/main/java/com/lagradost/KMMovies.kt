@@ -46,7 +46,9 @@ import java.net.URLEncoder
  */
 class KMMovies : MainAPI() {
     override var name = "KMMovies"
-    override var mainUrl = "https://kmmovies.lol"
+    // kmmovies.pics is the current final domain: kmmovies.lol 301-redirects
+    // here and kmmovies.shop/.sbs/.fun are stale/parked. Verified 2026-08-23.
+    override var mainUrl = "https://kmmovies.pics"
     override var lang = "hi"
     override val hasMainPage = true
     override val hasDownloadSupport = true
@@ -1138,7 +1140,10 @@ class KMMovies : MainAPI() {
     // Predicates and text helpers
     // -----------------------------------------------------------------------
 
-    private fun isProviderPage(url: String): Boolean = host(url) == host(mainUrl) || host(url) == "kmmovies.shop"
+    private fun isProviderPage(url: String): Boolean {
+        val h = host(url)
+        return h == host(mainUrl) || h == "kmmovies.pics" || h == "kmmovies.shop" || h == "kmmovies.lol"
+    }
     private fun isMagicLinks(url: String): Boolean = host(url).contains("magiclinks") &&
         !host(url).startsWith("episodes.")
 

@@ -1,5 +1,5 @@
 // Bump this integer every time you push a fix.
-version = 42
+version = 43
 
 cloudstream {
     authors = listOf("arena")
@@ -10,10 +10,10 @@ cloudstream {
      */
     status = 1
 
-    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v42: adds sister-site domain self-discovery and dead-domain retry for MoviesBaba, KatDrama and PikaHD."
+    description = "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v43: domain moved to katmoviehd.mom (new.katmoviehd.top / *.cymru are dead); candidates refreshed — site verified 2026-08-23."
     language    = "hi"
 
     tvTypes = listOf("Movie", "TvSeries", "AsianDrama", "Anime")
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64"
+    iconUrl = "https://www.google.com/s2/favicons?domain=katmoviehd.mom&sz=64"
 }

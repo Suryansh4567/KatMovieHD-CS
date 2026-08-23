@@ -61,8 +61,8 @@ class KatMovieHDPlugin : BasePlugin() {
         private const val DOMAINS_URL =
             "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/main/domains.json"
 
-        /** Fallback used when DOMAINS_URL is unreachable. */
-        const val DEFAULT_MAIN_URL = "https://new.katmoviehd.top"
+        /** Fallback used when DOMAINS_URL is unreachable. Verified live 2026-08-23. */
+        const val DEFAULT_MAIN_URL = "https://katmoviehd.mom"
 
         @Volatile
         private var cached: Domains? = null
@@ -301,6 +301,8 @@ class KatMovieHDPlugin : BasePlugin() {
             domains?.katmoviehd?.let { add(it) }
             domains?.katmoviehdCandidates?.let { addAll(it) }
             domains?.katmoviehdFallbacks?.let { addAll(it) }
+            // Hardcoded last-resort candidates (owner-announced mirrors, verified 2026-08-23).
+            add("https://katmoviehd.watch")
             add(DEFAULT_MAIN_URL)
         }
             .mapNotNull { normalizeBaseUrl(it) }

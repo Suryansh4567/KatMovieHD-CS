@@ -1,5 +1,5 @@
 // Bump this integer whenever the provider implementation changes.
-version = 9
+version = 10
 
 cloudstream {
     authors = listOf("arena")
@@ -9,8 +9,8 @@ cloudstream {
      *   0 = Down, 1 = Ok, 2 = Slow, 3 = Beta only
      */
     status = 1
-    description = "Bollywood, Hollywood and South Indian movies / TV series from KMMovies."
+    description = "Bollywood, Hollywood and South Indian movies / TV series from KMMovies. v10: domain moved to kmmovies.pics (kmmovies.lol 301-redirects here; .shop dead); site verified 2026-08-23."
     language = "hi"
     tvTypes = listOf("Movie", "TvSeries")
-    iconUrl = "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64"
+    iconUrl = "https://www.google.com/s2/favicons?domain=kmmovies.pics&sz=64"
 }
