@@ -1,6 +1,8 @@
 {
-  "katmoviehd": "https://new.katmoviehd.top",
+  "katmoviehd": "https://katmoviehd.mom",
   "katmoviehd_candidates": [
+    "https://katmoviehd.mom",
+    "https://katmoviehd.watch",
     "https://new.katmoviehd.top",
     "https://new1.katmoviehd.cymru",
     "https://katmoviehd.cymru"
@@ -25,27 +27,36 @@
   "pikahd_candidates": [
     "https://new.pikahd.co"
   ],
-  "kmmovies": "https://kmmovies.shop",
+  "kmmovies": "https://kmmovies.pics",
   "kmmovies_candidates": [
-    "https://kmmovies.shop",
-    "https://kmmovies.lol"
+    "https://kmmovies.pics",
+    "https://kmmovies.lol",
+    "https://kmmovies.sbs",
+    "https://kmmovies.fun",
+    "https://kmmovies.shop"
   ],
-  "thenextplanet": "https://www.thenextplanet-official.space",
+  "thenextplanet": "https://www.thenextplanet-official.site",
   "thenextplanet_candidates": [
+    "https://www.thenextplanet-official.site",
     "https://www.thenextplanet-official.space",
-    "https://thenextplanet-official.space"
+    "https://www.thenextplanet-official.shop",
+    "https://www.tnp57.site",
+    "https://www.thenextplanet.surf"
   ],
   "yupflix": "https://watch.yupflix.org",
   "yupflix_candidates": [
     "https://watch.yupflix.org",
     "https://yupflix.org"
   ],
-  "olamovies": "https://v3.olamovies.mov",
+  "olamovies": "https://v4.olamovies.mov",
   "olamovies_candidates": [
+    "https://v4.olamovies.mov",
     "https://v3.olamovies.mov",
     "https://v2.olamovies.mov",
-    "https://olamovies.mov"
+    "https://olamovies.mov",
+    "https://olamovies.dad",
+    "https://m.ol-am.top"
   ],
-  "_comment": "Domains used by the extensions. The daily 'Site Watch' workflow (scripts/site_monitor.py) probes these and opens a PR when a plugin's hardcoded domain moves. Update a URL here if you find a new one.",
+  "_comment": "Domains used by the extensions. The daily 'Site Watch' workflow (scripts/site_monitor.py) probes these and opens a PR when a plugin's hardcoded domain moves. Update a URL here if you find a new one. Audited 2026-08-23: katmoviehd -> katmoviehd.mom, kmmovies -> kmmovies.pics, thenextplanet -> .site, olamovies -> v4.olamovies.mov (all verified live); yupflix + sister sites (moviesbaba/katdrama/pikahd) re-verified working.",
   "_updated": "2026-08-23"
 }

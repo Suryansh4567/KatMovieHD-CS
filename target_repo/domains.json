@@ -1,6 +1,8 @@
 {
-  "katmoviehd": "https://new.katmoviehd.top",
+  "katmoviehd": "https://katmoviehd.mom",
   "katmoviehd_candidates": [
+    "https://katmoviehd.mom",
+    "https://katmoviehd.watch",
     "https://new.katmoviehd.top",
     "https://new1.katmoviehd.cymru",
     "https://katmoviehd.cymru"
@@ -25,10 +27,11 @@
   "pikahd_candidates": [
     "https://new.pikahd.co"
   ],
-  "kmmovies": "https://kmmovies.shop",
+  "kmmovies": "https://kmmovies.pics",
   "kmmovies_candidates": [
-    "https://kmmovies.shop"
+    "https://kmmovies.pics",
+    "https://kmmovies.lol"
   ],
-  "_comment": "Domains used by the KatMovieHD and KMMovies extensions. Update a URL if a site moves domain.",
-  "_updated": "2026-07-10"
+  "_comment": "Domains used by the KatMovieHD and KMMovies extensions. Update a URL if a site moves domain. Audited 2026-08-23: katmoviehd -> katmoviehd.mom, kmmovies -> kmmovies.pics; moviesbaba / katdrama / pikahd re-verified live.",
+  "_updated": "2026-08-23"
 }

@@ -12,7 +12,10 @@ import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
 class OlaMoviesProvider : MainAPI() {
-    override var mainUrl = "https://v3.olamovies.mov"
+    // v4.olamovies.mov is the current domain per the official OlaMovies
+    // Telegram channel (@olamovies_officialv6) — v3.olamovies.mov is parked.
+    // Verified live with fresh uploads on 2026-08-23.
+    override var mainUrl = "https://v4.olamovies.mov"
     override var name = "OlaMovies"
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
     override var lang = "hi"

@@ -1,6 +1,6 @@
 # 🎬 CloudStream KatMovieHD Extension (v24)
 
-A working CloudStream 3 extension repo for [KatMovieHD](https://new1.katmoviehd.cymru/) — Hindi dubbed & dual-audio movies/TV series.
+A working CloudStream 3 extension repo for [KatMovieHD](https://katmoviehd.mom/) — Hindi dubbed & dual-audio movies/TV series. (Current domain verified 2026-08-23; old *.cymru / new.katmoviehd.top are dead, the plugin self-heals via domains.json.)
 
 Built with the current CloudStream extension toolchain — AGP 9.1.1 + Kotlin 2.3.21 + Gradle 9.4.1 + JDK 17.
 

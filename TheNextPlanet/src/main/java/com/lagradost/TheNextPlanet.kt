@@ -34,7 +34,10 @@ import java.net.URLDecoder
 
 class TheNextPlanet : MainAPI() {
     override var name = "TheNextPlanet"
-    override var mainUrl = "https://www.thenextplanet-official.space"
+    // Current domain announced on the site itself ("...is our new Domain"),
+    // verified live 2026-08-23 with 22-Aug fresh uploads. The old
+    // .space / .surf / tnp57.site domains now only carry redirect banners.
+    override var mainUrl = "https://www.thenextplanet-official.site"
     override var supportedTypes = setOf(TvType.Movie, TvType.TvSeries)
 
     init {
@@ -378,12 +381,12 @@ class TheNextPlanet : MainAPI() {
 
                     // The loadLinks() call is the network-bound one. Wrap in
                     // withTimeoutOrNull so a slow or unreachable live site
-                    // (the sandbox's host can't reach thenextplanet-official.space
+                    // (the sandbox's host can't reach thenextplanet-official.site
                     // from inside the emulator with SLIRP, often) doesn't hang
                     // the AutoTest thread indefinitely.
                     val loadResult = kotlinx.coroutines.withTimeoutOrNull(60_000L) {
                         val ok = plugin.loadLinks(
-                            data = """{"url":"https://www.thenextplanet-official.space/movie/251/starman/","type":"movie","season":null,"episode":null}""",
+                            data = """{"url":"https://www.thenextplanet-official.site/movie/251/starman/","type":"movie","season":null,"episode":null}""",
                             isCasting = false,
                             subtitleCallback = { /* no-op */ },
                             callback = { link ->
