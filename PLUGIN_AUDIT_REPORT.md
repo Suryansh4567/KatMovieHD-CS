@@ -9,7 +9,7 @@ extensions in this repo, followed by the required fixes.
 |---|--------|-----------|----------------------|--------|
 | 1 | **KatMovieHD** (v42→**v43**) | `new.katmoviehd.top`, `*.cymru` ❌ dead | **`katmoviehd.mom`** ✅ | Working (fixed, self-heals via domains.json) |
 | 2 | **KMMovies** (v9→**v10**) | `kmmovies.lol` / `.shop` ⚠️ redirect only | **`kmmovies.pics`** ✅ | Working (fixed) |
-| 3 | **OlaMovies** (v2→**v3**) | `v3.olamovies.mov` ❌ parked | **`v4.olamovies.mov`** ✅ | Working (fixed, status 3→1) |
+| 3 | **OlaMovies** (v2→**v4**) | `v3.olamovies.mov` ❌ parked + playback broken | **`v4.olamovies.mov`** ✅ | Working (domain + **playback** fixed, status 3→1) |
 | 4 | **TheNextPlanet** (v4→**v5**) | `thenextplanet-official.space` ⚠️ banner-only | **`thenextplanet-official.site`** ✅ | Working (fixed) |
 | 5 | **YupFlix** (v2, no change) | `watch.yupflix.org` ✅ still valid | (unchanged) | Working — no change needed |
 
@@ -58,6 +58,34 @@ extensions in this repo, followed by the required fixes.
 5. `KMMovies.kt` + gradle: mainUrl → `kmmovies.pics`; `isProviderPage()` host allow-list
    now covers `kmmovies.pics/.shop/.lol` for redirect tolerance; **v10**.
 6. `README.md`: headline link updated to the live KatMovieHD domain.
+
+## OlaMovies playback deep-fix (v4 provider rewrite)
+
+User report: *"OlaMovies ka koi video play nahi hota"*. Root-caused to **three stacked bugs**, not the domain:
+
+1. **Compile blocker** — `loadLinks()` called `getQualityFromName()` which exists nowhere
+   (not in the module, not in CS3 core). The v2 artifact could never have shipped a working resolver.
+2. **Dead button selector** — `load()` scraped `a.wp-block-button__link` / `data-om-*` attributes.
+   The v4 theme renders download buttons as **plain anchors to `links.ol-am.top/<id>`** grouped
+   under bold release-name headers (`Con City (2026)` → `https://links.ol-am.top/LvOOKSLRRKDghCatsk`).
+   Zero matches ⇒ zero sources ⇒ "No links found" on every title.
+3. **No generator-chain support** — `links.ol-am.top` 301s to `links.olamovies.mov` ("OlaMovies Link
+   Generator") which chains to ad shorteners; the old interceptor regex only watched
+   gdrive/mega pixels and never resolved the chain.
+
+**Fix strategy (provider rewrite):**
+- `collectDownloadSources()` walks the post body in document order, tracks release-name group
+  headers (`My.Show.S01.2160p.…HHWEB`), and grafts them onto short anchors (`episode 01`) so
+  every source carries quality + season/episode context. Handles both movies (`720p DS4K [1.25GB]`)
+  and series packs (per-episode links + zip-packs, zips excluded from episodes).
+- `loadLinks()` two-phase resolution per source — **fast path**: plain GET the generator page and
+  sniff the HTML for an embedded final-host URL (`drive.google.com`, `pixeldrain`, `gofile`, CDN…);
+  **slow path**: `WebViewResolver` with a broadened intercept regex (file hosts + direct video
+  extensions) grinds through the ad-shortener chain.
+- Links are emitted via `loadExtractor()` first (GDrive/Mega/Pixeldrain/HubCloud handled by CS3),
+  then as direct file links; quality parsed with the real CS3 `getQualityFromString()`.
+- Series-poster regex untouched; main-page/search/episode-grouping logic reused and hardened.
+- `usesWebView = true` is required and retained.
 
 ## Notes for maintainers
 
