@@ -1,5 +1,3 @@
-Downloading https://services.gradle.org/distributions/gradle-9.4.1-bin.zip
-.............10%.............20%.............30%.............40%.............50%.............60%..............70%.............80%.............90%.............100%
 
 Welcome to Gradle 9.4.1!
 
@@ -21,9 +19,6 @@ WARNING: The option 'android.defaults.buildfeatures.buildconfig' is deprecated.
 The current default is 'false'.
 It was removed in version 9.0 of the Android Gradle plugin.
 
-> Configure project :KatMovieHD
-Fetching JAR: cloudstream.jar
-
 > Task :KatMovieHD:preBuild UP-TO-DATE
 > Task :KatMovieHD:preDebugBuild UP-TO-DATE
 > Task :KatMovieHD:generateDebugBuildConfig
@@ -41,17 +36,17 @@ Fetching JAR: cloudstream.jar
 > Task :OlaMovies:generateDebugBuildConfig
 > Task :OlaMovies:generateDebugResources
 > Task :KatMovieHD:parseDebugLocalResources
-> Task :KMMovies:parseDebugLocalResources
 > Task :OlaMovies:packageDebugResources
+> Task :KMMovies:parseDebugLocalResources
 > Task :OlaMovies:processDebugNavigationResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
-> Task :OlaMovies:parseDebugLocalResources
-> Task :TheNextPlanet:generateDebugBuildConfig
 > Task :KMMovies:generateDebugRFile
-> Task :OlaMovies:generateDebugRFile
 > Task :KatMovieHD:generateDebugRFile
+> Task :TheNextPlanet:generateDebugBuildConfig
+> Task :OlaMovies:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugResources
+> Task :OlaMovies:generateDebugRFile
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
 > Task :TheNextPlanet:parseDebugLocalResources
@@ -90,6 +85,9 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Ol
 
 > Task :OlaMovies:writeCacheEntry
 
+> Task :KatMovieHD:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
+
 > Task :TheNextPlanet:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/build/intermediates/classes.dex
 
@@ -108,12 +106,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Th
 > Task :YupFlix:parseDebugLocalResources
 > Task :YupFlix:generateDebugRFile
 
-> Task :KatMovieHD:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:578:67 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
-
-> Task :YupFlix:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/src/main/kotlin/com/lagradost/YupFlix.kt:425:50 Unnecessary safe call on a non-null receiver of type 'String'.
-
 > Task :KatMovieHD:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/intermediates/classes.dex
 
@@ -123,6 +115,9 @@ Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/bui
 Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/build/KatMovieHD.cs3
 
 > Task :KatMovieHD:writeCacheEntry
+
+> Task :YupFlix:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/src/main/kotlin/com/lagradost/YupFlix.kt:425:50 Unnecessary safe call on a non-null receiver of type 'String'.
 
 > Task :YupFlix:compileDex
 Compiled dex to /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/YupFlix/build/intermediates/classes.dex
@@ -137,6 +132,6 @@ Made CloudStream package at /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/Yu
 > Task :makePluginsJson
 Created /home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/build/plugins.json
 
-BUILD SUCCESSFUL in 1m 21s
+BUILD SUCCESSFUL in 40s
 56 actionable tasks: 56 executed
 Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
