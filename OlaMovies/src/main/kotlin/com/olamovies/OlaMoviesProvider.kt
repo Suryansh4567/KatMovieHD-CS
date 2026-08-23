@@ -97,6 +97,24 @@ class OlaMoviesProvider : MainAPI() {
             LINK_HOSTS.any { url.contains(it, ignoreCase = true) }
 
         /**
+         * ExtractorLink.quality is an Int in this CloudStream version, so map
+         * the source label to Qualities.*.value ourselves (same idiom as
+         * KMMovies.quality()) instead of relying on SearchQuality internals.
+         */
+        private fun qualityOf(text: String): Int {
+            val t = text.lowercase()
+            return when {
+                "2160" in t || "4k" in t -> Qualities.P2160.value
+                "1440" in t || "2k" in t -> Qualities.P1440.value
+                "1080" in t -> Qualities.P1080.value
+                "720" in t -> Qualities.P720.value
+                "480" in t -> Qualities.P480.value
+                "360" in t -> Qualities.P360.value
+                else -> Qualities.Unknown.value
+            }
+        }
+
+        /**
          * Dependency-free base64url (RFC 4648 §5, no padding). Avoids both
          * android.util.Base64 and java.util.Base64 (API 26+) so it works on
          * every Android version the app supports.
@@ -323,7 +341,7 @@ class OlaMoviesProvider : MainAPI() {
                 callback(
                     newExtractorLink(sourceName, this.name, direct) {
                         this.referer = ""
-                        this.quality = getQualityFromString(sourceName)
+                        this.quality = qualityOf(sourceName)
                     }
                 )
                 return true
@@ -342,7 +360,7 @@ class OlaMoviesProvider : MainAPI() {
         callback(
             newExtractorLink(sourceName, this.name, finalUrl) {
                 this.referer = mainUrl
-                this.quality = getQualityFromString(sourceName)
+                this.quality = qualityOf(sourceName)
             }
         )
         return true
