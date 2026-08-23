@@ -2,14 +2,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KatMovieHD.cs3",
         "status": 1,
-        "version": 42,
+        "version": 43,
         "name": "KatMovieHD",
         "internalName": "KatMovieHD",
         "authors": [
             "arena"
         ],
-        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v42: adds sister-site domain self-discovery and dead-domain retry for MoviesBaba, KatDrama and PikaHD.",
-        "fileSize": 145269,
+        "description": "Hindi dubbed & dual-audio movies / TV series from KatMovieHD. v43: domain moved to katmoviehd.mom (new.katmoviehd.top / *.cymru are dead); candidates refreshed \u2014 site verified 2026-08-23.",
+        "fileSize": 145311,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -18,42 +18,42 @@
             "AsianDrama",
             "Anime"
         ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=new1.katmoviehd.cymru&sz=64",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=katmoviehd.mom&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-42ae9e3591b6ad3d62d25602ad3137348a7bfa9f552697975b9457c2ce1f1f20"
+        "fileHash": "sha256-1f0ffab0bcee98dd5c39baaaaa3b4d7e2a6862a1b09b1ac006485d907c69f347"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/KMMovies.cs3",
         "status": 1,
-        "version": 9,
+        "version": 10,
         "name": "KMMovies",
         "internalName": "KMMovies",
         "authors": [
             "arena"
         ],
-        "description": "Bollywood, Hollywood and South Indian movies / TV series from KMMovies.",
-        "fileSize": 65203,
+        "description": "Bollywood, Hollywood and South Indian movies / TV series from KMMovies. v10: domain moved to kmmovies.pics (kmmovies.lol 301-redirects here; .shop dead); site verified 2026-08-23.",
+        "fileSize": 65247,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
             "Movie",
             "TvSeries"
         ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.shop&sz=64",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=kmmovies.pics&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-5537281a9265c5985ac055bde8b5bffa9cd177dc800a43c8d19ed6339f43279b"
+        "fileHash": "sha256-e197cea8ef9b2e36b6f6e45e8330c342f4f6162f2e8bfe616742ac7a7bfbed46"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
-        "status": 3,
-        "version": 2,
+        "status": 1,
+        "version": 8,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
-        "description": "Highest Quality UHD Movies and Series from OlaMovies. v2: Improved resolution, episode grouping, and playback bypass.",
-        "fileSize": 20201,
+        "description": "Highest Quality UHD Movies and Series from OlaMovies. v5: direct-link minting \u2014 drive.olamovies.download/file/* pages are harvested for their embedded _id and rebuilt as instant olam.bypassbot stream URLs (reverse-engineered 2026-08-23). v4: playback fixed \u2014 v4-theme download links + generator-chain resolution.",
+        "fileSize": 26592,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -61,30 +61,30 @@
             "TvSeries",
             "Anime"
         ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=v3.olamovies.mov&sz=64",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=v4.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-090ee668febbaeeeea76ef8d1fc552a4e64fdba48703ccdba9603aef3edbdb93"
+        "fileHash": "sha256-70e934a14c52c7f24a3f3f8bff195ae72fba5904123d47c36fc5a280ed8124b7"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/TheNextPlanet.cs3",
         "status": 1,
-        "version": 4,
+        "version": 5,
         "name": "TheNextPlanet",
         "internalName": "TheNextPlanet",
         "authors": [
             "arena"
         ],
-        "description": "Stream movies, TV shows & anime from TheNextPlanet.",
-        "fileSize": 57004,
+        "description": "Stream movies, TV shows & anime from TheNextPlanet. v5: domain moved to thenextplanet-official.site (.space retired); site verified 2026-08-23.",
+        "fileSize": 57009,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "en",
         "tvTypes": [
             "Movie",
             "TvSeries"
         ],
-        "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.space&sz=64",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=thenextplanet-official.site&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-038c54013b4596b0e0968f183ad54db102bf2b1c6715c8ce2ddbeb51ad6fc4b8"
+        "fileHash": "sha256-790aa627048dbc15039528a6778c4bbb0adb52c233c5a1d3eb97666dde1242fe"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/YupFlix.cs3",
