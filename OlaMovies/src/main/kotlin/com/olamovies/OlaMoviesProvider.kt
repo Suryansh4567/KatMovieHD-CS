@@ -58,7 +58,8 @@ class OlaMoviesProvider : MainAPI() {
         private val FINAL_HOST_REGEX = Regex(
             """(?i)(drive\.google\.com|docs\.google\.com|mega\.|nz/|pixeldrain\.|""" +
             """gofile\.io|hubcloud|gdflix|gdlink|katdrive|dood|streamtape|mixdrop|""" +
-            """filemoon|streamwish|voe\.|dl\.|cdn\.|\.workers\.dev|\.r2\.dev)"""
+            """filemoon|streamwish|voe\.|dl\.|cdn\.|\.workers\.dev|\.r2\.dev|""" +
+            """drive\.olamovies\.download)"""
         )
 
         /** WebView interceptor: stop the chain at file hosts or direct video files. */
@@ -67,6 +68,22 @@ class OlaMoviesProvider : MainAPI() {
         )
 
         private val VIDEO_EXT_REGEX = Regex("""(?i)\.(mkv|mp4|m3u8|webm)(\?|#|${'$'})""")
+
+        private val DRIVE_PAGE_REGEX = Regex("""(?i)^https?://drive\.olamovies\.download/file/""")
+
+        /**
+         * Reverse-engineered 2026-08-23 (sources: greasyfork script 566947
+         * "Olam Drive Bypasser UI", priyanshu3301/olamovies inject.js):
+         *
+         * Every drive.olamovies.download/file/* page embeds a Mongo-style id in
+         * its inline state:  "_id":"<24-hex>"  plus the release name in <h1>.
+         * The companion stream worker mints a direct, playable file URL:
+         *   https://olam.bypassbot.workers.dev/<_id>?filename=<base64url(name)>
+         */
+        // Matches both plain  "_id":"<mongo hex>"  and the Next.js escaped
+        // form  \"_id\":\"<hex>\"  found inside RSC flight chunks.
+        private val DRIVE_ID_REGEX = Regex("""\\?"_id\\?"\s*:\s*\\?"([0-9a-fA-F]{20,30})""")
+        private const val DRIVE_WORKER_URL = "https://olam.bypassbot.workers.dev/"
 
         /** Bold group headers above episode links, e.g. "My.Show.S01.1080p...HEVC-Grp". */
         private val GROUP_HEADER_REGEX = Regex(
@@ -252,6 +269,23 @@ class OlaMoviesProvider : MainAPI() {
                     !it.contains("olamovies", true) && !isLinkHost(it)
             }
 
+    /**
+     * Given a drive.olamovies.download/file/* page URL, extract the embedded
+     * `_id` and re-build the direct worker stream URL. Returns null when the
+     * id is missing (page layout changed / not logged in).
+     */
+    private suspend fun mintDriveDirectUrl(drivePageUrl: String, referer: String, fallbackName: String): String? {
+        val doc = runCatching { app.get(drivePageUrl, referer = referer, timeout = 20) }.getOrNull()
+            ?: return null
+        val html = doc.text
+        val id = DRIVE_ID_REGEX.find(html)?.groupValues?.get(1) ?: return null
+        val fileName = runCatching { doc.document.selectFirst("h1")?.text()?.trim() }
+            .getOrNull()?.takeIf { it.isNotBlank() } ?: fallbackName
+        val b64 = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(fileName.toByteArray(Charsets.UTF_8))
+        return "$DRIVE_WORKER_URL$id?filename=$b64"
+    }
+
     private suspend fun emitFinal(
         finalUrl: String,
         sourceName: String,
@@ -259,6 +293,22 @@ class OlaMoviesProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         if (finalUrl.isBlank()) return false
+
+        // OlaMovies' own drive shell page → mint the direct worker stream.
+        if (DRIVE_PAGE_REGEX.containsMatchIn(finalUrl)) {
+            val direct = mintDriveDirectUrl(finalUrl, mainUrl, sourceName)
+            if (direct != null) {
+                callback(
+                    newExtractorLink(sourceName, this.name, direct) {
+                        this.referer = ""
+                        this.quality = getQualityFromString(sourceName).value
+                    }
+                )
+                return true
+            }
+            // Fall through: maybe a registered extractor can still handle it.
+        }
+
         // 1) Known host extractor (GDrive, Mega, Pixeldrain, HubCloud…)
         if (loadExtractor(finalUrl, mainUrl, subtitleCallback, callback)) return true
 
