@@ -323,7 +323,7 @@ class OlaMoviesProvider : MainAPI() {
                 callback(
                     newExtractorLink(sourceName, this.name, direct) {
                         this.referer = ""
-                        this.quality = getQualityFromString(sourceName).value
+                        this.quality = getQualityFromString(sourceName)
                     }
                 )
                 return true
@@ -342,7 +342,7 @@ class OlaMoviesProvider : MainAPI() {
         callback(
             newExtractorLink(sourceName, this.name, finalUrl) {
                 this.referer = mainUrl
-                this.quality = getQualityFromString(sourceName).value
+                this.quality = getQualityFromString(sourceName)
             }
         )
         return true
