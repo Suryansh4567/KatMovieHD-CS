@@ -39,18 +39,18 @@ Fetching JAR: cloudstream.jar
 > Task :OlaMovies:preBuild UP-TO-DATE
 > Task :OlaMovies:preDebugBuild UP-TO-DATE
 > Task :OlaMovies:generateDebugBuildConfig
+> Task :KatMovieHD:parseDebugLocalResources
 > Task :OlaMovies:generateDebugResources
 > Task :KMMovies:parseDebugLocalResources
-> Task :KatMovieHD:parseDebugLocalResources
 > Task :OlaMovies:packageDebugResources
 > Task :OlaMovies:processDebugNavigationResources
-> Task :KMMovies:generateDebugRFile
-> Task :KatMovieHD:generateDebugRFile
-> Task :OlaMovies:parseDebugLocalResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
-> Task :OlaMovies:generateDebugRFile
+> Task :KMMovies:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
 > Task :TheNextPlanet:generateDebugBuildConfig
+> Task :OlaMovies:parseDebugLocalResources
+> Task :OlaMovies:generateDebugRFile
 > Task :TheNextPlanet:generateDebugResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
@@ -58,8 +58,8 @@ Fetching JAR: cloudstream.jar
 > Task :TheNextPlanet:generateDebugRFile
 
 > Task :OlaMovies:compileDebugKotlin
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:72:99 Syntax error: Missing '}.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:367:1 Syntax error: Unclosed comment.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:326:73 Unresolved reference 'value'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:345:65 Unresolved reference 'value'.
 
 > Task :OlaMovies:compileDebugKotlin FAILED
 
@@ -298,5 +298,5 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	... 2 more
 
 
-BUILD FAILED in 1m 28s
+BUILD FAILED in 1m 26s
 28 actionable tasks: 28 executed
