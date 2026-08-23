@@ -75,7 +75,7 @@ class OlaMoviesProvider : MainAPI() {
          * Reverse-engineered 2026-08-23 (sources: greasyfork script 566947
          * "Olam Drive Bypasser UI", priyanshu3301/olamovies inject.js):
          *
-         * Every drive.olamovies.download/file/* page embeds a Mongo-style id in
+         * Every drive.olamovies.download/file/<id> page embeds a Mongo-style id in
          * its inline state:  "_id":"<24-hex>"  plus the release name in <h1>.
          * The companion stream worker mints a direct, playable file URL:
          *   https://olam.bypassbot.workers.dev/<_id>?filename=<base64url(name)>
@@ -95,6 +95,29 @@ class OlaMoviesProvider : MainAPI() {
 
         private fun isLinkHost(url: String): Boolean =
             LINK_HOSTS.any { url.contains(it, ignoreCase = true) }
+
+        /**
+         * Dependency-free base64url (RFC 4648 §5, no padding). Avoids both
+         * android.util.Base64 and java.util.Base64 (API 26+) so it works on
+         * every Android version the app supports.
+         */
+        private fun base64UrlEncode(text: String): String {
+            val bytes = text.toByteArray(Charsets.UTF_8)
+            val table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+            val sb = StringBuilder((bytes.size + 2) / 3 * 4)
+            var i = 0
+            while (i < bytes.size) {
+                val b0 = bytes[i].toInt() and 0xFF
+                val b1 = if (i + 1 < bytes.size) bytes[i + 1].toInt() and 0xFF else 0
+                val b2 = if (i + 2 < bytes.size) bytes[i + 2].toInt() and 0xFF else 0
+                sb.append(table[b0 shr 2])
+                sb.append(table[((b0 and 0x03) shl 4) or (b1 shr 4)])
+                if (i + 1 < bytes.size) sb.append(table[((b1 and 0x0F) shl 2) or (b2 shr 6)])
+                if (i + 2 < bytes.size) sb.append(table[b2 and 0x3F])
+                i += 3
+            }
+            return sb.toString()
+        }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -221,7 +244,7 @@ class OlaMoviesProvider : MainAPI() {
                 ).find(source.name)
                 val epNum = epMatch?.groupValues?.let { g -> g[2].toIntOrNull() ?: g[3].toIntOrNull() ?: g[4].toIntOrNull() }
                 if (epNum == null) return@forEach // zip-pack links: no episode ⇒ skip
-                val seasonNum = epMatch.groupValues.getOrNull(1)?.toIntOrNull()
+                val seasonNum = epMatch?.groupValues?.getOrNull(1)?.toIntOrNull()
                     ?: Regex("""(?i)\bS(\d{1,2})\b""").find(source.name)?.groupValues?.get(1)?.toIntOrNull()
                     ?: title.let { t -> Regex("(?i)Season\\s*(\\d+)").find(t)?.groupValues?.get(1)?.toIntOrNull() }
                     ?: 1
@@ -270,7 +293,7 @@ class OlaMoviesProvider : MainAPI() {
             }
 
     /**
-     * Given a drive.olamovies.download/file/* page URL, extract the embedded
+     * Given a drive.olamovies.download/file/<id> page URL, extract the embedded
      * `_id` and re-build the direct worker stream URL. Returns null when the
      * id is missing (page layout changed / not logged in).
      */
@@ -281,8 +304,7 @@ class OlaMoviesProvider : MainAPI() {
         val id = DRIVE_ID_REGEX.find(html)?.groupValues?.get(1) ?: return null
         val fileName = runCatching { doc.document.selectFirst("h1")?.text()?.trim() }
             .getOrNull()?.takeIf { it.isNotBlank() } ?: fallbackName
-        val b64 = java.util.Base64.getUrlEncoder().withoutPadding()
-            .encodeToString(fileName.toByteArray(Charsets.UTF_8))
+        val b64 = base64UrlEncode(fileName)
         return "$DRIVE_WORKER_URL$id?filename=$b64"
     }
 
