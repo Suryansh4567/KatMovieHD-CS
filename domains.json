@@ -27,8 +27,25 @@
   ],
   "kmmovies": "https://kmmovies.shop",
   "kmmovies_candidates": [
-    "https://kmmovies.shop"
+    "https://kmmovies.shop",
+    "https://kmmovies.lol"
   ],
-  "_comment": "Domains used by the KatMovieHD and KMMovies extensions. Update a URL if a site moves domain.",
-  "_updated": "2026-07-10"
+  "thenextplanet": "https://www.thenextplanet-official.space",
+  "thenextplanet_candidates": [
+    "https://www.thenextplanet-official.space",
+    "https://thenextplanet-official.space"
+  ],
+  "yupflix": "https://watch.yupflix.org",
+  "yupflix_candidates": [
+    "https://watch.yupflix.org",
+    "https://yupflix.org"
+  ],
+  "olamovies": "https://v3.olamovies.mov",
+  "olamovies_candidates": [
+    "https://v3.olamovies.mov",
+    "https://v2.olamovies.mov",
+    "https://olamovies.mov"
+  ],
+  "_comment": "Domains used by the extensions. The daily 'Site Watch' workflow (scripts/site_monitor.py) probes these and opens a PR when a plugin's hardcoded domain moves. Update a URL here if you find a new one.",
+  "_updated": "2026-08-23"
 }

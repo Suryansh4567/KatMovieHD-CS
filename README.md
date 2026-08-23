@@ -83,6 +83,36 @@ The extractor then forwards each mirror URL to CloudStream's built-in extractors
 
 ---
 
+## 🔄 Auto-Updates — plugins stay fresh by themselves
+
+Once the repo is published, three automated loops keep every plugin updated
+**without you doing anything**:
+
+| Loop | When | What happens |
+|------|------|--------------|
+| **Site Watch** (`.github/workflows/site-watch.yml`) | Daily (cron) + manual | Probes the live domain of **every** plugin (KatMovieHD, KMMovies, TheNextPlanet, YupFlix, OlaMovies) with marker checks so parked/copycat pages don't count. If a plugin's hardcoded domain is dead and a candidate from `domains.json` is alive, it rewrites the plugin source + `domains.json` and **opens a PR**. |
+| **Auto Rebuild & Publish** (`.github/workflows/auto-rebuild.yml`) | Weekly (cron) + manual | Bumps the `version` (versionCode) of every enabled plugin, **rebuilds** all of them, and publishes the fresh `*.cs3` + `plugins.json` to the `builds` branch. Because the build resolves `com.lagradost:cloudstream3:pre-release` (a *floating* version), every rebuild automatically picks up **the latest CloudStream app/library changes — new capabilities included**. |
+| **Build** (`.github/workflows/build.yml`) | Every push to `main` | Rebuilds + republishes immediately, so any manual fix you push reaches users right away. |
+
+How the update reaches the user's phone:
+
+1. The CloudStream app regularly checks the extension repo URL you added (Step 6 above).
+2. The repo's `plugins.json` lists each plugin with its `versionCode`.
+3. When the versionCode in the `builds` branch is higher than the installed one → the app shows **"Extension update available"** → one tap and the plugin is updated. No APK install, no manual steps.
+
+So: **site moves domain → PR within a day**; **new CloudStream app release → fresh plugin builds within a week**; **your own fix → instant on push**.
+
+> Tip: the daily report is visible on the *Site Watch* run page and in its
+> `site-health` artifact. You can also run it locally any time:
+>
+> ```bash
+> python3 scripts/site_monitor.py --cloudstream          # report only
+> python3 scripts/site_monitor.py --cloudstream --fix    # + rewrite domains & open nothing (local)
+> python3 scripts/bump_versions.py --dry-run             # preview next version numbers
+> ```
+
+---
+
 ## 🚀 First-Time Setup (After Creating GitHub Repo)
 
 ### Step 1 — Replace `YOUR_GITHUB_USERNAME` (2 files)
@@ -130,7 +160,15 @@ cloudstream-katmoviehd/
 ├── gradlew, gradlew.bat              ← Gradle wrapper scripts
 ├── gradle/wrapper/                   ← Gradle 8.10 wrapper
 ├── repo.json                         ← CloudStream repo manifest
-├── .github/workflows/build.yml       ← CI: build + publish to `builds` branch
+├── domains.json                      ← live domains + fallback candidates for every plugin
+├── scripts/
+│   ├── site_monitor.py               ← daily domain health check / auto-fix (Site Watch)
+│   ├── site_providers.json           ← which file/regex holds each plugin's domain
+│   └── bump_versions.py              ← weekly version bump (Auto Rebuild)
+├── .github/workflows/
+│   ├── build.yml                     ← CI: build + publish to `builds` branch (on push)
+│   ├── site-watch.yml                ← daily site probe → auto domain PR
+│   └── auto-rebuild.yml              ← weekly version bump + rebuild + publish
 └── KatMovieHD/                       ← The plugin sub-project
     ├── build.gradle.kts              ← Plugin metadata
     └── src/main/

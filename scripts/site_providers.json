@@ -1,0 +1,45 @@
+{
+  "_comment": "Sites monitored by scripts/site_monitor.py. For each provider: 'source' is the Kotlin file that holds the hardcoded default domain, 'url_regex' is a regex whose FIRST CAPTURE GROUP is that URL, 'candidates_key' is the *_candidates array in domains.json that lists fallback domains, 'markers' are page snippets that must appear (any one of them, case-insensitive) for the page to count as the real site. 'extra_checks' are extra endpoints (e.g. JSON APIs) that must stay alive; they are reported but never auto-fixed.",
+  "providers": [
+    {
+      "key": "katmoviehd",
+      "plugin": "KatMovieHD",
+      "source": "KatMovieHD/src/main/kotlin/com/arena/KatMovieHDPlugin.kt",
+      "url_regex": "const val DEFAULT_MAIN_URL = \"([^\"]+)\"",
+      "candidates_key": "katmoviehd_candidates",
+      "markers": ["li id=\"post-", "katmoviehd", "wp-content"]
+    },
+    {
+      "key": "kmmovies",
+      "plugin": "KMMovies",
+      "source": "KMMovies/src/main/java/com/lagradost/KMMovies.kt",
+      "url_regex": "override var mainUrl = \"([^\"]+)\"",
+      "candidates_key": "kmmovies_candidates",
+      "markers": ["wp-content", "wp-json"]
+    },
+    {
+      "key": "thenextplanet",
+      "plugin": "TheNextPlanet",
+      "source": "TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt",
+      "url_regex": "override var mainUrl = \"([^\"]+)\"",
+      "candidates_key": "thenextplanet_candidates"
+    },
+    {
+      "key": "yupflix",
+      "plugin": "YupFlix",
+      "source": "YupFlix/src/main/kotlin/com/lagradost/YupFlix.kt",
+      "url_regex": "private const val SITE_URL = \"([^\"]+)\"",
+      "candidates_key": "yupflix_candidates",
+      "extra_checks": [
+        { "label": "api_base", "url_regex": "private const val API_BASE = \"([^\"]+)\"" }
+      ]
+    },
+    {
+      "key": "olamovies",
+      "plugin": "OlaMovies",
+      "source": "OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt",
+      "url_regex": "override var mainUrl = \"([^\"]+)\"",
+      "candidates_key": "olamovies_candidates"
+    }
+  ]
+}

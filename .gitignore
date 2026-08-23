@@ -7,3 +7,4 @@ local.properties
 captures/
 .vscode/
 KatMovieHD-CS/
+__pycache__/
