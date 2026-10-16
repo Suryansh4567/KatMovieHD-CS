@@ -38,67 +38,41 @@ Fetching JAR: cloudstream.jar
 > Task :KMMovies:processDebugNavigationResources
 > Task :OlaMovies:preBuild UP-TO-DATE
 > Task :OlaMovies:preDebugBuild UP-TO-DATE
-> Task :KatMovieHD:parseDebugLocalResources
-> Task :KMMovies:parseDebugLocalResources
 > Task :OlaMovies:generateDebugBuildConfig
 > Task :OlaMovies:generateDebugResources
-> Task :KMMovies:generateDebugRFile
-> Task :KatMovieHD:generateDebugRFile
 > Task :OlaMovies:packageDebugResources
 > Task :OlaMovies:processDebugNavigationResources
 > Task :TheNextPlanet:preBuild UP-TO-DATE
 > Task :TheNextPlanet:preDebugBuild UP-TO-DATE
-> Task :OlaMovies:parseDebugLocalResources
 > Task :TheNextPlanet:generateDebugBuildConfig
 > Task :TheNextPlanet:generateDebugResources
-> Task :OlaMovies:generateDebugRFile
+> Task :OlaMovies:parseDebugLocalResources
+> Task :KatMovieHD:parseDebugLocalResources
+> Task :KMMovies:parseDebugLocalResources
 > Task :TheNextPlanet:packageDebugResources
 > Task :TheNextPlanet:processDebugNavigationResources
 > Task :TheNextPlanet:parseDebugLocalResources
+> Task :KMMovies:generateDebugRFile
+> Task :OlaMovies:generateDebugRFile
+> Task :KatMovieHD:generateDebugRFile
 > Task :TheNextPlanet:generateDebugRFile
 
 > Task :OlaMovies:compileDebugKotlin
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:12:31 Unresolved reference 'Response'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:103:51 Unresolved reference 'Response'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:106:24 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:106:47 Unresolved reference 'text'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:173:8 Unresolved reference 'Response'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:189:63 Argument type mismatch: actual type is 'Int', but 'Long' was expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:200:23 Argument type mismatch: actual type is 'Int', but 'Long' was expected.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:206:39 Unresolved reference 'document'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:208:13 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:239:58 Unresolved reference 'document'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:241:13 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:298:39 Unresolved reference 'document'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:301:74 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:301:74 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:301:78 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:302:16 Unresolved reference 'attr'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:302:32 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:302:41 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:302:69 Unresolved reference 'attr'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:307:55 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:307:76 Unresolved reference 'it'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:382:19 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:384:24 Unresolved reference 'text'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:386:42 Unresolved reference 'document'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:438:37 Cannot inline bytecode built with JVM target 11 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:446:33 Unresolved reference 'text'.
-e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:448:43 Unresolved reference 'url'.
+e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/OlaMovies/src/main/kotlin/com/olamovies/OlaMoviesProvider.kt:442:37 Cannot inline bytecode built with JVM target 11 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option.
 
 > Task :OlaMovies:compileDebugKotlin FAILED
 
 > Task :KatMovieHD:compileDebugKotlin FAILED
 e: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KatMovieHD/src/main/kotlin/com/arena/KatMovieHDProvider.kt:1423:21 Cannot inline bytecode built with JVM target 11 into bytecode that is being built with JVM target 1.8. Specify proper '-jvm-target' option.
 
-> Task :KMMovies:compileDebugKotlin
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:188:55 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
-w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:219:87 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
-
 > Task :TheNextPlanet:compileDebugKotlin
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:573:29 Unnecessary safe call on a non-null receiver of type 'String'.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:633:13 Elvis operator (?:) always returns the left operand of non-nullable type 'String'.
 w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/TheNextPlanet/src/main/java/com/lagradost/TheNextPlanet.kt:1001:16 'constructor(source: String, name: String, url: String, referer: String, quality: Int, headers: Map<String, String> = ..., extractorData: String? = ..., type: ExtractorLinkType, audioTracks: List<AudioFile> = ...): ExtractorLink' is deprecated. Use newExtractorLink.
+
+> Task :KMMovies:compileDebugKotlin
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:188:55 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
+w: file:///home/runner/work/KatMovieHD-CS/KatMovieHD-CS/src/KMMovies/src/main/java/com/lagradost/KMMovies.kt:219:87 Type annotation class 'org.jspecify.annotations.Nullable' of the inferred type is inaccessible. Check the module classpath for missing or conflicting dependencies. This will become an error in language version 2.4. See https://youtrack.jetbrains.com/issue/KT-80247.
 
 FAILURE: Build completed with 2 failures.
 
@@ -147,37 +121,6 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':OlaMovi
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
-	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:146)
-	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:131)
-	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
-	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
-	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$11(DefaultBuildLifecycleController.java:323)
-	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:304)
-	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$9(StateTransitionController.java:215)
-	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
-	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:215)
-	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:314)
-	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
-	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
-	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
-	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:182)
-	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
-	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
-	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
 Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
@@ -289,7 +232,7 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 61 more
+	... 30 more
 Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
 	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
@@ -371,6 +314,39 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':KatMovi
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:328)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:146)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:131)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$11(DefaultBuildLifecycleController.java:323)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:304)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$9(StateTransitionController.java:215)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:45)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:215)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:314)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.lambda$withLocksAcquired$0(DefaultWorkerLeaseService.java:275)
+	at org.gradle.internal.work.ResourceLockStatistics$1.measure(ResourceLockStatistics.java:43)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocksAcquired(DefaultWorkerLeaseService.java:273)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:265)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:128)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:182)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:199)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:84)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:199)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:47)
 	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
@@ -487,7 +463,7 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:38)
 	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:68)
 	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:132)
-	... 33 more
+	... 66 more
 Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
 	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
 	at org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork.execute(BuildToolsApiCompilationWork.kt:295)
@@ -521,11 +497,9 @@ Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilat
 	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:133)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
 	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
-	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
-	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
-	... 5 more
+	... 7 more
 
 ==============================================================================
 
-BUILD FAILED in 1m 4s
+BUILD FAILED in 1m 19s
 28 actionable tasks: 28 executed
