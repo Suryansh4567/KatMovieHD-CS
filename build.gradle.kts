@@ -119,13 +119,16 @@ subprojects {
         lint { targetSdk = 36 }
 
         compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
+            // pre-release cloudstream3 inline funcs (parseJson/tryParseJson)
+            // are now compiled with JVM target 11 — consumer bytecode must be
+            // >= 11 or inlining fails. AGP 9 desugars JVM 11 down to minSdk 21.
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
 
         tasks.withType<KotlinJvmCompile> {
             compilerOptions {
-                jvmTarget.set(JvmTarget.JVM_1_8)
+                jvmTarget.set(JvmTarget.JVM_11)
                 freeCompilerArgs.addAll(
                     "-Xno-call-assertions",
                     "-Xno-param-assertions",
