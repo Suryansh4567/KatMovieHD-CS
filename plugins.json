@@ -46,14 +46,14 @@
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/OlaMovies.cs3",
         "status": 1,
-        "version": 9,
+        "version": 10,
         "name": "OlaMovies",
         "internalName": "OlaMovies",
         "authors": [
             "arena"
         ],
-        "description": "Highest Quality UHD Movies and Series from OlaMovies. v9: cookie persistence \u2014 every request replays the headless WebView's cookies (cf_clearance + generator/drive sessions) with the WebView UA, CloudflareKiller auto-solves challenges and re-persists, so sessions survive app restarts via the system CookieManager. v5: direct-link minting from drive.olamovies.download pages via the olam.bypassbot worker. v4: playback fixed \u2014 v4-theme download links + generator-chain resolution.",
-        "fileSize": 28181,
+        "description": "Highest Quality UHD Movies and Series from OlaMovies. v10: site migrated to v6.olamovies.mov (Next.js/RSC theme) \u2014 card parser, /search?q=, quality/year categories, and RSC-JSON link extraction with structured season/episode mapping; v9 cookie persistence kept. v5: direct-link minting from drive pages via the olam.bypassbot worker.",
+        "fileSize": 32175,
         "repositoryUrl": "https://github.com/Suryansh4567/KatMovieHD-CS",
         "language": "hi",
         "tvTypes": [
@@ -63,7 +63,7 @@
         ],
         "iconUrl": "https://www.google.com/s2/favicons?domain=v4.olamovies.mov&sz=64",
         "apiVersion": 1,
-        "fileHash": "sha256-0c3efaf08327015ffae97c27f6074f5f00f17215b21b699ce0674ba18fb80b77"
+        "fileHash": "sha256-8879de48aca72e03407baea86463d1ad68e910c007eb18d2e05b47b29654f5b8"
     },
     {
         "url": "https://raw.githubusercontent.com/Suryansh4567/KatMovieHD-CS/builds/TheNextPlanet.cs3",
