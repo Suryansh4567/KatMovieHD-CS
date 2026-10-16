@@ -61,6 +61,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        # Runner images already ship a full Android SDK; this action only
+        # refreshes cmdline-tools. Recent images removed the obsolete 'tools'
+        # package, which makes the action exit 1 — but the preinstalled SDK is
+        # still perfectly usable, so don't fail the whole build for it.
+        continue-on-error: true
 
       - name: Accept Android SDK Licenses
         run: |
