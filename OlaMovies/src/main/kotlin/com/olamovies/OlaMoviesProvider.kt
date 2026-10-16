@@ -5,8 +5,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.network.WebViewResolver
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
@@ -426,16 +424,12 @@ class OlaMoviesProvider : MainAPI() {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
-                addActors(emptyList())
-                addTrailer(null)
             }
         } else {
             return newMovieLoadResponse(title, url, TvType.Movie, LinkPayload(entries.map { it.source }).toJson()) {
                 this.posterUrl = poster
                 this.plot = plot
                 this.year = year
-                addActors(emptyList())
-                addTrailer(null)
             }
         }
     }
