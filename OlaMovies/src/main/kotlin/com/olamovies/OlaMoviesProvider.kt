@@ -9,7 +9,6 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
-import com.lagradost.nicehttp.Response
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 import java.util.concurrent.atomic.AtomicInteger
@@ -99,11 +98,12 @@ class OlaMoviesProvider : MainAPI() {
         private fun isLinkHost(url: String): Boolean =
             LINK_HOSTS.any { url.contains(it, ignoreCase = true) }
 
-        /** True when a response is actually a Cloudflare challenge page. */
-        private fun isCloudflareBlocked(response: Response): Boolean {
-            if (response.code == 503) return true
-            if (response.code != 403 && response.code != 429) return false
-            val body = runCatching { response.text }.getOrNull().orEmpty()
+        /** True when a response is actually a Cloudflare challenge page.
+         *  Takes primitives — the nicehttp Response type is not nameable from
+         *  extension modules, but its members (code/text) resolve fine. */
+        private fun isCloudflareBlocked(code: Int, body: String): Boolean {
+            if (code == 503) return true
+            if (code != 403 && code != 429) return false
             return body.contains("Just a moment", true) ||
                     body.contains("cf-challenge", true) ||
                     body.contains("challenge-platform", true) ||
@@ -169,8 +169,8 @@ class OlaMoviesProvider : MainAPI() {
     private suspend fun authedGet(
         url: String,
         referer: String? = null,
-        timeout: Int = 30
-    ): Response {
+        timeout: Long = 30
+    ) = run {
         val headers = LinkedHashMap<String, String>(
             mapOf(
                 "User-Agent" to (WebViewResolver.webViewUserAgent ?: USER_AGENT),
@@ -187,12 +187,16 @@ class OlaMoviesProvider : MainAPI() {
         if (!rawCookie.isNullOrBlank()) headers["Cookie"] = rawCookie
 
         val first = app.get(url, headers = headers, timeout = timeout)
-        if (!isCloudflareBlocked(first)) return first
+        if (!isCloudflareBlocked(
+                first.code,
+                runCatching { first.text }.getOrNull().orEmpty()
+            )
+        ) return@run first
 
         // Challenge still biting → headless WebView solve. CloudflareKiller
         // stores the fresh cf_clearance in CookieManager, so every later
         // authedGet (and app restart) picks it up automatically.
-        return app.get(
+        app.get(
             url,
             headers = headers,
             referer = referer,
