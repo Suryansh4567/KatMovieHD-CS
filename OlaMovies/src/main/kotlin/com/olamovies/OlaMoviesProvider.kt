@@ -1,12 +1,15 @@
 package com.olamovies
 
+import android.webkit.CookieManager
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.network.WebViewResolver
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.lagradost.nicehttp.Response
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 import java.util.concurrent.atomic.AtomicInteger
@@ -96,6 +99,17 @@ class OlaMoviesProvider : MainAPI() {
         private fun isLinkHost(url: String): Boolean =
             LINK_HOSTS.any { url.contains(it, ignoreCase = true) }
 
+        /** True when a response is actually a Cloudflare challenge page. */
+        private fun isCloudflareBlocked(response: Response): Boolean {
+            if (response.code == 503) return true
+            if (response.code != 403 && response.code != 429) return false
+            val body = runCatching { response.text }.getOrNull().orEmpty()
+            return body.contains("Just a moment", true) ||
+                    body.contains("cf-challenge", true) ||
+                    body.contains("challenge-platform", true) ||
+                    body.contains("_cf_chl", true)
+        }
+
         /**
          * ExtractorLink.quality is an Int in this CloudStream version, so map
          * the source label to Qualities.*.value ourselves (same idiom as
@@ -138,9 +152,58 @@ class OlaMoviesProvider : MainAPI() {
         }
     }
 
+    /**
+     * v9 — cookie persistence & Cloudflare auto-bypass:
+     *
+     * The headless WebView sessions (CloudflareKiller / WebViewResolver) store
+     * their cookies — cf_clearance, generator sessions, drive login sessions —
+     * in the system-wide android.webkit.CookieManager, which persists them
+     * across app restarts. authedGet replays those cookies on every plain OkHttp
+     * request AND overrides the User-Agent to the WebView's, because
+     * cf_clearance is bound to the UA that solved the challenge.
+     *
+     * This is the "login once, reuse everywhere" behaviour: whatever the
+     * WebView earns on any previous run (challenge solved, session granted)
+     * is silently reused here without the user doing anything again.
+     */
+    private suspend fun authedGet(
+        url: String,
+        referer: String? = null,
+        timeout: Int = 30
+    ): Response {
+        val headers = LinkedHashMap<String, String>(
+            mapOf(
+                "User-Agent" to (WebViewResolver.webViewUserAgent ?: USER_AGENT),
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "en-US,en;q=0.9"
+            )
+        )
+        if (referer != null) headers["Referer"] = referer
+
+        // Replay every cookie the WebView earned for this domain so far.
+        val rawCookie = runCatching {
+            CookieManager.getInstance()?.getCookie(url)
+        }.getOrNull()
+        if (!rawCookie.isNullOrBlank()) headers["Cookie"] = rawCookie
+
+        val first = app.get(url, headers = headers, timeout = timeout)
+        if (!isCloudflareBlocked(first)) return first
+
+        // Challenge still biting → headless WebView solve. CloudflareKiller
+        // stores the fresh cf_clearance in CookieManager, so every later
+        // authedGet (and app restart) picks it up automatically.
+        return app.get(
+            url,
+            headers = headers,
+            referer = referer,
+            interceptor = CloudflareKiller(),
+            timeout = timeout
+        )
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}page/$page/"
-        val document = app.get(url).document
+        val document = authedGet(url).document
         val home = document.select("article").mapNotNull {
             it.toSearchResult()
         }
@@ -173,7 +236,7 @@ class OlaMoviesProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val document = app.get("$mainUrl/?s=$encoded").document
+        val document = authedGet("$mainUrl/?s=$encoded").document
         return document.select("article").mapNotNull {
             it.toSearchResult()
         }
@@ -232,7 +295,7 @@ class OlaMoviesProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val document = authedGet(url).document
         val title = document.selectFirst("h1.entry-title, h1.post-title, h1")?.text()?.trim()
             ?: url.substringAfterLast("/").replace("-", " ").replaceFirstChar { it.uppercase() }
         val poster = document.selectFirst(".wp-post-image, .thumb img")?.let {
@@ -316,7 +379,7 @@ class OlaMoviesProvider : MainAPI() {
      * id is missing (page layout changed / not logged in).
      */
     private suspend fun mintDriveDirectUrl(drivePageUrl: String, referer: String, fallbackName: String): String? {
-        val doc = runCatching { app.get(drivePageUrl, referer = referer, timeout = 20) }.getOrNull()
+        val doc = runCatching { authedGet(drivePageUrl, referer = referer, timeout = 20) }.getOrNull()
             ?: return null
         val html = doc.text
         val id = DRIVE_ID_REGEX.find(html)?.groupValues?.get(1) ?: return null
@@ -379,7 +442,7 @@ class OlaMoviesProvider : MainAPI() {
             runCatching {
                 // Fast path: a plain GET follows the 301 to links.olamovies.mov
                 // and returns the generator page; sniff it for a stashed URL.
-                val head = app.get(source.url, referer = "$mainUrl/", timeout = 20)
+                val head = authedGet(source.url, referer = "$mainUrl/", timeout = 20)
                 val html = head.text
                 val sniffed = sniffFinalUrl(html)
                     ?: sniffFinalUrl(head.url) // sometimes the target is in the URL itself
